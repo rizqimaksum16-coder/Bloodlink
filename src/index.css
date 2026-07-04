@@ -1,0 +1,202 @@
+@import "../default_shadcn_theme.css";
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Improve keyboard focus visibility */
+*:focus-visible {
+  outline: 2px solid #C0392B;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Ensure minimum readable font size */
+p, span, li, label, td, th {
+  min-font-size: 11px;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, [role="button"] {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Better scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F4F8;
+}
+::-webkit-scrollbar-thumb {
+  background: #D9D9E3;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C0392B;
+}
+
+/* ─── Dark Mode Overrides ─── */
+.dark body {
+  background-color: #0d0d15 !important;
+  color: #f1f1f5 !important;
+}
+
+/* ── Backgrounds ── */
+.dark .bg-white {
+  background-color: #13131f !important;
+}
+
+.dark .bg-\[\#F7F7FB\] {
+  background-color: #0d0d15 !important;
+}
+
+.dark .bg-\[\#F4F4F8\] {
+  background-color: #1a1a2a !important;
+}
+
+.dark .bg-\[\#F9F9FC\] {
+  background-color: #181827 !important;
+}
+
+.dark .bg-\[\#FAFAFA\] {
+  background-color: #181827 !important;
+}
+
+.dark .bg-\[\#FDEDEC\] {
+  background-color: #2a1218 !important;
+}
+
+.dark .bg-\[\#EAF7FB\] {
+  background-color: #0e1e26 !important;
+}
+
+.dark .bg-\[\#EAFAF1\] {
+  background-color: #0e2018 !important;
+}
+
+.dark .bg-\[\#FEF9E7\] {
+  background-color: #221a08 !important;
+}
+
+.dark .bg-\[\#F4EFFE\] {
+  background-color: #1a1228 !important;
+}
+
+/* ── Text colors ── */
+.dark .text-\[\#1A1A2E\] {
+  color: #f1f1f5 !important;
+}
+
+.dark .text-\[\#4A4A6A\] {
+  color: #a5a5c5 !important;
+}
+
+.dark .text-\[\#9B9BB5\] {
+  color: #7070a0 !important;
+}
+
+/* ── Borders ── */
+.dark .border-border {
+  border-color: #212130 !important;
+}
+
+.dark .border-\[\#F4F4F8\] {
+  border-color: #1a1a2a !important;
+}
+
+/* ── Hover states ── */
+.dark .hover\:bg-\[\#F4F4F8\]:hover {
+  background-color: #1a1a2a !important;
+}
+
+.dark .hover\:bg-\[\#F7F7FB\]:hover {
+  background-color: #181827 !important;
+}
+
+.dark .hover\:bg-\[\#FDEDEC\]:hover {
+  background-color: #2a1218 !important;
+}
+
+/* ── Cards & panels ── */
+.dark [class*="bg-white"],
+.dark [class*="bg-\[#F7F7FB\]"] {
+  border-color: #212130 !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #181827 !important;
+  color: #f1f1f5 !important;
+  border-color: #2b2b3d !important;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus,
+.dark button[role="combobox"]:focus,
+.dark button[aria-expanded="true"],
+.dark [data-state="open"] {
+  border-color: #C0392B !important;
+  outline: none !important;
+}
+
+.dark select option {
+  background-color: #13131f !important;
+  color: #f1f1f5 !important;
+}
+
+/* ── Scrollbar ── */
+.dark ::-webkit-scrollbar-track {
+  background: #13131f;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2b2b3d;
+}
+
+/* ── Shadow & ring ── */
+.dark .shadow-sm,
+.dark .shadow-lg,
+.dark .shadow-xl {
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ── Leaflet Map Dark Mode Filter ── */
+.dark .leaflet-container {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+.dark .leaflet-bar a {
+  background-color: #1a1a2a !important;
+  color: #f1f1f5 !important;
+  border-bottom: 1px solid #212130 !important;
+}
+.dark .leaflet-tooltip {
+  background-color: #13131f !important;
+  color: #f1f1f5 !important;
+  border: 1px solid #212130 !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4) !important;
+}
+.dark .leaflet-tooltip-bottom::before {
+  border-bottom-color: #13131f !important;
+}
+.dark .leaflet-tooltip-top::before {
+  border-top-color: #13131f !important;
+}
