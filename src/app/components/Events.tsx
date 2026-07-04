@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 interface Event {
   id: number;
@@ -28,7 +29,11 @@ interface Event {
   status: 'upcoming' | 'ongoing' | 'completed';
 }
 
-const defaultEvents: Event[] = [];
+const defaultEventsList: Event[] = [
+  { id: 1, name: 'Donor Darah Peduli Surabaya 2026', organizer: 'PMI Kota Surabaya', date: '2026-07-15', time: '08:00 - 14:00', location: 'Mall Galaxy Surabaya', address: 'Jl. Dharmahusada Indah Timur No. 35', capacity: 150, registered: 42, description: 'Kampanye donor darah rutin PMI Surabaya.', requirements: ['Sehat jasmani', 'BB >= 45kg', 'Usia 17-60 tahun'], status: 'upcoming' },
+  { id: 2, name: 'Event Donor Bersama UNAIR', organizer: 'KSR PMI Unair', date: '2026-08-01', time: '07:30 - 13:00', location: 'Kampus B Unair', address: 'Jl. Prof. Dr. Moestopo 47', capacity: 200, registered: 89, description: 'Donor darah sosial Dies Natalis Unair.', requirements: ['Sehat jasmani', 'Tidur min 5 jam'], status: 'upcoming' },
+  { id: 3, name: 'Donor Darah Pahlawan Kemanusiaan', organizer: 'PMI Surabaya Selatan', date: '2026-08-17', time: '09:00 - 15:00', location: 'Balai Kota Surabaya', address: 'Jl. Sedap Malam No. 1', capacity: 300, registered: 120, description: 'Aksi donor darah Kemerdekaan.', requirements: ['Sehat jasmani'], status: 'upcoming' },
+];
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   upcoming: { label: 'Akan Datang', bg: '#EBF5FB', text: '#2980B9' },
@@ -43,7 +48,7 @@ export default function Events() {
 
   const [eventList, setEventList] = useState<Event[]>(() => {
     const saved = localStorage.getItem('shared_donor_events_v4');
-    return saved ? JSON.parse(saved) : defaultEvents;
+    return saved ? JSON.parse(saved) : defaultEventsList;
   });
 
   const [registeredEvents, setRegisteredEvents] = useState<number[]>(() => {
@@ -107,6 +112,37 @@ export default function Events() {
     description: '',
     requirements: '',
   });
+
+  // Load events from Supabase if configured
+  useEffect(() => {
+    async function fetchSupabaseEvents() {
+      if (!isSupabaseConfigured) return;
+      try {
+        const { data, error } = await supabase.from('events').select('*').order('date', { ascending: true });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const mapped: Event[] = data.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            organizer: e.organizer || 'PMI Kota Surabaya',
+            date: e.date,
+            time: e.time || '08:00 - 14:00',
+            location: e.location,
+            address: e.address,
+            capacity: e.capacity || 100,
+            registered: e.registered || 0,
+            description: e.description || '',
+            requirements: typeof e.requirements === 'string' ? e.requirements.split(', ') : (e.requirements || ['Sehat jasmani']),
+            status: e.status || 'upcoming'
+          }));
+          setEventList(mapped);
+        }
+      } catch (err) {
+        console.warn('Error fetching events from Supabase:', err);
+      }
+    }
+    fetchSupabaseEvents();
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {

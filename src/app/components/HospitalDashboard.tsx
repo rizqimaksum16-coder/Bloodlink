@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -271,6 +272,50 @@ export default function HospitalDashboard() {
     const saved = localStorage.getItem('shared_blood_stocks');
     return saved ? JSON.parse(saved) : initialHospitalStock;
   });
+
+  // Load data from Supabase if configured
+  useEffect(() => {
+    async function fetchHospitalData() {
+      if (!isSupabaseConfigured) return;
+      try {
+        const { data: orderData } = await supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
+        if (orderData && orderData.length > 0) {
+          const mappedOrders: BloodOrder[] = orderData.map((o: any) => ({
+            id: o.id,
+            bloodType: o.blood_type,
+            qty: o.qty,
+            urgency: o.urgency || 'normal',
+            status: o.status || 'menunggu',
+            pmi: o.pmi || 'PMI Kota Surabaya',
+            createdAt: 'Baru saja',
+            updatedAt: 'Baru saja',
+            driver: o.driver,
+            eta: o.eta,
+            trackingPct: o.tracking_pct || 0
+          }));
+          setOrders(mappedOrders);
+        }
+
+        const { data: stockData } = await supabase.from('hospital_blood_stock').select('*');
+        if (stockData && stockData.length > 0) {
+          const mappedStocks: HospitalStock[] = stockData.map((s: any) => ({
+            type: s.blood_type,
+            stock: s.stock,
+            target: 20,
+            expiringSoon: 0,
+            lastUpdated: 'Baru saja',
+            batches: [
+              { id: `BTC-${s.blood_type}-01`, qty: s.stock, entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
+            ]
+          }));
+          setStocks(mappedStocks);
+        }
+      } catch (e) {
+        console.warn('HospitalDashboard Supabase fetch error:', e);
+      }
+    }
+    fetchHospitalData();
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {

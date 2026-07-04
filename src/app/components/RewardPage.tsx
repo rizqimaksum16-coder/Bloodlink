@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Trophy, Star, Gift, Flame, Award, CheckCircle, Lock,
   Droplets, ArrowRight, Crown, Zap, Heart, Shield, Users
 } from 'lucide-react';
 import { Progress } from './ui/progress';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 interface RewardItem {
   id: string;
@@ -31,7 +33,7 @@ interface Achievement {
   total?: number;
 }
 
-const rewards: RewardItem[] = [
+const initialRewards: RewardItem[] = [
   { id: 'R001', name: 'Voucher Indomaret 25K', description: 'Tukar poin untuk voucher belanja Indomaret', points: 500, category: 'voucher', icon: '🛒', available: true },
   { id: 'R002', name: 'Voucher GoPay 50K', description: 'Saldo GoPay langsung ke akunmu', points: 900, category: 'voucher', icon: '💚', available: true },
   { id: 'R003', name: 'Sertifikat Donor Digital', description: 'Sertifikat resmi PMI dengan QR verifikasi', points: 0, category: 'sertifikat', icon: '📜', available: true },
@@ -51,20 +53,37 @@ const achievements: Achievement[] = [
   { id: 'A006', name: 'Golongan Langka', description: 'Donor dengan golongan darah langka (AB- atau O-)', icon: Shield, color: '#2980B9', bg: '#EAF7FB', earned: false, progress: 0, total: 1 },
 ];
 
-// Mock user
-const user = { name: 'Rizky Pratama', bloodType: 'O-', totalDonations: 7, points: 0, streak: 3 };
-
 const categoryLabels: Record<string, string> = { all: 'Semua', voucher: 'Voucher', sertifikat: 'Sertifikat', merchandise: 'Merchandise', privilege: 'Privilege' };
 
 export default function RewardPage() {
+  const { user } = useAuth();
+  usePageTitle('Reward & Pencapaian');
+
+  const [rewardsList, setRewardsList] = useState<RewardItem[]>(initialRewards);
   const [activeTab, setActiveTab] = useState<'rewards' | 'achievements' | 'leaderboard'>('rewards');
   const [filter, setFilter] = useState('all');
   const [claimed, setClaimed] = useState<string[]>(['R003']);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
 
+  useEffect(() => {
+    async function loadRewards() {
+      if (!isSupabaseConfigured) return;
+      try {
+        const { data, error } = await supabase.from('rewards').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setRewardsList(data as any);
+        }
+      } catch (e) {
+        console.warn('Error loading rewards from Supabase:', e);
+      }
+    }
+    loadRewards();
+  }, []);
 
 
-  const filtered = filter === 'all' ? rewards : rewards.filter(r => r.category === filter);
+
+  const filtered = filter === 'all' ? rewardsList : rewardsList.filter(r => r.category === filter);
 
   const handleClaim = (id: string) => {
     setClaimAnim(id);
@@ -76,7 +95,7 @@ export default function RewardPage() {
     { rank: 2, name: 'Budi Santoso', donations: 12 },
     { rank: 3, name: 'Nurul Hidayah', donations: 10 },
     { rank: 4, name: 'Ahmad Fauzi', donations: 9 },
-    { rank: 5, name: user.name, donations: user.totalDonations, isMe: true },
+    { rank: 5, name: user?.name || 'Rizky Pratama', donations: 9, isMe: true },
     { rank: 6, name: 'Siti Rahayu', donations: 7 },
   ];
 
@@ -105,28 +124,26 @@ export default function RewardPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-white/70 text-xs font-semibold uppercase tracking-wide">Pendonor</p>
-                <p className="text-2xl font-bold mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{user.name}</p>
+                <p className="text-2xl font-bold mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{user?.name || 'Rizky Pratama'}</p>
               </div>
               <div className="text-right">
                 <p className="text-white/70 text-xs font-semibold">Total Poin</p>
-                <p className="text-3xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{user.points.toLocaleString('id-ID')}</p>
+                <p className="text-3xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{(350).toLocaleString('id-ID')}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Droplets className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">{user.totalDonations}× donor</span>
+                <span className="text-sm font-bold">9× donor</span>
               </div>
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Flame className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">Streak {user.streak}</span>
+                <span className="text-sm font-bold">Streak 4</span>
               </div>
             </div>
           </div>
         </div>
-
-
 
         {/* Tabs */}
         <div className="flex gap-1 bg-white border border-border rounded-xl p-1 mb-6">
@@ -160,7 +177,7 @@ export default function RewardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filtered.map(r => {
                 const isClaimed = claimed.includes(r.id);
-                const canAfford = user.points >= r.points;
+                const canAfford = 350 >= r.points;
                 const isAnimating = claimAnim === r.id;
                 return (
                   <div key={r.id} className={`bg-white rounded-2xl border p-5 transition-all ${isClaimed ? 'border-[#27AE60]/40 bg-[#EAFAF1]/20' : 'border-border hover:shadow-sm'}`}>

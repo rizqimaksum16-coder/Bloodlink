@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, CheckCircle, Clock, Droplets, AlertCircle } from 'lucide-react';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-const recentSubmissions = [
+const initialSubmissions = [
   { hospital: 'RSUD Dr. Soetomo', bloodType: 'O+', quantity: 15, time: '10 menit lalu' },
   { hospital: 'RS Siloam Surabaya', bloodType: 'A+', quantity: 8, time: '25 menit lalu' },
   { hospital: 'RS Premier Surabaya', bloodType: 'B+', quantity: 12, time: '1 jam lalu' },
@@ -25,23 +26,93 @@ export default function AddBloodStock() {
   usePageTitle('Tambah Stok Darah');
   const [formData, setFormData] = useState({ hospitalName: '', bloodType: '', quantity: '', expiryDate: '', notes: '' });
   const [loading, setLoading] = useState(false);
+  const [recentSubmissions, setRecentSubmissions] = useState(initialSubmissions);
+
+  const fetchRecentSubmissions = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .order('id', { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const mapped = data.map((item: any) => ({
+          hospital: item.user_name || 'RSUD Dr. Soetomo',
+          bloodType: item.blood_type,
+          quantity: item.quantity,
+          time: item.time_ago || 'Baru saja'
+        }));
+        setRecentSubmissions(mapped);
+      }
+    } catch (e) {
+      console.warn('Error fetching activity logs from Supabase:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecentSubmissions();
+  }, []);
 
   const handleChange = (field: string, value: string) => setFormData((p) => ({ ...p, [field]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.hospitalName || !formData.bloodType || !formData.quantity) {
       toast.error('Mohon lengkapi semua field yang wajib diisi');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      toast.success('Stok darah berhasil ditambahkan!', {
-        description: `${formData.quantity} kantong ${formData.bloodType} di ${formData.hospitalName}`,
-      });
-      setFormData({ hospitalName: '', bloodType: '', quantity: '', expiryDate: '', notes: '' });
-      setLoading(false);
-    }, 800);
+
+    const qtyNum = parseInt(formData.quantity) || 0;
+
+    if (isSupabaseConfigured) {
+      try {
+        // Insert stock entry
+        const { error: stockErr } = await supabase
+          .from('hospital_blood_stock')
+          .insert({
+            hospital_name: formData.hospitalName,
+            blood_type: formData.bloodType,
+            stock: qtyNum,
+            district: 'Surabaya',
+            address: 'Kota Surabaya',
+            phone: '031-5010000',
+            status: qtyNum > 10 ? 'available' : qtyNum > 3 ? 'low' : 'critical'
+          });
+
+        if (stockErr) console.warn('Supabase stock insert notice:', stockErr);
+
+        // Insert activity log
+        await supabase
+          .from('activity_logs')
+          .insert({
+            action: 'Pengisian Stok',
+            blood_type: formData.bloodType,
+            quantity: qtyNum,
+            user_name: formData.hospitalName,
+            time_ago: 'Baru saja',
+            positive: true
+          });
+
+        await fetchRecentSubmissions();
+      } catch (err) {
+        console.warn('Supabase submission error:', err);
+      }
+    } else {
+      // Local fallback
+      setRecentSubmissions(prev => [
+        { hospital: formData.hospitalName, bloodType: formData.bloodType, quantity: qtyNum, time: 'Baru saja' },
+        ...prev.slice(0, 4)
+      ]);
+    }
+
+    toast.success('Stok darah berhasil ditambahkan!', {
+      description: `${formData.quantity} kantong ${formData.bloodType} di ${formData.hospitalName}`,
+    });
+    setFormData({ hospitalName: '', bloodType: '', quantity: '', expiryDate: '', notes: '' });
+    setLoading(false);
   };
 
   // Check which required fields are filled

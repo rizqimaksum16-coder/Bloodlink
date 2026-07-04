@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { toast } from 'sonner';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -323,6 +324,52 @@ export default function PMIDashboard() {
     const saved = localStorage.getItem('shared_blood_stocks');
     return saved ? JSON.parse(saved) : bloodStocks;
   });
+
+  // Load from Supabase if configured
+  useEffect(() => {
+    async function loadPMIData() {
+      if (!isSupabaseConfigured) return;
+      try {
+        // Load Requests
+        const { data: reqData } = await supabase.from('blood_requests').select('*').order('id', { ascending: false });
+        if (reqData && reqData.length > 0) {
+          const mappedReq: BloodRequest[] = reqData.map((r: any) => ({
+            id: r.id,
+            hospital: r.hospital,
+            bloodType: r.blood_type,
+            qty: r.qty,
+            priority: r.priority || 'normal',
+            status: r.status || 'pending',
+            time: r.time_ago || 'Baru saja',
+            address: r.address || 'Kota Surabaya',
+            contact: r.contact || '031-5010000'
+          }));
+          setRequests(mappedReq);
+        }
+
+        // Load Stock
+        const { data: stockData } = await supabase.from('pmi_blood_stock').select('*');
+        if (stockData && stockData.length > 0) {
+          const mappedStock: BloodStock[] = stockData.map((s: any) => ({
+            type: s.blood_type,
+            stock: s.stock,
+            target: s.target || 20,
+            status: s.status || 'good',
+            expiringSoon: s.expiring_soon || 0,
+            predictedShortfall: s.stock < 5,
+            lastUpdated: 'Baru saja',
+            batches: [
+              { id: `BTC-${s.blood_type}-01`, qty: s.stock, entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
+            ]
+          }));
+          setStocks(mappedStock);
+        }
+      } catch (e) {
+        console.warn('PMIDashboard Supabase fetch error:', e);
+      }
+    }
+    loadPMIData();
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {
