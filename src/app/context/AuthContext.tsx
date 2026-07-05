@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { supabase } from '../utils/supabase';
 
 export type UserRole = 'pmi' | 'rs' | 'donor' | 'driver';
 
 export interface AuthUser {
+  id?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -12,9 +14,9 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (role: UserRole, email: string, name?: string) => void;
+  login: (role: UserRole, email: string, name?: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (name: string, email: string) => void;
+  updateProfile: (name: string, email: string) => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -93,16 +95,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Baca sesi dari cookie saat app pertama kali load
   const [user, setUser] = useState<AuthUser | null>(() => readUserFromCookie());
 
-  const login = (role: UserRole, email: string, name?: string) => {
+  // Sinkronisasi profil dengan Supabase saat startup jika session cookie tersedia
+  useEffect(() => {
+    async function syncProfileOnStart() {
+      const stored = readUserFromCookie();
+      if (stored && stored.email) {
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', stored.email)
+            .single();
+
+          if (error) throw error;
+          if (data) {
+            const syncedUser: AuthUser = {
+              id: data.id,
+              name: data.name,
+              email: data.email,
+              role: data.role as UserRole,
+              org: data.org,
+              avatar: data.avatar,
+            };
+            setUser(syncedUser);
+            setCookie(JSON.stringify(syncedUser), COOKIE_DAYS);
+          }
+        } catch (err) {
+          console.warn('Gagal men-sync profil saat startup dari Supabase:', err);
+        }
+      }
+    }
+    syncProfileOnStart();
+  }, []);
+
+  const login = async (role: UserRole, email: string, name?: string) => {
     const defaults = roleDefaults[role];
-    const newUser: AuthUser = {
+    let loggedUser: AuthUser = {
       ...defaults,
       email,
       name: name || defaults.name,
       avatar: (name || defaults.name).slice(0, 2).toUpperCase(),
     };
-    setUser(newUser);
-    setCookie(JSON.stringify(newUser), COOKIE_DAYS);
+
+    try {
+      // 1. Cek apakah user sudah terdaftar di tabel users Supabase
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (data) {
+        // Jika terdaftar, gunakan profil terdaftar
+        loggedUser = {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.role as UserRole,
+          org: data.org,
+          avatar: data.avatar,
+        };
+      } else {
+        // 2. Jika belum terdaftar, buat profil baru di Supabase
+        const { data: inserted, error: insertError } = await supabase
+          .from('users')
+          .insert({
+            name: loggedUser.name,
+            email: loggedUser.email,
+            role: loggedUser.role,
+            org: loggedUser.org,
+            avatar: loggedUser.avatar,
+          })
+          .select('*')
+          .single();
+
+        if (insertError) throw insertError;
+        if (inserted) {
+          loggedUser.id = inserted.id;
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal men-sync/menyimpan info login ke Supabase, menggunakan model local:', err);
+    }
+
+    setUser(loggedUser);
+    setCookie(JSON.stringify(loggedUser), COOKIE_DAYS);
   };
 
   const logout = () => {
@@ -110,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     deleteCookie();
   };
 
-  const updateProfile = (name: string, email: string) => {
+  const updateProfile = async (name: string, email: string) => {
     if (user) {
       const updated: AuthUser = {
         ...user,
@@ -118,6 +195,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         avatar: name.slice(0, 2).toUpperCase(),
       };
+
+      try {
+        // Sinkronisasi pembaruan profil ke database Supabase
+        const { error } = await supabase
+          .from('users')
+          .update({
+            name,
+            email,
+            avatar: updated.avatar,
+          })
+          .eq('email', user.email); // cocokan berdasarkan email lama jika id belum terisi
+
+        if (error) throw error;
+      } catch (err) {
+        console.error('Gagal memperbarui profil di Supabase:', err);
+      }
+
       setUser(updated);
       setCookie(JSON.stringify(updated), COOKIE_DAYS);
     }
