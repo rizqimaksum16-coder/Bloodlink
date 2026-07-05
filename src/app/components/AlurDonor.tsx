@@ -45,7 +45,7 @@ export default function AlurDonor() {
       localStorage.getItem('donor_registered_events') || '[]'
     );
     const savedEvents = JSON.parse(
-      localStorage.getItem('shared_donor_events_v4') || '[]'
+      localStorage.getItem('shared_donor_events_v5') || '[]'
     );
 
     // Build ticket items from registered events
@@ -100,7 +100,7 @@ export default function AlurDonor() {
         localStorage.getItem('donor_registered_events') || '[]'
       );
       const savedEvts = JSON.parse(
-        localStorage.getItem('shared_donor_events_v4') || '[]'
+        localStorage.getItem('shared_donor_events_v5') || '[]'
       );
 
       if (savedIds.length > 0) {
@@ -142,9 +142,9 @@ export default function AlurDonor() {
       const updatedIds = savedIds.filter((id) => id !== ticket.eventId);
       localStorage.setItem('donor_registered_events', JSON.stringify(updatedIds));
 
-      // Decrement count in shared_donor_events_v4
+      // Decrement count in shared_donor_events_v5
       const savedEvts = JSON.parse(
-        localStorage.getItem('shared_donor_events_v4') || '[]'
+        localStorage.getItem('shared_donor_events_v5') || '[]'
       );
       const updatedEvts = savedEvts.map((e: any) => {
         if (e.id === ticket.eventId) {
@@ -152,7 +152,7 @@ export default function AlurDonor() {
         }
         return e;
       });
-      localStorage.setItem('shared_donor_events_v4', JSON.stringify(updatedEvts));
+      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updatedEvts));
     }
 
     setTicketList((prev) => prev.filter((t) => t.id !== ticket.id));

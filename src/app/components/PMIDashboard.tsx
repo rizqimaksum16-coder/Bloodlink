@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams, useLocation } from 'react-router';
 import {
   Droplets, Users, Bell, Calendar, CheckCircle, Clock, AlertTriangle,
   MapPin, Phone, Plus, Search, Filter, Send, X, ChevronDown, TrendingUp,
@@ -9,6 +10,7 @@ import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,117 +69,17 @@ interface DonorEvent {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const bloodRequests: BloodRequest[] = [
-  { id: 'REQ001', hospital: 'RSUD Dr. Soetomo', bloodType: 'O+', qty: 5, priority: 'darurat', status: 'pending', time: '2 menit lalu', address: 'Jl. Mayjend Prof. Dr. Moestopo', contact: '031-5501011' },
-  { id: 'REQ002', hospital: 'RS Siloam Surabaya', bloodType: 'A-', qty: 3, priority: 'mendesak', status: 'diproses', time: '15 menit lalu', address: 'Jl. Gubeng Pojok 1', contact: '031-5040955' },
-  { id: 'REQ003', hospital: 'RS Husada Utama', bloodType: 'B+', qty: 8, priority: 'normal', status: 'pending', time: '1 jam lalu', address: 'Jl. Prof. Dr. Moestopo 31', contact: '031-5013188' },
-  { id: 'REQ004', hospital: 'RSUD Bhakti Dharma Husada', bloodType: 'AB+', qty: 2, priority: 'mendesak', status: 'selesai', time: '3 jam lalu', address: 'Jl. Raya Kandangan 16-18', contact: '031-7414845' },
-  { id: 'REQ005', hospital: 'RS Premier Surabaya', bloodType: 'O-', qty: 4, priority: 'darurat', status: 'pending', time: '5 menit lalu', address: 'Jl. Nginden Intan Barat', contact: '031-5993211' },
-];
+const bloodRequests: BloodRequest[] = [];
 
 const bloodStocks: BloodStock[] = [
-  { 
-    type: 'A+', 
-    stock: 12, 
-    target: 20, 
-    status: 'low',
-    expiringSoon: 0, 
-    predictedShortfall: false,
-    lastUpdated: '1 hari lalu',
-    batches: [
-      { id: 'BTC-A01', qty: 7, entryDate: '28 Jun 2026', expDate: '28 Jul 2026' },
-      { id: 'BTC-A02', qty: 5, entryDate: '25 Jun 2026', expDate: '25 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'A-', 
-    stock: 3, 
-    target: 15, 
-    status: 'critical',
-    expiringSoon: 1, 
-    predictedShortfall: true,
-    lastUpdated: '3 hari lalu',
-    batches: [
-      { id: 'BTC-A03', qty: 2, entryDate: '26 Jun 2026', expDate: '26 Jul 2026' },
-      { id: 'BTC-A04', qty: 1, entryDate: '22 Jun 2026', expDate: '20 Jun 2026' },
-    ]
-  },
-  { 
-    type: 'B+', 
-    stock: 18, 
-    target: 25, 
-    status: 'low',
-    expiringSoon: 2, 
-    predictedShortfall: false,
-    lastUpdated: '2 jam lalu',
-    batches: [
-      { id: 'BTC-B01', qty: 10, entryDate: '29 Jun 2026', expDate: '29 Jul 2026' },
-      { id: 'BTC-B02', qty: 8, entryDate: '24 Jun 2026', expDate: '24 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'B-', 
-    stock: 2, 
-    target: 10, 
-    status: 'critical',
-    expiringSoon: 0, 
-    predictedShortfall: true,
-    lastUpdated: '5 hari lalu',
-    batches: [
-      { id: 'BTC-B03', qty: 2, entryDate: '24 Jun 2026', expDate: '02 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'AB+', 
-    stock: 8, 
-    target: 15, 
-    status: 'low',
-    expiringSoon: 3, 
-    predictedShortfall: false,
-    lastUpdated: '4 jam lalu',
-    batches: [
-      { id: 'BTC-AB01', qty: 5, entryDate: '29 Jun 2026', expDate: '29 Jul 2026' },
-      { id: 'BTC-AB02', qty: 3, entryDate: '22 Jun 2026', expDate: '22 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'AB-', 
-    stock: 1, 
-    target: 8, 
-    status: 'critical',
-    expiringSoon: 0, 
-    predictedShortfall: true,
-    lastUpdated: '1 minggu lalu',
-    batches: [
-      { id: 'BTC-AB03', qty: 1, entryDate: '22 Jun 2026', expDate: '22 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'O+', 
-    stock: 15, 
-    target: 30, 
-    status: 'low',
-    expiringSoon: 0, 
-    predictedShortfall: false,
-    lastUpdated: '12 jam lalu',
-    batches: [
-      { id: 'BTC-O01', qty: 10, entryDate: '28 Jun 2026', expDate: '28 Jul 2026' },
-      { id: 'BTC-O02', qty: 5, entryDate: '27 Jun 2026', expDate: '27 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'O-', 
-    stock: 4, 
-    target: 20, 
-    status: 'critical',
-    expiringSoon: 1, 
-    predictedShortfall: true,
-    lastUpdated: '2 hari lalu',
-    batches: [
-      { id: 'BTC-O03', qty: 3, entryDate: '27 Jun 2026', expDate: '27 Jul 2026' },
-      { id: 'BTC-O04', qty: 1, entryDate: '23 Jun 2026', expDate: '23 Jun 2026' },
-    ]
-  },
+  { type: 'A+', stock: 0, target: 20, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'A-', stock: 0, target: 15, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'B+', stock: 0, target: 25, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'B-', stock: 0, target: 10, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'AB+', stock: 0, target: 15, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'AB-', stock: 0, target: 8, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'O+', stock: 0, target: 30, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'O-', stock: 0, target: 20, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
 ];
 
 const donors: Donor[] = [
@@ -189,11 +91,7 @@ const donors: Donor[] = [
   { id: 'D006', name: 'Nurul Hidayah', bloodType: 'A+', lastDonor: '2026-05-01', phone: '082469135780', eligible: false, totalDonations: 3 },
 ];
 
-const donorEvents: DonorEvent[] = [
-  { id: 'E001', name: 'Donor Darah Hari Pahlawan', date: '2026-08-17', location: 'Balai Kota Surabaya', target: 200, registered: 143 },
-  { id: 'E002', name: 'Kampanye Donor PMI Juli 2026', date: '2026-07-05', location: 'Mall Galaxy Surabaya', target: 150, registered: 89 },
-  { id: 'E003', name: 'Donor Bersama Unair', date: '2026-07-20', location: 'Kampus Unair Surabaya', target: 300, registered: 211 },
-];
+const donorEvents: DonorEvent[] = [];
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -318,12 +216,31 @@ const isExpiringSoon = (dateStr: string): boolean => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PMIDashboard() {
-  const [activeTab, setActiveTab] = useState('requests');
+  const { user } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(() => tabParam || 'requests');
+
+  useEffect(() => {
+    const currentTab = new URLSearchParams(location.search).get('tab') || tabParam;
+    if (currentTab) {
+      setActiveTab(currentTab);
+      setTimeout(() => {
+        const el = document.getElementById(`${currentTab}-section`) || document.getElementById('requests-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+  }, [location.search, tabParam]);
+
   const [requests, setRequests] = useState<BloodRequest[]>(bloodRequests);
   const [stocks, setStocks] = useState<BloodStock[]>(() => {
     const saved = localStorage.getItem('shared_blood_stocks');
     return saved ? JSON.parse(saved) : bloodStocks;
   });
+
+  const [donorList, setDonorList] = useState<Donor[]>(donors);
+  const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
 
   // Load from Supabase if configured
   useEffect(() => {
@@ -331,38 +248,85 @@ export default function PMIDashboard() {
       if (!isSupabaseConfigured) return;
       try {
         // Load Requests
-        const { data: reqData } = await supabase.from('blood_requests').select('*').order('id', { ascending: false });
+        const { data: reqData } = await supabase.from('blood_requests').select('*').order('created_at', { ascending: false });
         if (reqData && reqData.length > 0) {
           const mappedReq: BloodRequest[] = reqData.map((r: any) => ({
             id: r.id,
-            hospital: r.hospital,
+            hospital: r.hospital || r.org || 'RSUD Dr. Soetomo',
             bloodType: r.blood_type,
-            qty: r.qty,
-            priority: r.priority || 'normal',
+            qty: r.quantity || r.qty || 5,
+            priority: r.urgency || r.priority || 'normal',
             status: r.status || 'pending',
-            time: r.time_ago || 'Baru saja',
+            time: new Date(r.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             address: r.address || 'Kota Surabaya',
-            contact: r.contact || '031-5010000'
+            contact: r.phone || r.contact || '031-5010000'
           }));
           setRequests(mappedReq);
         }
 
         // Load Stock
-        const { data: stockData } = await supabase.from('pmi_blood_stock').select('*');
+        const { data: stockData } = await supabase.from('blood_stock').select('*');
         if (stockData && stockData.length > 0) {
-          const mappedStock: BloodStock[] = stockData.map((s: any) => ({
-            type: s.blood_type,
-            stock: s.stock,
-            target: s.target || 20,
-            status: s.status || 'good',
-            expiringSoon: s.expiring_soon || 0,
-            predictedShortfall: s.stock < 5,
-            lastUpdated: 'Baru saja',
-            batches: [
-              { id: `BTC-${s.blood_type}-01`, qty: s.stock, entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
-            ]
+          const pmiStocksOnly = stockData.filter((s: any) => s.owner_pmi_id != null || !s.owner_hospital_id);
+          if (pmiStocksOnly.length > 0) {
+            const targetMap: Record<string, number> = {
+              'A+': 20, 'A-': 15, 'B+': 25, 'B-': 10,
+              'AB+': 15, 'AB-': 8, 'O+': 30, 'O-': 20
+            };
+            const fallbackMap: Record<string, number> = {
+              'A+': 0, 'A-': 0, 'B+': 0, 'B-': 0,
+              'AB+': 0, 'AB-': 0, 'O+': 0, 'O-': 0
+            };
+            const mappedStock: BloodStock[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(type => {
+              const item = pmiStocksOnly.find((s: any) => s.blood_type === type);
+              const qty = item && typeof item.stock_qty === 'number' ? item.stock_qty : (fallbackMap[type] || 10);
+              const target = targetMap[type] || 20;
+              const pct = Math.round((qty / Math.max(1, target)) * 100);
+              const status: StockStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
+              return {
+                type,
+                stock: qty,
+                target,
+                status,
+                expiringSoon: Math.floor(qty * 0.1),
+                predictedShortfall: qty < 5,
+                lastUpdated: 'Baru saja',
+                batches: [
+                  { id: `BTC-${type}-01`, qty: Math.max(1, qty), entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
+                ]
+              };
+            });
+            setStocks(mappedStock);
+          }
+        }
+
+        // Load Donors
+        const { data: dpData } = await supabase.from('donor_profiles').select('*, users(name, email)');
+        if (dpData && dpData.length > 0) {
+          const mappedDonors: Donor[] = dpData.map((d: any) => ({
+            id: d.id,
+            name: d.users?.name || 'Pendonor Surabaya',
+            bloodType: d.blood_type,
+            lastDonor: d.last_donation || '2025-10-22',
+            phone: d.phone || '081234567890',
+            eligible: true,
+            totalDonations: d.total_donations || 1
           }));
-          setStocks(mappedStock);
+          setDonorList(mappedDonors);
+        }
+
+        // Load Events
+        const { data: evtData } = await supabase.from('events').select('*').order('date', { ascending: true });
+        if (evtData && evtData.length > 0) {
+          const mappedEvts: DonorEvent[] = evtData.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            date: e.date,
+            location: e.location,
+            target: e.capacity || 150,
+            registered: e.registered || 10
+          }));
+          setEventsList(mappedEvts);
         }
       } catch (e) {
         console.warn('PMIDashboard Supabase fetch error:', e);
@@ -412,8 +376,8 @@ export default function PMIDashboard() {
   const pendingCount = requests.filter(r => r.status === 'pending').length;
   const criticalStocks = stocks.filter(s => s.status === 'critical').length;
   const expiringSoon = stocks.reduce((sum, s) => sum + s.expiringSoon, 0);
-  const totalDonors = donors.length;
-  const eligibleDonors = donors.filter(d => d.eligible).length;
+  const totalDonors = donorList.length;
+  const eligibleDonors = donorList.filter(d => d.eligible).length;
 
   const handleApprove = (id: string) => {
     const req = requests.find(r => r.id === id);
@@ -526,10 +490,10 @@ export default function PMIDashboard() {
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
-            <p className="text-xs font-semibold text-[#C0392B] uppercase tracking-wider mb-1">Dashboard PMI</p>
+            <p className="text-xs font-semibold text-[#C0392B] uppercase tracking-wider mb-1">Dashboard Unit PMI</p>
             <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A2E] flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               <Droplets className="w-7 h-7 text-[#C0392B] fill-[#C0392B]" />
-              PMI Kota Surabaya
+              {user?.org || 'PMI A'}
             </h1>
             <p className="text-sm text-[#4A4A6A] mt-1">Jl. Embong Ploso No. 5, Surabaya</p>
           </div>
@@ -575,7 +539,7 @@ export default function PMIDashboard() {
           </TabsList>
 
           {/* ── Tab: Request RS ─────────────────────────────── */}
-          <TabsContent value="requests" className="space-y-4">
+          <TabsContent value="requests" id="requests-section" className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Request Darah Masuk</h3>

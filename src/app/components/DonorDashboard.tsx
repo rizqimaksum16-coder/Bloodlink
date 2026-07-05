@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { useAuth } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,28 +85,24 @@ const initialProfile: DonorProfile = {
   streak: 4,
 };
 
-const donationHistory: DonationHistory[] = [
-  { id: 'D001', date: '2025-10-22', location: 'PMI Kota Surabaya', bloodType: 'O-', volume: 450, pointsEarned: 0, certificate: true },
-  { id: 'D002', date: '2025-07-10', location: 'Event Donor Unair', bloodType: 'O-', volume: 450, pointsEarned: 0, certificate: true },
-  { id: 'D003', date: '2025-04-05', location: 'PMI Surabaya Selatan', bloodType: 'O-', volume: 450, pointsEarned: 0, certificate: false },
-  { id: 'D004', date: '2025-01-18', location: 'RS Siloam Surabaya', bloodType: 'O-', volume: 450, pointsEarned: 0, certificate: true },
-  { id: 'D005', date: '2024-10-30', location: 'PMI Kota Surabaya', bloodType: 'O-', volume: 450, pointsEarned: 0, certificate: false },
+// Default fallback arrays (used when Supabase is offline or unconfigured)
+const fallbackDonationHistory: DonationHistory[] = [
+  { id: 'D001', date: '2025-10-22', location: 'PMI A', bloodType: 'O-', volume: 450, pointsEarned: 250, certificate: true },
+  { id: 'D002', date: '2025-07-10', location: 'Event Donor Unair', bloodType: 'O-', volume: 450, pointsEarned: 250, certificate: true },
+  { id: 'D003', date: '2025-04-05', location: 'PMI Surabaya Selatan', bloodType: 'O-', volume: 450, pointsEarned: 350, certificate: false },
 ];
 
-const bookings: DonorBooking[] = [
+const fallbackBookings: DonorBooking[] = [
   { id: 'B001', event: 'Kampanye Donor PMI Juli 2026', date: '2026-07-05', location: 'Mall Galaxy Surabaya', status: 'terdaftar', qrCode: 'QR-B001-RIZKY', checkedIn: false },
   { id: 'B002', event: 'Donor Darah Hari Pahlawan', date: '2026-08-17', location: 'Balai Kota Surabaya', status: 'terdaftar', qrCode: 'QR-B002-RIZKY', checkedIn: false },
-  { id: 'B003', event: 'Donor Bersama Unair', date: '2026-03-10', location: 'Kampus Unair Surabaya', status: 'selesai', qrCode: 'QR-B003-RIZKY', checkedIn: true },
 ];
 
-const notifications: Notification[] = [
-  { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI Kota Surabaya sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa. Kamu salah satu pendonor terdekat.', time: '5 menit lalu', read: false },
-  { id: 'N002', type: 'reminder', title: 'Kamu Sudah Bisa Donor Lagi', message: 'Selamat! Masa tunggu 3 bulanmu sudah selesai per 22 Januari 2026. Jadwalkan donor sekarang.', time: '1 hari lalu', read: false },
-  { id: 'N003', type: 'reward', title: 'Reward Baru Tersedia', message: 'Kamu sudah cukup poin untuk menukar voucher Indomaret Rp25.000. Segera tukarkan sebelum kedaluwarsa!', time: '3 hari lalu', read: true },
-  { id: 'N004', type: 'info', title: 'Event Donor Juli 2026', message: 'Event Kampanye Donor PMI Juli 2026 di Mall Galaxy Surabaya tinggal 9 hari lagi. Jangan lupa hadir!', time: '5 hari lalu', read: true },
+const fallbackNotifications: Notification[] = [
+  { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI A sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa.', time: '5 menit lalu', read: false },
+  { id: 'N002', type: 'reminder', title: 'Kamu Sudah Bisa Donor Lagi', message: 'Masa tunggu 3 bulanmu sudah selesai. Jadwalkan donor sekarang.', time: '1 hari lalu', read: false },
 ];
 
-const rewards: Reward[] = [
+const fallbackRewards: Reward[] = [
   { id: 'R001', name: 'Voucher Indomaret Rp25.000', description: 'Dapat ditukarkan di seluruh Indomaret Surabaya', points: 500, icon: '🛒', claimed: false, available: true },
   { id: 'R002', name: 'Sertifikat Donor Digital', description: 'Sertifikat resmi dengan QR verifikasi dari PMI', points: 0, icon: '📜', claimed: true, available: true },
   { id: 'R003', name: 'Diskon Lab 20% RS Mitra', description: 'Diskon cek kesehatan di RS mitra Suroboyo Blood', points: 1000, icon: '🏥', claimed: false, available: true },
@@ -132,15 +129,25 @@ const btColor: Record<string, string> = {
 
 // ─── Registration Form ────────────────────────────────────────────────────────
 
-function RegistrationForm({ onComplete }: { onComplete: () => void }) {
+interface RegistrationData {
+  name: string;
+  dob: string;
+  bloodType: string;
+  phone: string;
+  address: string;
+  weight: string;
+  agree: boolean;
+}
+
+function RegistrationForm({ onComplete }: { onComplete: (data: RegistrationData) => void }) {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ name: '', dob: '', bloodType: '', phone: '', address: '', weight: '', agree: false });
+  const [form, setForm] = useState<RegistrationData>({ name: '', dob: '', bloodType: '', phone: '', address: '', weight: '', agree: false });
   const [done, setDone] = useState(false);
 
   const handleSubmit = () => {
     if (step < 3) { setStep(s => s + 1); return; }
     setDone(true);
-    setTimeout(onComplete, 1800);
+    setTimeout(() => onComplete(form), 1800);
   };
 
   if (done) return (
@@ -222,8 +229,8 @@ function RegistrationForm({ onComplete }: { onComplete: () => void }) {
           <div className="bg-[#F7F7FB] rounded-2xl p-4 space-y-3 max-h-48 overflow-y-auto text-xs text-[#4A4A6A] leading-relaxed">
             <p className="font-bold text-[#1A1A2E]">Pernyataan Pendonor</p>
             <p>Dengan mendaftar sebagai pendonor di Suroboyo Blood, saya menyatakan bahwa data yang saya berikan adalah benar dan akurat. Saya memahami bahwa donor darah adalah tindakan sukarela yang dapat menyelamatkan nyawa.</p>
-            <p>Saya menyetujui bahwa data kesehatan saya akan digunakan oleh PMI Kota Surabaya dan rumah sakit mitra untuk keperluan distribusi darah, serta saya bersedia menerima notifikasi jika ada kebutuhan darah yang sesuai dengan golongan darah saya.</p>
-            <p>Saya memahami bahwa saya dapat membatalkan persetujuan ini kapan saja dengan menghubungi PMI Kota Surabaya.</p>
+            <p>Saya menyetujui bahwa data kesehatan saya akan digunakan oleh PMI A dan rumah sakit mitra untuk keperluan distribusi darah, serta saya bersedia menerima notifikasi jika ada kebutuhan darah yang sesuai dengan golongan darah saya.</p>
+            <p>Saya memahami bahwa saya dapat membatalkan persetujuan ini kapan saja dengan menghubungi PMI A.</p>
           </div>
           <label className="flex items-start gap-3 cursor-pointer">
             <div onClick={() => setForm(f => ({ ...f, agree: !f.agree }))}
@@ -298,23 +305,139 @@ function QRModal({ booking, onClose, onCheckIn }: { booking: DonorBooking; onClo
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function DonorDashboard() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('profil');
-  const [profile, setProfile] = useState<DonorProfile>(initialProfile);
-  const [showRegForm, setShowRegForm] = useState(false);
-  const notifKey = user ? `sb_notifications_${user.email}` : 'sb_notifications_donor';
 
-  const [notifs, setNotifs] = useState<Notification[]>(() => {
+  // ── Profile state (localStorage-backed with Supabase sync) ──────────────────
+  const profileKey = user ? `sb_profile_${user.email}` : 'sb_profile_donor';
+  const [profile, setProfile] = useState<DonorProfile>(() => {
     try {
-      // Safely check cookie/storage during initialization
-      const cookieMatch = document.cookie.split('; ').find(row => row.startsWith('sb_session='));
-      const email = cookieMatch ? JSON.parse(decodeURIComponent(cookieMatch.split('=')[1])).email : 'donor';
-      const saved = localStorage.getItem(`sb_notifications_${email}`);
-      return saved ? JSON.parse(saved) : notifications;
+      const saved = localStorage.getItem(profileKey);
+      return saved ? JSON.parse(saved) : initialProfile;
     } catch {
-      return notifications;
+      return initialProfile;
     }
   });
+
+  useEffect(() => {
+    localStorage.setItem(profileKey, JSON.stringify(profile));
+  }, [profile, profileKey]);
+
+  // ── Supabase: fetch donor_profile data on mount ──────────────────────────────
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.email) return;
+    (async () => {
+      try {
+        const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
+        if (!userData?.id) return;
+        const { data: dp } = await supabase.from('donor_profiles').select('*').eq('user_id', userData.id).single();
+        if (dp) {
+          const synced: DonorProfile = {
+            name: user.name,
+            bloodType: dp.blood_type,
+            dob: dp.dob || initialProfile.dob,
+            phone: dp.phone || initialProfile.phone,
+            address: dp.address || initialProfile.address,
+            registered: dp.registered,
+            totalDonations: dp.total_donations,
+            lastDonation: dp.last_donation,
+            nextEligible: dp.next_eligible || initialProfile.nextEligible,
+            points: dp.points,
+            level: dp.level as DonorProfile['level'],
+            streak: dp.streak,
+          };
+          setProfile(synced);
+        }
+      } catch (e) { console.warn('Gagal fetch donor_profile:', e); }
+    })();
+  }, [user?.email]);
+
+  // ── Supabase: fetch donation history ─────────────────────────────────────────
+  const [donationHistoryData, setDonationHistoryData] = useState<DonationHistory[]>(fallbackDonationHistory);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.email) return;
+    (async () => {
+      try {
+        const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
+        if (!userData?.id) return;
+        const { data: dp } = await supabase.from('donor_profiles').select('id').eq('user_id', userData.id).single();
+        if (!dp?.id) return;
+        const { data } = await supabase.from('donation_records').select('*').eq('donor_id', dp.id).order('date', { ascending: false });
+        if (data && data.length > 0) {
+          setDonationHistoryData(data.map(r => ({
+            id: r.id,
+            date: r.date,
+            location: r.location,
+            bloodType: r.blood_type,
+            volume: r.volume_ml,
+            pointsEarned: r.points_earned,
+            certificate: r.certificate,
+          })));
+        }
+      } catch (e) { console.warn('Gagal fetch donation_records:', e); }
+    })();
+  }, [user?.email]);
+
+  // ── Supabase: fetch event bookings ───────────────────────────────────────────
+  const [myBookings, setMyBookings] = useState<DonorBooking[]>(fallbackBookings);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.email) return;
+    (async () => {
+      try {
+        const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
+        if (!userData?.id) return;
+        const { data: dp } = await supabase.from('donor_profiles').select('id').eq('user_id', userData.id).single();
+        if (!dp?.id) return;
+        const { data } = await supabase.from('event_bookings').select('*').eq('donor_id', dp.id).order('event_date', { ascending: false });
+        if (data && data.length > 0) {
+          setMyBookings(data.map(b => ({
+            id: b.id,
+            event: b.event_name,
+            date: b.event_date,
+            location: b.location,
+            status: b.status as DonorBooking['status'],
+            qrCode: b.qr_code,
+            checkedIn: b.checked_in,
+          })));
+        }
+      } catch (e) { console.warn('Gagal fetch event_bookings:', e); }
+    })();
+  }, [user?.email]);
+
+  // ── Notifications: Supabase + localStorage hybrid ────────────────────────────
+  const [showRegForm, setShowRegForm] = useState(false);
+  const notifKey = user ? `sb_notifications_${user.email}` : 'sb_notifications_donor';
+  const [notifs, setNotifs] = useState<Notification[]>(() => {
+    try {
+      const saved = localStorage.getItem(notifKey);
+      return saved ? JSON.parse(saved) : fallbackNotifications;
+    } catch { return fallbackNotifications; }
+  });
+
+  // Sync notifications from Supabase on mount
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.email) return;
+    (async () => {
+      try {
+        const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
+        if (!userData?.id) return;
+        const { data: dp } = await supabase.from('donor_profiles').select('id').eq('user_id', userData.id).single();
+        if (!dp?.id) return;
+        const { data } = await supabase.from('donor_notifications').select('*').eq('donor_id', dp.id).order('created_at', { ascending: false });
+        if (data && data.length > 0) {
+          const mapped: Notification[] = data.map(n => ({
+            id: n.id,
+            type: n.type as Notification['type'],
+            title: n.title,
+            message: n.message,
+            time: new Date(n.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+            read: n.read,
+          }));
+          setNotifs(mapped);
+        }
+      } catch (e) { console.warn('Gagal fetch donor_notifications:', e); }
+    })();
+  }, [user?.email]);
 
   useEffect(() => {
     localStorage.setItem(notifKey, JSON.stringify(notifs));
@@ -326,9 +449,7 @@ export default function DonorDashboard() {
       try {
         const saved = localStorage.getItem(notifKey);
         if (saved) setNotifs(JSON.parse(saved));
-      } catch (e) {
-        console.warn(e);
-      }
+      } catch (e) { console.warn(e); }
     };
     window.addEventListener('sb_notifications_changed', syncNotifs);
     window.addEventListener('storage', syncNotifs);
@@ -339,7 +460,6 @@ export default function DonorDashboard() {
   }, [notifKey]);
 
   const [qrBooking, setQrBooking] = useState<DonorBooking | null>(null);
-  const [myBookings, setMyBookings] = useState<DonorBooking[]>(bookings);
   const [claimedRewards, setClaimedRewards] = useState<string[]>(['R002']);
 
   const unreadCount = notifs.filter(n => !n.read).length;
@@ -519,7 +639,7 @@ export default function DonorDashboard() {
             <div className="relative">
               <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-[#F4F4F8]" />
               <div className="space-y-4">
-                {donationHistory.map((d, i) => (
+                {donationHistoryData.map((d, i) => (
                   <div key={d.id} className="relative flex gap-4">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 z-10 shadow-sm" style={{ background: btColor[d.bloodType] }}>
                       {d.bloodType}
@@ -627,7 +747,7 @@ export default function DonorDashboard() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {rewards.map(reward => {
+              {fallbackRewards.map(reward => {
                 const isClaimed = claimedRewards.includes(reward.id);
                 const canClaim = reward.available && !isClaimed && (reward.points === 0 || profile.points >= reward.points);
                 return (
@@ -701,7 +821,29 @@ export default function DonorDashboard() {
               </div>
               <button onClick={() => setShowRegForm(false)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8]"><X className="w-5 h-5" /></button>
             </div>
-            <RegistrationForm onComplete={() => { setProfile(p => ({ ...p, registered: true })); setShowRegForm(false); }} />
+            <RegistrationForm onComplete={async (formData) => {
+              const updatedProfile: DonorProfile = {
+                ...profile,
+                name: formData.name || profile.name,
+                dob: formData.dob || profile.dob,
+                bloodType: formData.bloodType || profile.bloodType,
+                phone: formData.phone || profile.phone,
+                address: formData.address || profile.address,
+                registered: true
+              };
+              setProfile(updatedProfile);
+              localStorage.setItem(profileKey, JSON.stringify(updatedProfile));
+
+              if (formData.name && user) {
+                try {
+                  await updateProfile(formData.name, user.email);
+                } catch (e) {
+                  console.warn('Gagal men-sync perubahan nama ke AuthContext/Supabase:', e);
+                }
+              }
+
+              setShowRegForm(false);
+            }} />
           </div>
         </div>
       )}

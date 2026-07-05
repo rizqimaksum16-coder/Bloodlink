@@ -9,6 +9,7 @@ import { useAuth, UserRole } from '../context/AuthContext';
 import LogoutConfirmDialog from './LogoutConfirmDialog';
 import ProfileModal from './ProfileModal';
 import DonorAIChat from './DonorAIChat';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 // ─── Role nav config (dashboard link per role) ────────────────────────────────
 
@@ -42,27 +43,106 @@ export default function Navigation() {
 
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  // Reload notifications when user changes
+  // Reload notifications when user changes with role validation and Supabase integration
   useEffect(() => {
     if (!user) {
       setNotifications([]);
       return;
     }
     const userKey = `sb_notifications_${user.email}`;
-    try {
-      const saved = localStorage.getItem(userKey);
-      if (saved) {
-        setNotifications(JSON.parse(saved));
-      } else {
-        const defaults = getRoleDefaultNotifications(user.role);
-        setNotifications(defaults);
-        localStorage.setItem(userKey, JSON.stringify(defaults));
-        window.dispatchEvent(new Event('sb_notifications_changed'));
+    const rolePrefixes: Record<string, string> = {
+      pmi: 'N_PMI',
+      rs: 'N_RS',
+      driver: 'N_DRV',
+      donor: 'N00'
+    };
+    const expectedPrefix = rolePrefixes[user.role] || 'N00';
+
+    async function loadNotifications() {
+      if (!user) return;
+      // Try fetching live notifications from Supabase first
+      if (isSupabaseConfigured) {
+        try {
+          if (user.role === 'pmi') {
+            const { data: reqs } = await supabase.from('blood_requests').select('*').eq('status', 'pending').limit(3);
+            if (reqs && reqs.length > 0) {
+              const liveNotifs = reqs.map((r: any, idx: number) => ({
+                id: `N_PMI_LIVE_${r.id}`,
+                type: 'darurat',
+                title: '🚨 Permintaan Darah Baru!',
+                message: `Rumah Sakit mengajukan permintaan ${r.quantity || r.qty || 5} kantong ${r.blood_type} (Urgensi: ${r.urgency || 'Mendesak'}).`,
+                time: 'Baru saja',
+                read: false
+              }));
+              const defaults = getRoleDefaultNotifications('pmi');
+              const merged = [...liveNotifs, ...defaults.slice(liveNotifs.length)];
+              setNotifications(merged);
+              localStorage.setItem(userKey, JSON.stringify(merged));
+              return;
+            }
+          } else if (user.role === 'driver') {
+            const { data: delivs } = await supabase.from('deliveries').select('*').eq('driver_name', user.name).limit(3);
+            if (delivs && delivs.length > 0) {
+              const liveNotifs = delivs.map((d: any) => ({
+                id: `N_DRV_LIVE_${d.id}`,
+                type: d.urgent ? 'darurat' : 'info',
+                title: d.status === 'perjalanan' ? '🚚 Sedang Dalam Perjalanan' : '🚨 Tugas Pengantaran Darah!',
+                message: `Pengiriman ${d.order_id} (${d.qty} kantong ${d.blood_type}) dari ${d.from_name} ke ${d.to_name}.`,
+                time: d.updated_at ? new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
+                read: false
+              }));
+              setNotifications(liveNotifs);
+              localStorage.setItem(userKey, JSON.stringify(liveNotifs));
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Gagal fetch live notifications:', e);
+        }
       }
-    } catch {
-      setNotifications([]);
+
+      // LocalStorage or Role Default fallback
+      try {
+        const saved = localStorage.getItem(userKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const isRoleMatch = Array.isArray(parsed) && parsed.length > 0 && (
+            (user.role === 'pmi' && parsed[0]?.id?.includes('PMI')) ||
+            (user.role === 'rs' && parsed[0]?.id?.includes('RS')) ||
+            (user.role === 'driver' && parsed[0]?.id?.includes('DRV')) ||
+            (user.role === 'donor' && !parsed[0]?.id?.includes('PMI') && !parsed[0]?.id?.includes('RS') && !parsed[0]?.id?.includes('DRV'))
+          );
+          if (isRoleMatch) {
+            setNotifications(parsed);
+            return;
+          }
+        }
+      } catch (e) { console.warn(e); }
+
+      // Reset to exact role defaults
+      const defaults = getRoleDefaultNotifications(user.role);
+      setNotifications(defaults);
+      localStorage.setItem(userKey, JSON.stringify(defaults));
+      window.dispatchEvent(new Event('sb_notifications_changed'));
     }
+
+    loadNotifications();
   }, [user]);
+
+  const handleNotificationClick = (notifId: string) => {
+    const updated = notifications.map(n => n.id === notifId ? { ...n, read: true } : n);
+    setNotifications(updated);
+    if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
+    window.dispatchEvent(new Event('sb_notifications_changed'));
+    setNotifOpen(false);
+
+    const role = user?.role;
+    const targetPath = getNotifAction(role).to;
+    console.log('[Notif] user role:', role, '| navigating to:', targetPath);
+    setTimeout(() => {
+      window.location.href = targetPath;
+    }, 50);
+  };
 
   useEffect(() => {
     const handleSync = () => {
@@ -84,7 +164,8 @@ export default function Navigation() {
   }, [user]);
 
   const profileRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
+  const notifRefDesktop = useRef<HTMLDivElement>(null);
+  const notifRefMobile = useRef<HTMLDivElement>(null);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -143,7 +224,10 @@ export default function Navigation() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+      const insideNotif =
+        (notifRefDesktop.current && notifRefDesktop.current.contains(e.target as Node)) ||
+        (notifRefMobile.current && notifRefMobile.current.contains(e.target as Node));
+      if (!insideNotif) setNotifOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -250,7 +334,7 @@ export default function Navigation() {
 
               {/* Notification Bell */}
               {isAuthenticated && user && (
-                <div className="relative" ref={notifRef}>
+                <div className="relative" ref={notifRefDesktop}>
                   <button
                     onClick={() => setNotifOpen(v => !v)}
                     className="p-2 rounded-xl border border-border hover:border-[#C0392B]/40 hover:bg-[#F4F4F8] transition-all text-[#4A4A6A] hover:text-[#C0392B] relative"
@@ -265,7 +349,7 @@ export default function Navigation() {
                   </button>
 
                   {notifOpen && (
-                    <div className="absolute top-full right-0 mt-2 bg-white border border-border rounded-2xl shadow-xl w-80 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 bg-white border border-border rounded-2xl shadow-xl w-80 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                       <div className="px-4 py-3 border-b border-border bg-[#F9F9FC] flex items-center justify-between">
                         <span className="font-bold text-xs text-[#1A1A2E]">Notifikasi centre</span>
                         {notifications.filter(n => !n.read).length > 0 && (
@@ -290,12 +374,7 @@ export default function Navigation() {
                             return (
                               <div
                                 key={notif.id}
-                                onClick={() => {
-                                  const updated = notifications.map(n => n.id === notif.id ? { ...n, read: true } : n);
-                                  setNotifications(updated);
-                                  if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                                  window.dispatchEvent(new Event('sb_notifications_changed'));
-                                }}
+                                onClick={() => handleNotificationClick(notif.id)}
                                 className={`p-3.5 text-left cursor-pointer transition-colors hover:bg-[#F8F9FA] flex gap-2.5 items-start ${isUnread ? 'bg-[#FDEDEC]/10' : ''}`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isUnread ? 'bg-[#C0392B]' : 'bg-transparent'}`} />
@@ -303,20 +382,16 @@ export default function Navigation() {
                                   <p className={`text-xs font-bold ${isUnread ? 'text-[#1A1A2E]' : 'text-[#4A4A6A]'}`}>{notif.title}</p>
                                   <p className="text-[11px] text-[#9B9BB5] mt-0.5 leading-relaxed">{notif.message}</p>
                                   {notif.type === 'darurat' && isUnread && (
-                                    <Link
-                                      to="/events"
+                                    <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        const updated = notifications.map(n => n.id === notif.id ? { ...n, read: true } : n);
-                                        setNotifications(updated);
-                                        if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                                        window.dispatchEvent(new Event('sb_notifications_changed'));
-                                        setNotifOpen(false);
+                                        handleNotificationClick(notif.id);
                                       }}
-                                      className="block mt-2 w-full py-1.5 rounded-lg bg-[#C0392B] hover:bg-[#922B21] text-white text-[10px] font-bold text-center transition-all shadow-sm"
+                                      className="block mt-2 w-full py-1.5 rounded-lg bg-[#C0392B] hover:bg-[#922B21] text-white text-[10px] font-bold text-center transition-all shadow-sm cursor-pointer"
                                     >
-                                      Daftar Donor Sekarang →
-                                    </Link>
+                                      {getNotifAction(user?.role).label}
+                                    </button>
                                   )}
                                   <span className="text-[9px] text-[#9B9BB5] block mt-1.5">{notif.time}</span>
                                 </div>
@@ -390,7 +465,7 @@ export default function Navigation() {
             {/* Mobile right */}
             <div className="md:hidden ml-auto flex items-center gap-2">
               {isAuthenticated && user && (
-                <div className="relative" ref={notifRef}>
+                <div className="relative" ref={notifRefMobile}>
                   <button
                     onClick={() => setNotifOpen(v => !v)}
                     className="p-1.5 rounded-lg border border-border bg-white text-[#4A4A6A] hover:text-[#C0392B] relative animate-in zoom-in duration-100"
@@ -405,7 +480,7 @@ export default function Navigation() {
                   </button>
 
                   {notifOpen && (
-                    <div className="absolute top-full right-[-40px] mt-2 bg-white border border-border rounded-2xl shadow-xl w-72 overflow-hidden z-50">
+                    <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-[-40px] mt-2 bg-white border border-border rounded-2xl shadow-xl w-72 overflow-hidden z-50">
                       <div className="px-4 py-3 border-b border-border bg-[#F9F9FC] flex items-center justify-between">
                         <span className="font-bold text-xs text-[#1A1A2E]">Notifikasi</span>
                         {notifications.filter(n => !n.read).length > 0 && (
@@ -430,12 +505,7 @@ export default function Navigation() {
                             return (
                               <div
                                 key={notif.id}
-                                onClick={() => {
-                                  const updated = notifications.map(n => n.id === notif.id ? { ...n, read: true } : n);
-                                  setNotifications(updated);
-                                  if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                                  window.dispatchEvent(new Event('sb_notifications_changed'));
-                                }}
+                                onClick={() => handleNotificationClick(notif.id)}
                                 className={`p-3 text-left cursor-pointer hover:bg-[#F8F9FA] flex gap-2 items-start ${isUnread ? 'bg-[#FDEDEC]/10' : ''}`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isUnread ? 'bg-[#C0392B]' : 'bg-transparent'}`} />
@@ -443,20 +513,16 @@ export default function Navigation() {
                                   <p className={`text-xs font-bold ${isUnread ? 'text-[#1A1A2E]' : 'text-[#4A4A6A]'}`}>{notif.title}</p>
                                   <p className="text-[10px] text-[#9B9BB5] mt-0.5 leading-relaxed">{notif.message}</p>
                                   {notif.type === 'darurat' && isUnread && (
-                                    <Link
-                                      to="/events"
+                                    <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        const updated = notifications.map(n => n.id === notif.id ? { ...n, read: true } : n);
-                                        setNotifications(updated);
-                                        if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                                        window.dispatchEvent(new Event('sb_notifications_changed'));
-                                        setNotifOpen(false);
+                                        handleNotificationClick(notif.id);
                                       }}
-                                      className="block mt-2 w-full py-1.5 rounded-lg bg-[#C0392B] hover:bg-[#922B21] text-white text-[9px] font-bold text-center transition-all shadow-sm"
+                                      className="block mt-2 w-full py-1.5 rounded-lg bg-[#C0392B] hover:bg-[#922B21] text-white text-[9px] font-bold text-center transition-all shadow-sm cursor-pointer"
                                     >
-                                      Daftar Donor Sekarang →
-                                    </Link>
+                                      {getNotifAction(user?.role).label}
+                                    </button>
                                   )}
                                   <span className="text-[9px] text-[#9B9BB5] block mt-1">{notif.time}</span>
                                 </div>
@@ -632,30 +698,44 @@ export default function Navigation() {
   );
 }
 
+const getNotifAction = (role?: string) => {
+  switch (role) {
+    case 'pmi':
+      return { to: '/dashboard/pmi?tab=requests', label: 'Proses Permintaan Darah →' };
+    case 'rs':
+      return { to: '/dashboard/rs?tab=order', label: 'Pantau Status Order →' };
+    case 'driver':
+      return { to: '/dashboard/driver', label: 'Lihat Tugas Kurir →' };
+    case 'donor':
+    default:
+      return { to: '/events', label: 'Daftar Donor Sekarang →' };
+  }
+};
+
 const getRoleDefaultNotifications = (role: string) => {
   switch (role) {
     case 'pmi':
       return [
-        { id: 'N_PMI_01', type: 'darurat', title: '🚨 Permintaan Darah Baru!', message: 'RSUD Dr. Soetomo mengajukan permintaan 5 kantong O+ (Urgency: Darurat).', time: '1 menit lalu', read: false },
-        { id: 'N_PMI_02', type: 'info', title: '⚠️ Stok Darah Kritis!', message: 'Stok darah B- di gudang UTD kurang dari batas aman (tersisa 3 kantong).', time: '2 jam lalu', read: false },
-        { id: 'N_PMI_03', type: 'info', title: '📅 Rapat Koordinasi PMI', message: 'Rapat koordinasi distribusi darah wilayah Surabaya Timur besok pukul 09:00 WIB.', time: '1 hari lalu', read: true }
+        { id: 'N_PMI_01', type: 'darurat', title: '🚨 Permintaan Darah Baru!', message: 'Rumah Sakit A mengajukan permintaan 5 kantong O+ (Urgency: Darurat).', time: '1 menit lalu', read: false },
+        { id: 'N_PMI_02', type: 'info', title: '⚠️ Stok Darah Kritis!', message: 'Stok darah B- di gudang UTD PMI A kurang dari batas aman (tersisa 3 kantong).', time: '2 jam lalu', read: false },
+        { id: 'N_PMI_03', type: 'info', title: '📅 Rapat Koordinasi PMI', message: 'Rapat koordinasi distribusi darah wilayah PMI A besok pukul 09:00 WIB.', time: '1 hari lalu', read: true }
       ];
     case 'rs':
       return [
         { id: 'N_RS_01', type: 'darurat', title: '📦 Pesanan Darah Dikirim', message: 'Order darah ORD001 (5 kantong O+) sedang dalam perjalanan bersama kurir Budi (ETA: 5 menit).', time: '5 menit lalu', read: false },
-        { id: 'N_RS_02', type: 'reward', title: '✅ Permintaan Disetujui', message: 'Permintaan darah O- oleh RSUD Dr. Soetomo telah diverifikasi dan disetujui oleh PMI.', time: '15 menit lalu', read: false },
+        { id: 'N_RS_02', type: 'reward', title: '✅ Permintaan Disetujui', message: 'Permintaan darah O- oleh Rumah Sakit A telah diverifikasi dan disetujui oleh PMI.', time: '15 menit lalu', read: false },
         { id: 'N_RS_03', type: 'info', title: '💡 Rekomendasi AI', message: 'Stok darah A+ Anda diprediksi habis dalam 2 hari berdasarkan data histori pemakaian.', time: '1 hari lalu', read: true }
       ];
     case 'driver':
       return [
-        { id: 'N_DRV_01', type: 'darurat', title: '🚨 Tugas Pengantaran Baru!', message: 'Kirim 5 kantong O+ dari UTD PMI ke RSUD Dr. Soetomo. Segera ambil muatan.', time: '2 menit lalu', read: false },
+        { id: 'N_DRV_01', type: 'darurat', title: '🚨 Tugas Pengantaran Baru!', message: 'Kirim 5 kantong O+ dari UTD PMI A ke Rumah Sakit A. Segera ambil muatan.', time: '2 menit lalu', read: false },
         { id: 'N_DRV_02', type: 'reward', title: '✅ Pengiriman Selesai', message: 'Serah terima darah O- di RS Premier Surabaya telah berhasil dikonfirmasi.', time: '3 jam lalu', read: false },
         { id: 'N_DRV_03', type: 'info', title: '⚠️ Kendala Rute', message: 'Rute Jl. Nginden terpantau padat. Gunakan rute alternatif untuk efisiensi pengiriman.', time: '1 hari lalu', read: true }
       ];
     case 'donor':
     default:
       return [
-        { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI Kota Surabaya sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa. Kamu salah satu pendonor terdekat.', time: '5 menit lalu', read: false },
+        { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI A sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa. Kamu salah satu pendonor terdekat.', time: '5 menit lalu', read: false },
         { id: 'N002', type: 'reminder', title: 'Kamu Sudah Bisa Donor Lagi', message: 'Selamat! Masa tunggu 3 bulanmu sudah selesai per 22 Januari 2026. Jadwalkan donor sekarang.', time: '1 hari lalu', read: false },
         { id: 'N003', type: 'reward', title: 'Reward Baru Tersedia', message: 'Kamu sudah cukup poin untuk menukar voucher Indomaret Rp25.000. Segera tukarkan sebelum kedaluwarsa!', time: '3 hari lalu', read: true },
         { id: 'N004', type: 'info', title: 'Event Donor Juli 2026', message: 'Event Kampanye Donor PMI Juli 2026 di Mall Galaxy Surabaya tinggal 9 hari lagi. Jangan lupa hadir!', time: '5 hari lalu', read: true }

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 export type UserRole = 'pmi' | 'rs' | 'donor' | 'driver';
 
@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (role: UserRole, email: string, name?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (name: string, email: string) => Promise<void>;
+  registerDonor: (name: string, email: string, bloodType: string, phone: string, address: string) => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -64,16 +65,16 @@ function readUserFromCookie(): AuthUser | null {
 
 const roleDefaults: Record<UserRole, Omit<AuthUser, 'email'>> = {
   pmi: {
-    name: 'Admin PMI',
+    name: 'Admin PMI A',
     role: 'pmi',
-    org: 'PMI Kota Surabaya',
-    avatar: 'AP',
+    org: 'PMI A',
+    avatar: 'PA',
   },
   rs: {
-    name: 'Admin RS',
+    name: 'Admin Rumah Sakit A',
     role: 'rs',
-    org: 'RSUD Dr. Soetomo',
-    avatar: 'AR',
+    org: 'Rumah Sakit A',
+    avatar: 'RA',
   },
   donor: {
     name: 'Rizky Pratama',
@@ -84,12 +85,21 @@ const roleDefaults: Record<UserRole, Omit<AuthUser, 'email'>> = {
   driver: {
     name: 'Budi Santoso',
     role: 'driver',
-    org: 'PMI Kota Surabaya (Logistik)',
+    org: 'PMI A (Logistik)',
     avatar: 'BS',
   },
 };
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
+
+const knownDemoUsers: Record<string, { name: string; org: string; avatar: string }> = {
+  'admin@pmia.org': { name: 'Admin PMI A', org: 'PMI A', avatar: 'PA' },
+  'admin@pmib.org': { name: 'Admin PMI B', org: 'PMI B', avatar: 'PB' },
+  'admin@pmic.org': { name: 'Admin PMI C', org: 'PMI C', avatar: 'PC' },
+  'admin@rumahsakita.com': { name: 'Admin Rumah Sakit A', org: 'Rumah Sakit A', avatar: 'RA' },
+  'admin@rumahsakitb.com': { name: 'Admin Rumah Sakit B', org: 'Rumah Sakit B', avatar: 'RB' },
+  'admin@rumahsakitc.com': { name: 'Admin Rumah Sakit C', org: 'Rumah Sakit C', avatar: 'RC' },
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Baca sesi dari cookie saat app pertama kali load
@@ -130,11 +140,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (role: UserRole, email: string, name?: string) => {
     const defaults = roleDefaults[role];
+    const demoMeta = knownDemoUsers[email];
     let loggedUser: AuthUser = {
       ...defaults,
       email,
-      name: name || defaults.name,
-      avatar: (name || defaults.name).slice(0, 2).toUpperCase(),
+      name: demoMeta ? demoMeta.name : (name || defaults.name),
+      org: demoMeta ? demoMeta.org : defaults.org,
+      avatar: demoMeta ? demoMeta.avatar : (name || defaults.name).slice(0, 2).toUpperCase(),
     };
 
     try {
@@ -187,6 +199,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     deleteCookie();
   };
 
+  const registerDonor = async (name: string, email: string, bloodType: string, phone: string, address: string) => {
+    let newUserId = `usr_${Date.now()}`;
+    if (isSupabaseConfigured) {
+      try {
+        const { data: inserted } = await supabase
+          .from('users')
+          .insert({
+            name,
+            email,
+            role: 'donor',
+            org: 'Pendonor Aktif',
+            avatar: name.slice(0, 2).toUpperCase()
+          })
+          .select('*')
+          .single();
+
+        if (inserted) {
+          newUserId = inserted.id;
+          await supabase.from('donor_profiles').insert({
+            user_id: inserted.id,
+            blood_type: bloodType,
+            phone,
+            address,
+            points: 50,
+            badge: 'Pendonor Baru'
+          });
+        }
+      } catch (e) {
+        console.warn('Register donor error:', e);
+      }
+    }
+
+    const newUser: AuthUser = {
+      id: newUserId,
+      name,
+      email,
+      role: 'donor',
+      org: 'Pendonor Aktif',
+      avatar: name.slice(0, 2).toUpperCase()
+    };
+    setUser(newUser);
+    setCookie(JSON.stringify(newUser), COOKIE_DAYS);
+  };
+
   const updateProfile = async (name: string, email: string) => {
     if (user) {
       const updated: AuthUser = {
@@ -218,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateProfile, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, updateProfile, registerDonor, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

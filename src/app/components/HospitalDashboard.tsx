@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, LayoutGrid, Trash2, ChevronDown
+  RefreshCw, LayoutGrid, Trash2, ChevronDown, Calendar
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,105 +58,22 @@ interface HospitalStock {
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
 const pmiOptions: PMIOption[] = [
-  { id: 'PMI001', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', stock: 48, capacity: 100, score: 96, travelTime: '8 mnt' },
-  { id: 'PMI002', name: 'PMI Surabaya Timur', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', stock: 30, capacity: 80, score: 78, travelTime: '14 mnt' },
-  { id: 'PMI003', name: 'PMI Surabaya Selatan', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', stock: 55, capacity: 100, score: 62, travelTime: '22 mnt' },
+  { id: 'PMI001', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', stock: 0, capacity: 100, score: 96, travelTime: '8 mnt' },
+  { id: 'PMI002', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', stock: 0, capacity: 80, score: 85, travelTime: '14 mnt' },
+  { id: 'PMI003', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', stock: 0, capacity: 100, score: 78, travelTime: '22 mnt' },
 ];
 
-const bloodOrders: BloodOrder[] = [
-  { id: 'ORD001', bloodType: 'O+', qty: 5, urgency: 'darurat', status: 'dikirim', pmi: 'PMI Kota Surabaya', createdAt: '10 mnt lalu', updatedAt: '3 mnt lalu', driver: 'Budi (081234)', eta: '5 mnt lagi', trackingPct: 75 },
-  { id: 'ORD002', bloodType: 'A-', qty: 3, urgency: 'mendesak', status: 'diproses', pmi: 'PMI Surabaya Timur', createdAt: '25 mnt lalu', updatedAt: '10 mnt lalu', driver: 'Agus (082198)', trackingPct: 30 },
-  { id: 'ORD003', bloodType: 'B+', qty: 8, urgency: 'normal', status: 'selesai', pmi: 'PMI Kota Surabaya', createdAt: '2 jam lalu', updatedAt: '1.5 jam lalu' },
-  { id: 'ORD004', bloodType: 'AB+', qty: 2, urgency: 'mendesak', status: 'menunggu', pmi: 'PMI Surabaya Selatan', createdAt: '5 mnt lalu', updatedAt: '5 mnt lalu' },
-];
+const bloodOrders: BloodOrder[] = [];
 
 const initialHospitalStock: HospitalStock[] = [
-  { 
-    type: 'A+', 
-    stock: 12, 
-    target: 20, 
-    expiringSoon: 0, 
-    lastUpdated: '1 hari lalu',
-    batches: [
-      { id: 'BTC-A01', qty: 7, entryDate: '28 Jun 2026', expDate: '28 Jul 2026' },
-      { id: 'BTC-A02', qty: 5, entryDate: '25 Jun 2026', expDate: '25 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'A-', 
-    stock: 3, 
-    target: 15, 
-    expiringSoon: 1, 
-    lastUpdated: '3 hari lalu',
-    batches: [
-      { id: 'BTC-A03', qty: 2, entryDate: '26 Jun 2026', expDate: '26 Jul 2026' },
-      { id: 'BTC-A04', qty: 1, entryDate: '22 Jun 2026', expDate: '22 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'B+', 
-    stock: 18, 
-    target: 25, 
-    expiringSoon: 2, 
-    lastUpdated: '2 jam lalu',
-    batches: [
-      { id: 'BTC-B01', qty: 10, entryDate: '29 Jun 2026', expDate: '29 Jul 2026' },
-      { id: 'BTC-B02', qty: 8, entryDate: '24 Jun 2026', expDate: '24 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'B-', 
-    stock: 2, 
-    target: 10, 
-    expiringSoon: 0, 
-    lastUpdated: '5 hari lalu',
-    batches: [
-      { id: 'BTC-B03', qty: 2, entryDate: '24 Jun 2026', expDate: '24 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'AB+', 
-    stock: 8, 
-    target: 15, 
-    expiringSoon: 3, 
-    lastUpdated: '4 jam lalu',
-    batches: [
-      { id: 'BTC-AB01', qty: 5, entryDate: '29 Jun 2026', expDate: '29 Jul 2026' },
-      { id: 'BTC-AB02', qty: 3, entryDate: '22 Jun 2026', expDate: '22 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'AB-', 
-    stock: 1, 
-    target: 8, 
-    expiringSoon: 0, 
-    lastUpdated: '1 minggu lalu',
-    batches: [
-      { id: 'BTC-AB03', qty: 1, entryDate: '22 Jun 2026', expDate: '22 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'O+', 
-    stock: 15, 
-    target: 30, 
-    expiringSoon: 0, 
-    lastUpdated: '12 jam lalu',
-    batches: [
-      { id: 'BTC-O01', qty: 10, entryDate: '28 Jun 2026', expDate: '28 Jul 2026' },
-      { id: 'BTC-O02', qty: 5, entryDate: '27 Jun 2026', expDate: '27 Jul 2026' },
-    ]
-  },
-  { 
-    type: 'O-', 
-    stock: 4, 
-    target: 20, 
-    expiringSoon: 1, 
-    lastUpdated: '2 hari lalu',
-    batches: [
-      { id: 'BTC-O03', qty: 3, entryDate: '27 Jun 2026', expDate: '27 Jul 2026' },
-      { id: 'BTC-O04', qty: 1, entryDate: '23 Jun 2026', expDate: '23 Jul 2026' },
-    ]
-  },
+  { type: 'A+', stock: 0, target: 20, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'A-', stock: 0, target: 15, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'B+', stock: 0, target: 25, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'B-', stock: 0, target: 10, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'AB+', stock: 0, target: 15, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'AB-', stock: 0, target: 8, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'O+', stock: 0, target: 30, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
+  { type: 'O-', stock: 0, target: 20, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
 ];
 
 const bloodHistory = [
@@ -257,6 +175,7 @@ function TrackingBar({ order }: { order: BloodOrder }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HospitalDashboard() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('stock');
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedBlood, setSelectedBlood] = useState('O+');
@@ -265,6 +184,7 @@ export default function HospitalDashboard() {
   const [selectedPMI, setSelectedPMI] = useState('');
   const [orderStep, setOrderStep] = useState<'form' | 'ai' | 'confirm' | 'done'>('form');
   const [orders, setOrders] = useState<BloodOrder[]>(bloodOrders);
+  const [pmiList, setPmiList] = useState<PMIOption[]>(pmiOptions);
   const [showConfirmReceive, setShowConfirmReceive] = useState<string | null>(null);
 
   // Manage Blood Stock State
@@ -278,16 +198,33 @@ export default function HospitalDashboard() {
     async function fetchHospitalData() {
       if (!isSupabaseConfigured) return;
       try {
+        // Fetch PMI Units
+        const { data: pmiData } = await supabase.from('pmi_units').select('*');
+        if (pmiData && pmiData.length > 0) {
+          const mappedPMI: PMIOption[] = pmiData.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            address: p.address,
+            distance: '2.5 km',
+            stock: 45,
+            capacity: 100,
+            score: p.response_rate || 90,
+            travelTime: `${p.avg_delivery_mins || 15} mnt`
+          }));
+          setPmiList(mappedPMI);
+        }
+
+        // Fetch Blood Orders / Requests
         const { data: orderData } = await supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
         if (orderData && orderData.length > 0) {
           const mappedOrders: BloodOrder[] = orderData.map((o: any) => ({
             id: o.id,
             bloodType: o.blood_type,
-            qty: o.qty,
+            qty: o.quantity || o.qty || 3,
             urgency: o.urgency || 'normal',
             status: o.status || 'menunggu',
-            pmi: o.pmi || 'PMI Kota Surabaya',
-            createdAt: 'Baru saja',
+            pmi: o.pmi || 'PMI A',
+            createdAt: new Date(o.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             updatedAt: 'Baru saja',
             driver: o.driver,
             eta: o.eta,
@@ -296,19 +233,27 @@ export default function HospitalDashboard() {
           setOrders(mappedOrders);
         }
 
-        const { data: stockData } = await supabase.from('hospital_blood_stock').select('*');
+        // Fetch Hospital Blood Stock
+        const { data: stockData } = await supabase.from('blood_stock').select('*');
         if (stockData && stockData.length > 0) {
-          const mappedStocks: HospitalStock[] = stockData.map((s: any) => ({
-            type: s.blood_type,
-            stock: s.stock,
-            target: 20,
-            expiringSoon: 0,
-            lastUpdated: 'Baru saja',
-            batches: [
-              { id: `BTC-${s.blood_type}-01`, qty: s.stock, entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
-            ]
-          }));
-          setStocks(mappedStocks);
+          const rsStocksOnly = stockData.filter((s: any) => s.owner_hospital_id != null);
+          if (rsStocksOnly.length > 0) {
+            const mappedStocks: HospitalStock[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(type => {
+              const item = rsStocksOnly.find((s: any) => s.blood_type === type);
+              const qty = item ? item.stock_qty : 0;
+              return {
+                type,
+                stock: qty,
+                target: 20,
+                expiringSoon: Math.floor(qty * 0.1),
+                lastUpdated: 'Baru saja',
+                batches: [
+                  { id: `BTC-${type}-01`, qty, entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
+                ]
+              };
+            });
+            setStocks(mappedStocks);
+          }
         }
       } catch (e) {
         console.warn('HospitalDashboard Supabase fetch error:', e);
@@ -364,7 +309,7 @@ export default function HospitalDashboard() {
         qty: typeof selectedQty === 'number' ? selectedQty : 0,
         urgency: selectedUrgency,
         status: 'menunggu',
-        pmi: selectedPMI || pmiOptions[0].name,
+        pmi: selectedPMI || pmiList[0]?.name || 'PMI A',
         createdAt: 'Baru saja',
         updatedAt: 'Baru saja',
         trackingPct: 0,
@@ -748,7 +693,7 @@ export default function HospitalDashboard() {
         <h3 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           Laporan Pemakaian Darah
         </h3>
-        <p className="text-xs text-[#9B9BB5] mt-0.5">Statistik penggunaan darah bulanan di RSUD Dr. Soetomo</p>
+        <p className="text-xs text-[#9B9BB5] mt-0.5">Statistik penggunaan darah bulanan di Rumah Sakit A</p>
       </div>
 
       <div className="py-3">
@@ -813,7 +758,7 @@ export default function HospitalDashboard() {
             <p className="text-xs font-semibold text-[#2980B9] uppercase tracking-wider mb-1">Dashboard Rumah Sakit</p>
             <h1 className="text-2xl md:text-3xl font-extrabold text-[#1A1A2E] flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               <Droplets className="w-7 h-7 text-[#C0392B] fill-[#C0392B]" />
-              RSUD Dr. Soetomo
+              {user?.org || 'Rumah Sakit A'}
             </h1>
             <p className="text-xs text-[#4A4A6A] mt-1 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> Jl. Mayjend Prof. Dr. Moestopo 6-8, Surabaya
@@ -850,6 +795,7 @@ export default function HospitalDashboard() {
             {[
               { value: 'stock', label: 'Stok RS', icon: Package },
               { value: 'order', label: 'Riwayat Order', icon: FileText },
+              { value: 'events', label: 'Event RS', icon: Calendar },
               { value: 'report', label: 'Laporan', icon: BarChart2 },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-xs data-[state=active]:bg-[#2980B9] data-[state=active]:text-white flex items-center gap-1.5 py-2.5 px-4 font-bold transition-all">
@@ -870,6 +816,41 @@ export default function HospitalDashboard() {
           <TabsContent value="stock" className="max-w-4xl mx-auto space-y-6">
             {renderStockSection()}
             {renderAlertsSection()}
+          </TabsContent>
+
+          {/* TAB: EVENTS RS */}
+          <TabsContent value="events" className="max-w-4xl mx-auto space-y-6">
+            <div className="bg-white rounded-3xl p-6 border border-border shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    🏥 Event Donor Darah Rumah Sakit
+                  </h3>
+                  <p className="text-xs text-[#9B9BB5]">Kelola dan pantau kegiatan donor darah yang diselenggarakan oleh Rumah Sakit</p>
+                </div>
+                <a
+                  href="/events"
+                  className="flex items-center gap-2 bg-[#2980B9] hover:bg-[#1B4F72] text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Buka Portal Event
+                </a>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50/50">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Aksi Donor Rumah Sakit A</span>
+                  <h4 className="font-bold text-sm text-[#1A1A2E] mt-2">Aksi Donor Darah Bakti Kesehatan</h4>
+                  <p className="text-xs text-[#4A4A6A] mt-1">🗓 25 Juli 2026 • 📍 Aula Rumah Sakit A</p>
+                  <p className="text-xs text-[#9B9BB5] mt-1">Target: 120 kantong • Terdaftar: 25 peserta</p>
+                </div>
+                <div className="p-4 rounded-2xl border border-purple-100 bg-purple-50/50">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Donor Peduli RS Siloam</span>
+                  <h4 className="font-bold text-sm text-[#1A1A2E] mt-2">Donor Darah Berkala RS Siloam</h4>
+                  <p className="text-xs text-[#4A4A6A] mt-1">🗓 05 Agustus 2026 • 📍 Lobi Utama RS Siloam</p>
+                  <p className="text-xs text-[#9B9BB5] mt-1">Target: 100 kantong • Terdaftar: 14 peserta</p>
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           {/* TAB 4: REPORT ONLY */}
@@ -990,7 +971,7 @@ export default function HospitalDashboard() {
                     <p className="text-xs text-[#4A4A6A] mt-0.5">Mempertimbangkan stok, jarak, kapasitas, dan waktu tempuh</p>
                   </div>
                 </div>
-                {pmiOptions.map((pmi, i) => (
+                {pmiList.map((pmi, i) => (
                   <button key={pmi.id} onClick={() => setSelectedPMI(pmi.name)}
                     className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${selectedPMI === pmi.name ? 'border-[#C0392B] bg-[#FDEDEC]/30 font-semibold' : 'border-border bg-white hover:border-[#C0392B]/50'}`}>
                     <div className="flex items-start justify-between mb-2">
@@ -1024,8 +1005,8 @@ export default function HospitalDashboard() {
                     { label: 'Golongan Darah', value: selectedBlood },
                     { label: 'Jumlah', value: `${selectedQty} kantong` },
                     { label: 'Urgensi', value: urgencyConfig[selectedUrgency].label },
-                    { label: 'PMI Tujuan', value: selectedPMI || pmiOptions[0].name },
-                    { label: 'Rumah Sakit', value: 'RSUD Dr. Soetomo' },
+                    { label: 'PMI Tujuan', value: selectedPMI || pmiList[0]?.name || 'PMI A' },
+                    { label: 'Rumah Sakit', value: 'Rumah Sakit A' },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex items-center justify-between">
                       <span className="text-xs text-[#9B9BB5]">{label}</span>

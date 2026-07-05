@@ -18,6 +18,7 @@ interface Event {
   id: number;
   name: string;
   organizer: string;
+  organizerType?: 'pmi' | 'rs';
   date: string;
   time: string;
   location: string;
@@ -29,11 +30,7 @@ interface Event {
   status: 'upcoming' | 'ongoing' | 'completed';
 }
 
-const defaultEventsList: Event[] = [
-  { id: 1, name: 'Donor Darah Peduli Surabaya 2026', organizer: 'PMI Kota Surabaya', date: '2026-07-15', time: '08:00 - 14:00', location: 'Mall Galaxy Surabaya', address: 'Jl. Dharmahusada Indah Timur No. 35', capacity: 150, registered: 42, description: 'Kampanye donor darah rutin PMI Surabaya.', requirements: ['Sehat jasmani', 'BB >= 45kg', 'Usia 17-60 tahun'], status: 'upcoming' },
-  { id: 2, name: 'Event Donor Bersama UNAIR', organizer: 'KSR PMI Unair', date: '2026-08-01', time: '07:30 - 13:00', location: 'Kampus B Unair', address: 'Jl. Prof. Dr. Moestopo 47', capacity: 200, registered: 89, description: 'Donor darah sosial Dies Natalis Unair.', requirements: ['Sehat jasmani', 'Tidur min 5 jam'], status: 'upcoming' },
-  { id: 3, name: 'Donor Darah Pahlawan Kemanusiaan', organizer: 'PMI Surabaya Selatan', date: '2026-08-17', time: '09:00 - 15:00', location: 'Balai Kota Surabaya', address: 'Jl. Sedap Malam No. 1', capacity: 300, registered: 120, description: 'Aksi donor darah Kemerdekaan.', requirements: ['Sehat jasmani'], status: 'upcoming' },
-];
+const defaultEventsList: Event[] = [];
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   upcoming: { label: 'Akan Datang', bg: '#EBF5FB', text: '#2980B9' },
@@ -47,7 +44,7 @@ export default function Events() {
   const isCreator = user?.role === 'pmi' || user?.role === 'rs';
 
   const [eventList, setEventList] = useState<Event[]>(() => {
-    const saved = localStorage.getItem('shared_donor_events_v4');
+    const saved = localStorage.getItem('shared_donor_events_v5');
     return saved ? JSON.parse(saved) : defaultEventsList;
   });
 
@@ -58,6 +55,7 @@ export default function Events() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterOrganizer, setFilterOrganizer] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Full 4-Step Registration Wizard Modal States inside Events
@@ -120,11 +118,12 @@ export default function Events() {
       try {
         const { data, error } = await supabase.from('events').select('*').order('date', { ascending: true });
         if (error) throw error;
-        if (data && data.length > 0) {
+        if (data) {
           const mapped: Event[] = data.map((e: any) => ({
             id: e.id,
             name: e.name,
-            organizer: e.organizer || 'PMI Kota Surabaya',
+            organizer: e.organizer || 'PMI A',
+            organizerType: (e.organizer_type || (e.organizer?.toLowerCase().includes('rs') || e.organizer?.toLowerCase().includes('siloam') || e.organizer?.toLowerCase().includes('soetomo') ? 'rs' : 'pmi')) as 'pmi' | 'rs',
             date: e.date,
             time: e.time || '08:00 - 14:00',
             location: e.location,
@@ -146,13 +145,13 @@ export default function Events() {
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('shared_donor_events_v4', JSON.stringify(eventList));
+    localStorage.setItem('shared_donor_events_v5', JSON.stringify(eventList));
   }, [eventList]);
 
   // Sync tab/view storage changes
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'shared_donor_events_v4' && e.newValue) {
+      if (e.key === 'shared_donor_events_v5' && e.newValue) {
         setEventList(JSON.parse(e.newValue));
       }
       if (e.key === 'donor_registered_events' && e.newValue) {
@@ -166,7 +165,9 @@ export default function Events() {
   const filtered = eventList.filter((e) => {
     const bySearch = searchQuery === '' || e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.location.toLowerCase().includes(searchQuery.toLowerCase()) || e.organizer.toLowerCase().includes(searchQuery.toLowerCase());
     const byStatus = filterStatus === 'all' || e.status === filterStatus;
-    return bySearch && byStatus;
+    const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
+    const byOrganizer = filterOrganizer === 'all' || (filterOrganizer === 'rs' ? isRs : !isRs);
+    return bySearch && byStatus && byOrganizer;
   });
 
   const questionnaireList = [
@@ -247,7 +248,7 @@ export default function Events() {
         }
         return ev;
       });
-      localStorage.setItem('shared_donor_events_v4', JSON.stringify(updated));
+      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
@@ -269,7 +270,7 @@ export default function Events() {
     // Reset registered counts in events list
     setEventList(prev => {
       const updated = prev.map(ev => ({ ...ev, registered: 0 }));
-      localStorage.setItem('shared_donor_events_v4', JSON.stringify(updated));
+      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
@@ -292,7 +293,7 @@ export default function Events() {
         }
         return ev;
       });
-      localStorage.setItem('shared_donor_events_v4', JSON.stringify(updated));
+      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
@@ -384,7 +385,7 @@ export default function Events() {
   const handleDeleteEvent = (eventId: number, eventName: string) => {
     setEventList(prev => {
       const updated = prev.filter(e => e.id !== eventId);
-      localStorage.setItem('shared_donor_events_v4', JSON.stringify(updated));
+      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
     toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus.` });
@@ -434,7 +435,7 @@ export default function Events() {
 
     setEventList(prev => {
       const updated = [created, ...prev];
-      localStorage.setItem('shared_donor_events_v4', JSON.stringify(updated));
+      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
@@ -507,7 +508,7 @@ export default function Events() {
 
         {/* Filters */}
         <div className="bg-white rounded-2xl border border-border shadow-sm p-5 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-1.5 block">Cari Event</label>
               <div className="relative">
@@ -519,6 +520,19 @@ export default function Events() {
                   className="pl-9 bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-10"
                 />
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-1.5 block">Penyelenggara</label>
+              <Select value={filterOrganizer} onValueChange={setFilterOrganizer}>
+                <SelectTrigger className="bg-[#F4F4F8] border-transparent h-10">
+                  <SelectValue placeholder="Semua Penyelenggara" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Penyelenggara</SelectItem>
+                  <SelectItem value="pmi">🔴 Palang Merah Indonesia (PMI)</SelectItem>
+                  <SelectItem value="rs">🏥 Rumah Sakit (RS)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-1.5 block">Status</label>
@@ -550,6 +564,9 @@ export default function Events() {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${event.organizerType === 'rs' || event.organizer.toLowerCase().includes('rs') || event.organizer.toLowerCase().includes('siloam') || event.organizer.toLowerCase().includes('soetomo') ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-[#C0392B] border border-red-200'}`}>
+                          {event.organizerType === 'rs' || event.organizer.toLowerCase().includes('rs') || event.organizer.toLowerCase().includes('siloam') || event.organizer.toLowerCase().includes('soetomo') ? '🏥 Event RS' : '🔴 Event PMI'}
+                        </span>
                         <h2 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                           {event.name}
                         </h2>

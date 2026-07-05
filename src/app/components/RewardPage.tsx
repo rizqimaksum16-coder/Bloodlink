@@ -65,23 +65,42 @@ export default function RewardPage() {
   const [claimed, setClaimed] = useState<string[]>(['R003']);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
 
+  const defaultLeaderboard = [
+    { rank: 1, name: 'Dewi Lestari', donations: 20, isMe: false },
+    { rank: 2, name: 'Budi Santoso', donations: 12, isMe: false },
+    { rank: 3, name: 'Nurul Hidayah', donations: 10, isMe: false },
+    { rank: 4, name: 'Ahmad Fauzi', donations: 9, isMe: false },
+    { rank: 5, name: user?.name || 'Rizky Pratama', donations: 9, isMe: true },
+    { rank: 6, name: 'Siti Rahayu', donations: 7, isMe: false },
+  ];
+
+  const [leaderboardList, setLeaderboardList] = useState(defaultLeaderboard);
+
   useEffect(() => {
-    async function loadRewards() {
+    async function loadData() {
       if (!isSupabaseConfigured) return;
       try {
-        const { data, error } = await supabase.from('rewards').select('*');
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setRewardsList(data as any);
+        const { data: rData } = await supabase.from('rewards').select('*');
+        if (rData && rData.length > 0) {
+          setRewardsList(rData as any);
+        }
+
+        const { data: dpData } = await supabase.from('donor_profiles').select('*, users(name, email)').order('total_donations', { ascending: false }).limit(10);
+        if (dpData && dpData.length > 0) {
+          const mappedLb = dpData.map((dp: any, idx: number) => ({
+            rank: idx + 1,
+            name: dp.users?.name || 'Pendonor Surabaya',
+            donations: dp.total_donations || 1,
+            isMe: dp.users?.email === user?.email
+          }));
+          setLeaderboardList(mappedLb);
         }
       } catch (e) {
-        console.warn('Error loading rewards from Supabase:', e);
+        console.warn('Error loading RewardPage data from Supabase:', e);
       }
     }
-    loadRewards();
-  }, []);
-
-
+    loadData();
+  }, [user?.email]);
 
   const filtered = filter === 'all' ? rewardsList : rewardsList.filter(r => r.category === filter);
 
@@ -90,14 +109,6 @@ export default function RewardPage() {
     setTimeout(() => { setClaimed(prev => [...prev, id]); setClaimAnim(null); }, 800);
   };
 
-  const leaderboard = [
-    { rank: 1, name: 'Dewi Lestari', donations: 20 },
-    { rank: 2, name: 'Budi Santoso', donations: 12 },
-    { rank: 3, name: 'Nurul Hidayah', donations: 10 },
-    { rank: 4, name: 'Ahmad Fauzi', donations: 9 },
-    { rank: 5, name: user?.name || 'Rizky Pratama', donations: 9, isMe: true },
-    { rank: 6, name: 'Siti Rahayu', donations: 7 },
-  ];
 
   return (
     <div className="min-h-screen py-8 bg-[#F7F7FB]">
@@ -271,10 +282,10 @@ export default function RewardPage() {
               <h3 className="font-bold text-[#1A1A2E] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Papan Skor Donor Surabaya
               </h3>
-              <p className="text-xs text-[#9B9BB5] mt-0.5">Update setiap minggu • Total {leaderboard.length} peserta</p>
+              <p className="text-xs text-[#9B9BB5] mt-0.5">Update setiap minggu • Total {leaderboardList.length} peserta</p>
             </div>
             <div className="divide-y divide-border">
-              {leaderboard.map((entry: typeof leaderboard[0] & { isMe?: boolean }) => {
+              {leaderboardList.map((entry) => {
                 const rankColors: Record<number, { bg: string; text: string }> = {
                   1: { bg: '#FEFCE8', text: '#F1C40F' },
                   2: { bg: '#F4F4F8', text: '#9B9BB5' },

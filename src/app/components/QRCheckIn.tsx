@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import jsQR from 'jsqr';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 interface DonorEvent {
   id: string;
@@ -56,10 +57,10 @@ export default function QRCheckIn() {
 
   usePageTitle(isDonor ? 'Karcis Kehadiran' : 'QR Check-In');
 
-  // Safely load dynamic events list from localStorage or fallback
+  // Safely load dynamic events list from localStorage or fallback + Supabase sync
   const [eventList, setEventList] = useState<DonorEvent[]>(() => {
     try {
-      const savedEvents = localStorage.getItem('shared_donor_events_v4');
+      const savedEvents = localStorage.getItem('shared_donor_events_v5');
       if (savedEvents) {
         const parsed = JSON.parse(savedEvents);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -78,7 +79,7 @@ export default function QRCheckIn() {
         }
       }
     } catch (e) {
-      console.warn('Error reading shared_donor_events_v4:', e);
+      console.warn('Error reading shared_donor_events_v5:', e);
     }
     return defaultEventsList;
   });
@@ -89,7 +90,7 @@ export default function QRCheckIn() {
 
   const activeEvent = eventList.find((e) => e.id === selectedEventId) || eventList[0] || defaultEventsList[0];
 
-  // Safely load bookings list dynamically with localStorage persistence
+  // Safely load bookings list dynamically with localStorage persistence + Supabase sync
   const [localBookings, setLocalBookings] = useState<Booking[]>(() => {
     let baseBookings: Booking[] = initialDefaultBookings;
     try {
@@ -173,7 +174,7 @@ export default function QRCheckIn() {
   useEffect(() => {
     const handleStorage = () => {
       try {
-        const savedEvts = localStorage.getItem('shared_donor_events_v4');
+        const savedEvts = localStorage.getItem('shared_donor_events_v5');
         if (savedEvts) {
           const parsed = JSON.parse(savedEvts);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -204,7 +205,7 @@ export default function QRCheckIn() {
   const waitingCount = eventBookings.filter((b) => !b.checkedIn).length;
   const pctCheckIn = eventBookings.length > 0 ? Math.round((checkedInCount / eventBookings.length) * 100) : 0;
 
-  const handleScan = (code: string) => {
+  const handleScan = async (code: string) => {
     const qr = (code || scanInput).trim();
     if (!qr) return;
 
@@ -249,6 +250,15 @@ export default function QRCheckIn() {
           : b
       )
     );
+
+    // Persist check-in to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('event_bookings').update({
+          checked_in: true,
+        }).eq('qr_code', booking.qrCode);
+      } catch (e) { console.warn('Gagal update check-in ke Supabase:', e); }
+    }
 
     setLastScannedName(booking.donorName);
     setScanResult('success');

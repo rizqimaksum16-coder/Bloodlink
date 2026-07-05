@@ -7,6 +7,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 type DeliveryStatus = 'disiapkan' | 'dijemput' | 'perjalanan' | 'tiba';
 
@@ -30,7 +31,7 @@ interface Delivery {
 const initialDeliveries: Delivery[] = [
   {
     id: 'DEL001', orderId: 'ORD-2847', bloodType: 'O+', qty: 5,
-    from: 'PMI Kota Surabaya', to: 'RSUD Dr. Soetomo',
+    from: 'PMI A', to: 'RSUD Dr. Soetomo',
     driver: 'Budi Santoso', driverPhone: '081234567890',
     status: 'perjalanan', eta: '6 mnt', distance: '2.1 km',
     pct: 72, urgent: true, updatedAt: '2 mnt lalu',
@@ -44,7 +45,7 @@ const initialDeliveries: Delivery[] = [
   },
   {
     id: 'DEL003', orderId: 'ORD-2838', bloodType: 'B+', qty: 8,
-    from: 'PMI Kota Surabaya', to: 'RS Premier Surabaya',
+    from: 'PMI A', to: 'RS Premier Surabaya',
     driver: 'Hendra Wijaya', driverPhone: '083147852369',
     status: 'tiba', eta: 'Sudah tiba', distance: '3.8 km',
     pct: 100, urgent: false, updatedAt: '12 mnt lalu',
@@ -85,6 +86,40 @@ export default function DriverDashboard() {
 
   const [filterMode, setFilterMode] = useState<'my' | 'all'>('my');
 
+  // Fetch deliveries from Supabase on mount
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('deliveries')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const mapped: Delivery[] = data.map(d => ({
+            id: d.id,
+            orderId: d.order_id,
+            bloodType: d.blood_type,
+            qty: d.qty,
+            from: d.from_name,
+            to: d.to_name,
+            driver: d.driver_name,
+            driverPhone: d.driver_phone,
+            status: d.status as DeliveryStatus,
+            eta: d.eta,
+            distance: d.distance_km,
+            pct: d.pct,
+            urgent: d.urgent,
+            updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          }));
+          setDeliveryList(mapped);
+          localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(mapped));
+        }
+      } catch (e) { console.warn('Gagal fetch deliveries:', e); }
+    })();
+  }, []);
+
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'shared_donor_deliveries_v1' && e.newValue) {
@@ -95,12 +130,22 @@ export default function DriverDashboard() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const updateDelivery = (updated: Delivery) => {
+  const updateDelivery = async (updated: Delivery) => {
     const newList = deliveryList.map(d => d.id === updated.id ? updated : d);
     setDeliveryList(newList);
     localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(newList));
-    // Dispatch event so other components on same window can react
     window.dispatchEvent(new Event('storage'));
+    // Persist to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('deliveries').update({
+          status: updated.status,
+          pct: updated.pct,
+          eta: updated.eta,
+          updated_at: new Date().toISOString(),
+        }).eq('id', updated.id);
+      } catch (e) { console.warn('Gagal update delivery di Supabase:', e); }
+    }
   };
 
   const handleNextStatus = (d: Delivery) => {

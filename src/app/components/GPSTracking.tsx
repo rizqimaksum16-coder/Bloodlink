@@ -7,6 +7,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 type DeliveryStatus = 'disiapkan' | 'dijemput' | 'perjalanan' | 'tiba';
 
@@ -32,7 +33,7 @@ interface Delivery {
 const initialDeliveries: Delivery[] = [
   {
     id: 'DEL001', orderId: 'ORD-2847', bloodType: 'O+', qty: 5,
-    from: 'PMI Kota Surabaya', to: 'RSUD Dr. Soetomo',
+    from: 'PMI A', to: 'RSUD Dr. Soetomo',
     driver: 'Budi Santoso', driverPhone: '081234567890',
     status: 'perjalanan', eta: '6 mnt', distance: '2.1 km',
     pct: 72, urgent: true, updatedAt: '2 mnt lalu',
@@ -48,7 +49,7 @@ const initialDeliveries: Delivery[] = [
   },
   {
     id: 'DEL003', orderId: 'ORD-2838', bloodType: 'B+', qty: 8,
-    from: 'PMI Kota Surabaya', to: 'RS Premier Surabaya',
+    from: 'PMI A', to: 'RS Premier Surabaya',
     driver: 'Hendra Wijaya', driverPhone: '083147852369',
     status: 'tiba', eta: 'Sudah tiba', distance: '3.8 km',
     pct: 100, urgent: false, updatedAt: '12 mnt lalu',
@@ -189,6 +190,51 @@ export default function GPSTracking() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const fetchDeliveries = async () => {
+      try {
+        const { data, error } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const locationCoords: Record<string, [number, number]> = {
+            'PMI A': [-7.2657, 112.7445],
+            'PMI Surabaya Timur': [-7.3150, 112.7812],
+            'PMI Surabaya Selatan': [-7.3005, 112.7351],
+            'RSUD Dr. Soetomo': [-7.2678, 112.7584],
+            'RS Siloam Surabaya': [-7.2745, 112.7490],
+            'RS Premier Surabaya': [-7.3051, 112.7690],
+            'RS Husada Utama': [-7.2625, 112.7595],
+          };
+          const mapped: Delivery[] = data.map(d => ({
+            id: d.id,
+            orderId: d.order_id,
+            bloodType: d.blood_type,
+            qty: d.qty,
+            from: d.from_name,
+            to: d.to_name,
+            driver: d.driver_name,
+            driverPhone: d.driver_phone,
+            status: d.status as DeliveryStatus,
+            eta: d.eta,
+            distance: d.distance_km,
+            pct: d.pct,
+            urgent: d.urgent,
+            updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            fromCoords: locationCoords[d.from_name] || [-7.2657, 112.7445],
+            toCoords: locationCoords[d.to_name] || [-7.2678, 112.7584],
+          }));
+          setDeliveryList(mapped);
+          setSelected(prev => mapped.find(item => item.id === prev.id) || mapped[0]);
+          localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(mapped));
+        }
+      } catch (e) {
+        console.warn('Gagal fetch deliveries di GPSTracking:', e);
+      }
+    };
+    fetchDeliveries();
+  }, []);
+
+  useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'shared_donor_deliveries_v1' && e.newValue) {
         const parsed = JSON.parse(e.newValue) as Delivery[];
@@ -200,15 +246,52 @@ export default function GPSTracking() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    const saved = localStorage.getItem('shared_donor_deliveries_v1');
-    if (saved) {
-      const parsed = JSON.parse(saved) as Delivery[];
-      setDeliveryList(parsed);
-      setSelected(prev => parsed.find(d => d.id === prev.id) || parsed[0]);
+    if (isSupabaseConfigured) {
+      try {
+        const { data } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false });
+        if (data && data.length > 0) {
+          const locationCoords: Record<string, [number, number]> = {
+            'PMI A': [-7.2657, 112.7445],
+            'PMI Surabaya Timur': [-7.3150, 112.7812],
+            'PMI Surabaya Selatan': [-7.3005, 112.7351],
+            'RSUD Dr. Soetomo': [-7.2678, 112.7584],
+            'RS Siloam Surabaya': [-7.2745, 112.7490],
+            'RS Premier Surabaya': [-7.3051, 112.7690],
+            'RS Husada Utama': [-7.2625, 112.7595],
+          };
+          const mapped: Delivery[] = data.map(d => ({
+            id: d.id,
+            orderId: d.order_id,
+            bloodType: d.blood_type,
+            qty: d.qty,
+            from: d.from_name,
+            to: d.to_name,
+            driver: d.driver_name,
+            driverPhone: d.driver_phone,
+            status: d.status as DeliveryStatus,
+            eta: d.eta,
+            distance: d.distance_km,
+            pct: d.pct,
+            urgent: d.urgent,
+            updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            fromCoords: locationCoords[d.from_name] || [-7.2657, 112.7445],
+            toCoords: locationCoords[d.to_name] || [-7.2678, 112.7584],
+          }));
+          setDeliveryList(mapped);
+          setSelected(prev => mapped.find(item => item.id === prev.id) || mapped[0]);
+        }
+      } catch (e) { console.warn(e); }
+    } else {
+      const saved = localStorage.getItem('shared_donor_deliveries_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved) as Delivery[];
+        setDeliveryList(parsed);
+        setSelected(prev => parsed.find(d => d.id === prev.id) || parsed[0]);
+      }
     }
-    setTimeout(() => setRefreshing(false), 1200);
+    setTimeout(() => setRefreshing(false), 800);
   };
 
   const activeStep = statusSteps.indexOf(selected.status);

@@ -32,32 +32,32 @@ const mockHospitals: BloodStock[] = [
     id: 1, hospitalName: 'RSUD Dr. Soetomo', address: 'Jl. Mayjen Prof. Dr. Moestopo 6-8', district: 'Gubeng',
     distance: 1.2, phone: '(031) 501-0000',
     bloodTypes: [
-      { type: 'A+', stock: 42, status: 'available' }, { type: 'B+', stock: 8, status: 'low' },
-      { type: 'O+', stock: 55, status: 'available' }, { type: 'AB+', stock: 3, status: 'critical' },
+      { type: 'A+', stock: 0, status: 'critical' }, { type: 'B+', stock: 0, status: 'critical' },
+      { type: 'O+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
     ],
   },
   {
     id: 2, hospitalName: 'RS Siloam Surabaya', address: 'Jl. Raya Gubeng 70', district: 'Gubeng',
     distance: 2.1, phone: '(031) 505-7777',
     bloodTypes: [
-      { type: 'A+', stock: 18, status: 'available' }, { type: 'B-', stock: 5, status: 'low' },
-      { type: 'O-', stock: 12, status: 'available' }, { type: 'AB-', stock: 1, status: 'critical' },
+      { type: 'A+', stock: 0, status: 'critical' }, { type: 'B-', stock: 0, status: 'critical' },
+      { type: 'O-', stock: 0, status: 'critical' }, { type: 'AB-', stock: 0, status: 'critical' },
     ],
   },
   {
     id: 3, hospitalName: 'RS Premier Surabaya', address: 'Jl. Nginden Intan Barat 10', district: 'Sukolilo',
     distance: 3.8, phone: '(031) 5999-999',
     bloodTypes: [
-      { type: 'A-', stock: 22, status: 'available' }, { type: 'B+', stock: 30, status: 'available' },
-      { type: 'O+', stock: 6, status: 'low' }, { type: 'AB+', stock: 9, status: 'low' },
+      { type: 'A-', stock: 0, status: 'critical' }, { type: 'B+', stock: 0, status: 'critical' },
+      { type: 'O+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
     ],
   },
   {
     id: 4, hospitalName: 'RS Husada Utama', address: 'Jl. Prof. Dr. Mustopo 31', district: 'Kenjeran',
     distance: 5.4, phone: '(031) 501-3232',
     bloodTypes: [
-      { type: 'A+', stock: 0, status: 'critical' }, { type: 'O+', stock: 14, status: 'available' },
-      { type: 'B+', stock: 2, status: 'critical' }, { type: 'AB+', stock: 7, status: 'low' },
+      { type: 'A+', stock: 0, status: 'critical' }, { type: 'O+', stock: 0, status: 'critical' },
+      { type: 'B+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
     ],
   },
 ];
@@ -107,23 +107,34 @@ const btColor: Record<string, string> = {
 
 const pmiDatabase: Record<BloodType, PMIResult[]> = {
   'O+': [
-    { id: 'P1', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 55, capacity: 70, responseRate: 98, avgDelivery: '12 mnt', score: 96, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Stok terbanyak (55 kantong)', 'Jarak terdekat (2.3 km)', 'Respons rate tertinggi (98%)'] },
-    { id: 'P2', name: 'PMI Surabaya Timur', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 30, capacity: 50, responseRate: 92, avgDelivery: '18 mnt', score: 79, tag: 'Cadangan', tagColor: '#E67E22', reasons: ['Stok cukup (30 kantong)', 'Jarak sedang (5.1 km)', 'Respons cepat'] },
-    { id: 'P3', name: 'PMI Surabaya Selatan', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 48, capacity: 70, responseRate: 89, avgDelivery: '25 mnt', score: 63, reasons: ['Stok banyak tapi jarak jauh', 'Waktu tempuh lebih lama'] },
+    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 70, responseRate: 98, avgDelivery: '12 mnt', score: 96, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat (2.3 km)', 'Respons rate tertinggi (98%)'] },
+    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 50, responseRate: 92, avgDelivery: '18 mnt', score: 85, tag: 'Cadangan', tagColor: '#E67E22', reasons: ['Unit PMI B Terdaftar', 'Jarak sedang (5.1 km)', 'Respons cepat'] },
+    { id: 'P3', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 0, capacity: 70, responseRate: 89, avgDelivery: '25 mnt', score: 78, reasons: ['Unit PMI C Terdaftar', 'Waktu tempuh 22 mnt'] },
+  ],
+  'A+': [
+    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 60, responseRate: 98, avgDelivery: '12 mnt', score: 95, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat', 'Respons terbaik'] },
+    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 50, responseRate: 92, avgDelivery: '18 mnt', score: 84, reasons: ['Unit PMI B Terdaftar', 'Respons cepat'] },
   ],
   'A-': [
-    { id: 'P1', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 8, capacity: 15, responseRate: 98, avgDelivery: '12 mnt', score: 81, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Satu-satunya stok cukup di area', 'Jarak paling dekat', 'Respons rate terbaik'] },
-    { id: 'P2', name: 'PMI Surabaya Barat', address: 'Jl. Raya Menganti No. 7', distance: '11.2 km', travelTime: '28 mnt', stock: 5, capacity: 15, responseRate: 85, avgDelivery: '32 mnt', score: 52, reasons: ['Stok terbatas', 'Jarak jauh'] },
+    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 15, responseRate: 98, avgDelivery: '12 mnt', score: 90, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat'] },
+    { id: 'P3', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 0, capacity: 15, responseRate: 89, avgDelivery: '25 mnt', score: 75, reasons: ['Unit PMI C Terdaftar'] },
   ],
   'B+': [
-    { id: 'P1', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 52, capacity: 60, responseRate: 98, avgDelivery: '12 mnt', score: 97, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Stok sangat memadai', 'Terdekat', 'Respons terbaik'] },
-    { id: 'P3', name: 'PMI Surabaya Selatan', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 40, capacity: 60, responseRate: 89, avgDelivery: '25 mnt', score: 72, reasons: ['Stok cukup', 'Jarak sedang'] },
+    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 60, responseRate: 98, avgDelivery: '12 mnt', score: 96, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Terdekat', 'Respons terbaik'] },
+    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 60, responseRate: 92, avgDelivery: '18 mnt', score: 86, reasons: ['Unit PMI B Terdaftar'] },
   ],
-  'AB+': [{ id: 'P1', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 18, capacity: 30, responseRate: 98, avgDelivery: '12 mnt', score: 88, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Stok tersedia', 'Jarak terdekat'] }],
-  'A+': [{ id: 'P1', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 48, capacity: 60, responseRate: 98, avgDelivery: '12 mnt', score: 94, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Stok terbanyak', 'Jarak terdekat', 'Respons terbaik'] }],
-  'B-': [{ id: 'P2', name: 'PMI Surabaya Timur', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 12, capacity: 20, responseRate: 92, avgDelivery: '18 mnt', score: 76, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Satu-satunya dengan stok B-', 'Respons baik'] }],
-  'AB-': [{ id: 'P3', name: 'PMI Surabaya Selatan', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 6, capacity: 10, responseRate: 89, avgDelivery: '25 mnt', score: 68, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Satu-satunya stok AB-'] }],
-  'O-': [{ id: 'P1', name: 'PMI Kota Surabaya', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 14, capacity: 30, responseRate: 98, avgDelivery: '12 mnt', score: 83, tag: 'Rekomendasi AI', tagColor: '#C0392B', reasons: ['Stok terbatas, segera hubungi', 'Jarak terdekat'] }],
+  'B-': [
+    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 20, responseRate: 92, avgDelivery: '18 mnt', score: 88, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI B Terdaftar', 'Respons baik'] },
+  ],
+  'AB+': [
+    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 30, responseRate: 98, avgDelivery: '12 mnt', score: 92, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat'] },
+  ],
+  'AB-': [
+    { id: 'P3', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 0, capacity: 10, responseRate: 89, avgDelivery: '25 mnt', score: 80, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI C Terdaftar'] },
+  ],
+  'O-': [
+    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 30, responseRate: 98, avgDelivery: '12 mnt', score: 91, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat'] },
+  ],
 };
 
 function ScoreMeter({ score }: { score: number }) {
@@ -440,38 +451,11 @@ export default function BloodSearch() {
             </div>
           </div>
 
-          {/* RIGHT SIDE AREA: AI Matches & Hospital Stocks */}
+          {/* RIGHT SIDE AREA: AI Matches */}
           <div className="lg:col-span-8 space-y-6">
             
-            {/* Segmented Control to prevent focus splitting */}
-            <div className="bg-white rounded-2xl border border-border p-1.5 flex gap-1 shadow-sm">
-              <button
-                onClick={() => setResultTab('ai-matching')}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                  resultTab === 'ai-matching'
-                    ? 'bg-[#C0392B] text-white shadow-md'
-                    : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#C0392B]'
-                }`}
-              >
-                <Sparkles className="w-4.5 h-4.5" />
-                Rekomendasi PMI (AI Matching)
-              </button>
-              <button
-                onClick={() => setResultTab('hospital-stock')}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                  resultTab === 'hospital-stock'
-                    ? 'bg-[#C0392B] text-white shadow-md'
-                    : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#C0392B]'
-                }`}
-              >
-                <Building2 className="w-4.5 h-4.5" />
-                Stok Rumah Sakit Mitra
-              </button>
-            </div>
-
             {/* AI MATCHING RESULTS SECTION */}
-            {resultTab === 'ai-matching' && (
-              <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 bg-[#F4EFFE] rounded-lg flex items-center justify-center">
@@ -519,59 +503,44 @@ export default function BloodSearch() {
                         className={`border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:scale-[1.01] hover:shadow-md ${
                           selectedPMI === pmi.id ? 'border-[#8E44AD] bg-[#F4EFFE]/10 shadow-sm' : 'border-border hover:border-[#8E44AD]/40'
                         }`}
-                        onClick={() => setSelectedPMI(selectedPMI === pmi.id ? null : pmi.id)}>
-                        <div className="flex items-start gap-3">
-                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold ${i === 0 ? 'bg-[#C0392B]' : 'bg-[#9B9BB5]'}`}>
-                            #{i + 1}
-                          </div>
-                          
+                        onClick={() => setSelectedPMI(pmi.id)}
+                      >
+                        <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 flex-wrap">
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-bold text-[#1A1A2E] text-sm">{pmi.name}</h3>
-                                  {pmi.tag && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
-                                      style={{ background: `${pmi.tagColor}15`, color: pmi.tagColor }}>
-                                      <Star className="w-2 h-2 fill-current" /> {pmi.tag}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-[#9B9BB5] flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {pmi.address}</p>
-                              </div>
-                              <ScoreMeter score={pmi.score} />
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h3 className="font-bold text-[#1A1A2E] text-base">{pmi.name}</h3>
+                              {pmi.tag && (
+                                <span className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
+                                  style={{ background: pmi.tagColor || '#C0392B' }}>
+                                  {pmi.tag}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[#4A4A6A] flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> {pmi.address}
+                            </p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-[#9B9BB5]">
+                              <span className="flex items-center gap-1 font-semibold text-[#1A1A2E]">
+                                <Navigation className="w-3.5 h-3.5 text-[#C0392B]" /> {pmi.distance} ({pmi.travelTime})
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-[#2980B9]" /> Estimasi Kirim: {pmi.avgDelivery}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Zap className="w-3.5 h-3.5 text-[#F39C12]" /> Respons: {pmi.responseRate}%
+                              </span>
                             </div>
 
-                            {/* Stats */}
-                            <div className="grid grid-cols-3 gap-2 mt-3">
-                              {[
-                                { label: 'Jarak', value: pmi.distance, icon: Navigation, color: '#2980B9' },
-                                { label: 'Waktu', value: pmi.travelTime, icon: Clock, color: '#E67E22' },
-                                { label: 'Stok PMI', value: `${pmi.stock} ktg`, icon: Droplets, color: btColor[selectedBloodType] || '#C0392B' },
-                              ].map(({ label, value, icon: Icon, color }) => (
-                                <div key={label} className="bg-[#F7F7FB] rounded-lg p-1.5 text-center">
-                                  <Icon className="w-3 h-3 mx-auto mb-0.5" style={{ color }} />
-                                  <p className="text-[9px] text-[#9B9BB5] leading-tight">{label}</p>
-                                  <p className="text-xs font-bold text-[#1A1A2E]">{value}</p>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* AI Reasons Accordion */}
-                            {selectedPMI === pmi.id && (
-                              <div className="mt-3 bg-[#F4EFFE]/30 rounded-xl p-3 border border-[#E8DAEF]">
-                                <p className="text-[10px] font-bold text-[#8E44AD] uppercase tracking-wide mb-1.5">Alasan Rekomendasi AI:</p>
-                                <div className="space-y-1">
-                                  {pmi.reasons.map(r => (
-                                    <div key={r} className="flex items-center gap-1.5 text-xs text-[#4A4A6A]">
-                                      <CheckCircle className="w-3.5 h-3.5 text-[#8E44AD] flex-shrink-0" /> {r}
-                                    </div>
-                                  ))}
-                                </div>
+                            {pmi.reasons && (
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                {pmi.reasons.map((r, idx) => (
+                                  <span key={idx} className="text-[10px] font-medium bg-[#F4F4F8] text-[#4A4A6A] px-2 py-0.5 rounded-md flex items-center gap-1">
+                                    <CheckCircle className="w-2.5 h-2.5 text-[#27AE60]" /> {r}
+                                  </span>
+                                ))}
                               </div>
                             )}
 
-                            {/* Actions inside result card */}
                             {i === 0 && !confirmed && (
                               <button onClick={e => { e.stopPropagation(); setConfirmed(true); }}
                                 className="mt-3 w-full py-2 rounded-lg bg-[#C0392B] text-white text-xs font-bold hover:bg-[#922B21] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
@@ -585,105 +554,14 @@ export default function BloodSearch() {
                               </div>
                             )}
                           </div>
+                          <ScoreMeter score={pmi.score} />
                         </div>
                       </div>
                     ))
                   )}
                 </div>
               )}
-              </div>
-            )}
-
-            {/* HOSPITAL STOCKS RESULTS SECTION */}
-            {resultTab === 'hospital-stock' && (
-              <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-[#FDEDEC] rounded-lg flex items-center justify-center">
-                    <Building2 className="w-4 h-4 text-[#C0392B]" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      Stok Darah Rumah Sakit Mitra
-                    </h2>
-                    <p className="text-[11px] text-[#9B9BB5]">Ketersediaan stok darah di berbagai RS Kota Surabaya</p>
-                  </div>
-                </div>
-                <div className="text-xs text-[#4A4A6A]">
-                  Ditemukan <span className="font-bold text-[#C0392B]">{filteredHospitals.length}</span> RS
-                </div>
-              </div>
-
-              {filteredHospitals.length === 0 ? (
-                <div className="bg-[#FDFEFE] rounded-xl border border-dashed border-border p-8 text-center">
-                  <MapPin className="w-8 h-8 text-[#9B9BB5] mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-[#1A1A2E] mb-1">Tidak Ada Rumah Sakit yang Cocok</p>
-                  <p className="text-xs text-[#9B9BB5]">Coba ganti kata kunci pencarian atau bersihkan filter Anda.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredHospitals.map((hospital) => (
-                    <div key={hospital.id} className="border border-border rounded-xl p-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-md">
-                      <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-[#1A1A2E] text-sm truncate">{hospital.hospitalName}</h3>
-                          <p className="text-xs text-[#4A4A6A] mt-0.5 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> {hospital.address}, {hospital.district}</p>
-                          <div className="flex items-center gap-3 mt-1.5 text-xs text-[#9B9BB5]">
-                            <span className="flex items-center gap-1"><Navigation className="w-3 h-3" /> {hospital.distance} km</span>
-                            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {hospital.phone}</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button className="bg-[#C0392B] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#922B21] transition-colors">
-                            Hubungi RS
-                          </button>
-                          <button className="border border-border text-[#4A4A6A] hover:text-[#C0392B] hover:border-[#C0392B] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1">
-                            <Navigation className="w-3 h-3" /> Rute
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Hospital Blood Stocks Row */}
-                      <div className="mt-3 pt-3 border-t border-border">
-                        <p className="text-[10px] font-bold text-[#4A4A6A] uppercase tracking-wide mb-2">Detail Stok RS:</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {hospital.bloodTypes.map((blood) => {
-                            const s = statusConfig[blood.status];
-                            const bc = bloodTypeColor[blood.type] || '#C0392B';
-                            const isMatch = selectedBloodType === 'all' || blood.type === selectedBloodType;
-                            
-                            return (
-                              <div
-                                key={blood.type}
-                                className={`rounded-xl p-2.5 border-l-4 transition-all ${
-                                  isMatch ? 'opacity-100 scale-100 shadow-sm border-l-current' : 'opacity-40 scale-95'
-                                }`}
-                                style={{
-                                  background: s.bg,
-                                  borderLeftColor: bc,
-                                }}
-                              >
-                                <div className="flex items-center justify-between mb-0.5">
-                                  <span className="font-extrabold text-xs" style={{ color: bc }}>{blood.type}</span>
-                                  <span className="text-[8px] font-bold uppercase px-1 rounded" style={{ background: 'white', color: s.text }}>
-                                    {s.label}
-                                  </span>
-                                </div>
-                                <div className="flex items-baseline gap-0.5">
-                                  <span className="text-base font-extrabold text-[#1A1A2E]">{blood.stock}</span>
-                                  <span className="text-[9px] text-[#9B9BB5]">ktg</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                    </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-          )}
           </div>
         </div>
       </div>
