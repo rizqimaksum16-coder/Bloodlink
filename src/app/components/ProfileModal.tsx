@@ -15,6 +15,7 @@ const roleColors: Record<UserRole, { color: string; bg: string; label: string }>
   rs: { color: '#2980B9', bg: '#EAF7FB', label: 'Petugas Rumah Sakit' },
   donor: { color: '#8E44AD', bg: '#F4EFFE', label: 'Pendonor' },
   driver: { color: '#27AE60', bg: '#EAFAF1', label: 'Driver Ambulans' },
+  superadmin: { color: '#1A1A2E', bg: '#EAEAF4', label: 'Super Admin Pusat' },
 };
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {

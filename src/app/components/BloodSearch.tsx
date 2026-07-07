@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   MapPin, Filter, Navigation, Phone, Search, X, Zap, Star, Droplets,
   Clock, CheckCircle, Package, TrendingUp, ChevronRight, Sparkles,
-  BarChart2, Building2
+  BarChart2, Building2, AlertCircle, Map
 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../utils/supabase';
+import { toast } from 'sonner';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 // ==========================================
 // MOCK DATA & CONFIG FOR HOSPITAL STOCK
@@ -154,6 +157,120 @@ function ScoreMeter({ score }: { score: number }) {
   );
 }
 
+interface RouteMapProps {
+  hospitalCoords: [number, number];
+  pmiCoords: [number, number];
+  pmiName: string;
+}
+
+function RouteMap({ hospitalCoords, pmiCoords, pmiName }: RouteMapProps) {
+  const mapRef = useRef<L.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<L.LayerGroup | null>(null);
+
+  // Initialize map
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = L.map(containerRef.current, {
+      center: [-7.2754, 112.7500],
+      zoom: 12,
+      zoomControl: true,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    mapRef.current = map;
+    markersRef.current = L.layerGroup().addTo(map);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markersRef.current = null;
+    };
+  }, []);
+
+  // Update markers and route line when coordinates change
+  useEffect(() => {
+    const map = mapRef.current;
+    const markers = markersRef.current;
+    if (!map || !markers) return;
+
+    // Clear previous markers & polylines
+    markers.clearLayers();
+
+    // 1. Hospital Marker (Blue)
+    const hospitalIcon = L.divIcon({
+      className: '',
+      html: `<div style="background:#2980B9;color:white;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)">RS</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+    L.marker(hospitalCoords, { icon: hospitalIcon })
+      .addTo(markers)
+      .bindPopup('<b>RSUD Dr. Soetomo</b><br/>RS Pemohon');
+
+    // 2. PMI Marker (Red)
+    const pmiIcon = L.divIcon({
+      className: '',
+      html: `<div style="background:#C0392B;color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)">P</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+    L.marker(pmiCoords, { icon: pmiIcon })
+      .addTo(markers)
+      .bindPopup(`<b>${pmiName}</b><br/>Penyedia Darah`);
+
+    // 3. Fetch actual street route from OSRM API (no API key needed!)
+    const [pmiLat, pmiLng] = pmiCoords;
+    const [rsLat, rsLng] = hospitalCoords;
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${pmiLng},${pmiLat};${rsLng},${rsLat}?overview=full&geometries=geojson`;
+
+    fetch(osrmUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (data.routes && data.routes.length > 0) {
+          const routeCoords = data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]); // Swap to [lat, lng]
+          const polyline = L.polyline(routeCoords, {
+            color: '#8E44AD',
+            weight: 5,
+            opacity: 0.85
+          }).addTo(markers);
+
+          // Fit map bounds to show the route
+          map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+        } else {
+          // Fallback to straight line
+          const polyline = L.polyline([pmiCoords, hospitalCoords], {
+            color: '#8E44AD',
+            weight: 4,
+            dashArray: '5, 10',
+            opacity: 0.8
+          }).addTo(markers);
+          map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+        }
+      })
+      .catch(() => {
+        // Fallback to straight line
+        const polyline = L.polyline([pmiCoords, hospitalCoords], {
+          color: '#8E44AD',
+          weight: 4,
+          dashArray: '5, 10',
+          opacity: 0.8
+        }).addTo(markers);
+        map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+      });
+
+  }, [hospitalCoords, pmiCoords, pmiName]);
+
+  return (
+    <div ref={containerRef} className="w-full rounded-xl border border-border bg-slate-50" style={{ height: '260px', zIndex: 0 }} />
+  );
+}
+
 export default function BloodSearch() {
   const [searchParams] = useSearchParams();
   const initialTabParam = searchParams.get('tab');
@@ -173,9 +290,94 @@ export default function BloodSearch() {
   const [isMatching, setIsMatching] = useState(false);
   const [pmiResults, setPmiResults] = useState<PMIResult[] | null>(null);
   const [selectedPMI, setSelectedPMI] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmedPMIId, setConfirmedPMIId] = useState<string | null>(null);
   const [hospitalsList, setHospitalsList] = useState<BloodStock[]>(mockHospitals);
   const [resultTab, setResultTab] = useState<'ai-matching' | 'hospital-stock'>('ai-matching');
+
+  // Dynamically compute PMI search recommendations from local storage (Super Admin locations)
+  const getDynamicPMIResults = (bloodType: BloodType, requiredQty: number): PMIResult[] => {
+    const saved = localStorage.getItem('shared_orgs_v1');
+    if (!saved) {
+      return pmiDatabase[bloodType] || [];
+    }
+
+    try {
+      const orgs: any[] = JSON.parse(saved);
+      const activePMIs = orgs.filter(o => o.type === 'pmi' && o.status === 'active');
+      if (activePMIs.length === 0) {
+        return [];
+      }
+
+      // Default RS coordinates to calculate distance from: RSUD Dr. Soetomo [-7.2678, 112.7584]
+      const defaultRSCoords: [number, number] = [-7.2678, 112.7584];
+      
+      const mapped: PMIResult[] = activePMIs.map((p, index) => {
+        const dLat = p.coords[0] - defaultRSCoords[0];
+        const dLng = p.coords[1] - defaultRSCoords[1];
+        const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+        const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
+        
+        // Mock matching parameters
+        const responseRate = p.name.includes('A') ? 98 : p.name.includes('B') ? 92 : p.name.includes('C') ? 89 : 85;
+        const avgDelivery = p.name.includes('A') ? '12 mnt' : p.name.includes('B') ? '18 mnt' : '25 mnt';
+        
+        // AI Matching Score: decreases with distance, ranges from 50 to 99
+        const score = Math.max(50, Math.min(99, Math.round(100 - (distanceKm * 2.5))));
+
+        return {
+          id: p.id,
+          name: p.name,
+          address: p.address,
+          distance: `${distanceKm.toFixed(1)} km`,
+          travelTime: `${travelTimeMin} mnt`,
+          stock: 0,
+          capacity: 100,
+          responseRate,
+          avgDelivery,
+          score,
+          reasons: [
+            `Unit ${p.name} terdaftar aktif di sistem Suroboyo Bloods.`,
+            `Jarak geografis terdekat (${distanceKm.toFixed(1)} km) berdasarkan koordinat peta.`,
+            `Waktu tempuh diestimasi sekitar ${travelTimeMin} menit.`
+          ]
+        };
+      });
+
+      // Sort by score descending
+      const sorted = mapped.sort((a, b) => b.score - a.score);
+
+      // Add tag labels
+      if (sorted.length > 0) {
+        sorted[0].tag = 'Rekomendasi AI';
+        sorted[0].tagColor = '#C0392B';
+      }
+      if (sorted.length > 1) {
+        sorted[1].tag = 'Cadangan';
+        sorted[1].tagColor = '#E67E22';
+      }
+
+      return sorted;
+    } catch (e) {
+      console.error('Error parsing shared orgs:', e);
+      return pmiDatabase[bloodType] || [];
+    }
+  };
+
+  const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
+    const saved = localStorage.getItem('shared_orgs_v1');
+    if (saved) {
+      try {
+        const orgs = JSON.parse(saved);
+        const match = orgs.find((o: any) => o.id === pmiId || o.name === pmiName);
+        if (match && match.coords) {
+          return match.coords;
+        }
+      } catch (e) {}
+    }
+    if (pmiName.includes('Wonokromo') || pmiName.includes('Selatan')) return [-7.3005, 112.7351];
+    if (pmiName.includes('Kedung Baruk') || pmiName.includes('Timur')) return [-7.3150, 112.7812];
+    return [-7.2657, 112.7445];
+  };
 
   // Load real hospitals and stock from Supabase
   useEffect(() => {
@@ -216,7 +418,7 @@ export default function BloodSearch() {
     setIsMatching(true);
     setPmiResults(null);
     setSelectedPMI(null);
-    setConfirmed(false);
+    setConfirmedPMIId(null);
 
     const searchBt = (bloodTypesList.includes(selectedBloodType as BloodType) ? selectedBloodType : 'O+') as BloodType;
 
@@ -248,12 +450,12 @@ export default function BloodSearch() {
         }));
         setPmiResults(mappedResults);
       } else {
-        setPmiResults(pmiDatabase[searchBt] || []);
+        setPmiResults(getDynamicPMIResults(searchBt, Number(qty) || 5));
       }
     } catch (err) {
       console.warn('Menggunakan data fallback AI Matching karena Supabase belum dikonfigurasi:', err);
       setTimeout(() => {
-        setPmiResults(pmiDatabase[searchBt] || []);
+        setPmiResults(getDynamicPMIResults(searchBt, Number(qty) || 5));
         setIsMatching(false);
       }, 800);
       return;
@@ -261,15 +463,13 @@ export default function BloodSearch() {
     setIsMatching(false);
   };
 
-  // Run automatically on mount or when URL specifies AI matching initially
   useEffect(() => {
     if (initialTabParam === 'ai-matching') {
       setUrgency('mendesak');
       handleSearchAndMatch();
       setResultTab('ai-matching');
     } else {
-      const searchBt = (bloodTypesList.includes(selectedBloodType as BloodType) ? selectedBloodType : 'O+') as BloodType;
-      setPmiResults(pmiDatabase[searchBt] || []);
+      setPmiResults(null);
     }
   }, [initialTabParam]);
 
@@ -492,74 +692,128 @@ export default function BloodSearch() {
               )}
 
               {!isMatching && pmiResults && (
-                <div className="space-y-4">
-                  {pmiResults.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-[#9B9BB5]">
-                      Tidak ada data PMI yang cocok untuk golongan darah {selectedBloodType}.
-                    </div>
-                  ) : (
-                    pmiResults.map((pmi, i) => (
-                      <div key={pmi.id}
-                        className={`border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:scale-[1.01] hover:shadow-md ${
-                          selectedPMI === pmi.id ? 'border-[#8E44AD] bg-[#F4EFFE]/10 shadow-sm' : 'border-border hover:border-[#8E44AD]/40'
-                        }`}
-                        onClick={() => setSelectedPMI(pmi.id)}
-                      >
-                        <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <h3 className="font-bold text-[#1A1A2E] text-base">{pmi.name}</h3>
-                              {pmi.tag && (
-                                <span className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
-                                  style={{ background: pmi.tagColor || '#C0392B' }}>
-                                  {pmi.tag}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-[#4A4A6A] flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> {pmi.address}
-                            </p>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-[#9B9BB5]">
-                              <span className="flex items-center gap-1 font-semibold text-[#1A1A2E]">
-                                <Navigation className="w-3.5 h-3.5 text-[#C0392B]" /> {pmi.distance} ({pmi.travelTime})
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-[#2980B9]" /> Estimasi Kirim: {pmi.avgDelivery}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Zap className="w-3.5 h-3.5 text-[#F39C12]" /> Respons: {pmi.responseRate}%
-                              </span>
-                            </div>
-
-                            {pmi.reasons && (
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {pmi.reasons.map((r, idx) => (
-                                  <span key={idx} className="text-[10px] font-medium bg-[#F4F4F8] text-[#4A4A6A] px-2 py-0.5 rounded-md flex items-center gap-1">
-                                    <CheckCircle className="w-2.5 h-2.5 text-[#27AE60]" /> {r}
+                pmiResults.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-[#9B9BB5]">
+                    Tidak ada data PMI yang cocok untuk golongan darah {selectedBloodType}.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left: PMI recommendations list */}
+                    <div className="lg:col-span-2 space-y-4">
+                      {pmiResults.map((pmi, i) => (
+                        <div key={pmi.id}
+                          className={`border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:scale-[1.01] hover:shadow-md ${
+                            selectedPMI === pmi.id || (!selectedPMI && i === 0) ? 'border-[#8E44AD] bg-[#F4EFFE]/10 shadow-sm' : 'border-border hover:border-[#8E44AD]/40'
+                          }`}
+                          onClick={() => setSelectedPMI(pmi.id)}
+                        >
+                          <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <h3 className="font-bold text-[#1A1A2E] text-base">{pmi.name}</h3>
+                                {pmi.tag && (
+                                  <span className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
+                                    style={{ background: pmi.tagColor || '#C0392B' }}>
+                                    {pmi.tag}
                                   </span>
-                                ))}
+                                )}
                               </div>
-                            )}
+                              <p className="text-xs text-[#4A4A6A] flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> {pmi.address}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-[#9B9BB5]">
+                                <span className="flex items-center gap-1 font-semibold text-[#1A1A2E]">
+                                  <Navigation className="w-3.5 h-3.5 text-[#C0392B]" /> {pmi.distance} ({pmi.travelTime})
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5 text-[#2980B9]" /> Estimasi Kirim: {pmi.avgDelivery}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Zap className="w-3.5 h-3.5 text-[#F39C12]" /> Respons: {pmi.responseRate}%
+                                </span>
+                              </div>
 
-                            {i === 0 && !confirmed && (
-                              <button onClick={e => { e.stopPropagation(); setConfirmed(true); }}
-                                className="mt-3 w-full py-2 rounded-lg bg-[#C0392B] text-white text-xs font-bold hover:bg-[#922B21] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
-                                <CheckCircle className="w-3.5 h-3.5" /> Pesan Sekarang (PMI Terpilih)
-                              </button>
-                            )}
-                            {i === 0 && confirmed && (
-                              <div className="mt-3 bg-[#EAFAF1] rounded-lg p-2.5 flex items-center gap-1.5 border border-[#27AE60]/20">
-                                <CheckCircle className="w-3.5 h-3.5 text-[#27AE60]" />
-                                <span className="text-xs font-bold text-[#27AE60]">Permintaan darah berhasil dikirim ke {pmi.name}!</span>
-                              </div>
-                            )}
+                              {pmi.reasons && (
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                  {pmi.reasons.map((r, idx) => (
+                                    <span key={idx} className="text-[10px] font-medium bg-[#F4F4F8] text-[#4A4A6A] px-2 py-0.5 rounded-md flex items-center gap-1">
+                                      <CheckCircle className="w-2.5 h-2.5 text-[#27AE60]" /> {r}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {(() => {
+                                const isCardSelected = selectedPMI === pmi.id || (!selectedPMI && i === 0);
+                                const isCardConfirmed = confirmedPMIId === pmi.id;
+
+                                return (
+                                  <>
+                                    {isCardSelected && !isCardConfirmed && (
+                                      pmi.stock === 0 ? (
+                                        <div className="mt-3 flex flex-col gap-2">
+                                          <div className="bg-[#FDEDEC] text-[#C0392B] border border-[#F5B7B1]/30 rounded-lg p-2.5 text-[11px] font-medium flex items-start gap-1.5">
+                                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                            <span>⚠️ Stok darah habis di unit ini. Pemesanan dinonaktifkan sementara. Silakan lakukan broadcast darurat untuk memanggil pendonor.</span>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <button disabled
+                                              className="flex-1 py-2 rounded-lg bg-[#BDC3C7] text-white text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm">
+                                              <X className="w-3.5 h-3.5" /> Stok Darah Habis (Tidak Dapat Dipesan)
+                                            </button>
+                                            <button onClick={e => { 
+                                              e.stopPropagation(); 
+                                              toast.success('📢 Broadcast request darah darurat berhasil disebarkan ke pendonor terdekat!');
+                                            }}
+                                              className="py-2 px-4 rounded-lg bg-[#E67E22] text-white text-xs font-bold hover:bg-[#D35400] transition-colors flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap">
+                                              <Zap className="w-3.5 h-3.5 animate-pulse" /> Broadcast Darurat
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <button onClick={e => { e.stopPropagation(); setConfirmedPMIId(pmi.id); }}
+                                          className="mt-3 w-full py-2 rounded-lg bg-[#C0392B] text-white text-xs font-bold hover:bg-[#922B21] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                                          <CheckCircle className="w-3.5 h-3.5" /> Pesan Sekarang (PMI Terpilih)
+                                        </button>
+                                      )
+                                    )}
+                                    {isCardConfirmed && (
+                                      <div className="mt-3 bg-[#EAFAF1] rounded-lg p-2.5 flex items-center gap-1.5 border border-[#27AE60]/20">
+                                        <CheckCircle className="w-3.5 h-3.5 text-[#27AE60]" />
+                                        <span className="text-xs font-bold text-[#27AE60]">Permintaan darah berhasil dikirim ke {pmi.name}!</span>
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                            <ScoreMeter score={pmi.score} />
                           </div>
-                          <ScoreMeter score={pmi.score} />
                         </div>
+                      ))}
+                    </div>
+
+                    {/* Right: Route map visualization */}
+                    <div className="lg:col-span-1">
+                      <div className="sticky top-6 bg-white rounded-2xl border border-border p-4 shadow-sm space-y-3">
+                        <h4 className="font-bold text-xs text-[#1A1A2E] flex items-center gap-1.5 uppercase tracking-wider text-[#4A4A6A] flex items-center">
+                          <Map className="w-4 h-4 text-[#8E44AD]" /> Peta Rute Distribusi AI
+                        </h4>
+                        <div className="text-[11px] text-[#9B9BB5] leading-relaxed">
+                          Menampilkan estimasi rute tercepat dari unit PMI terpilih menuju **RSUD Dr. Soetomo** (RS Pengaju).
+                        </div>
+                        <RouteMap 
+                          hospitalCoords={[-7.2678, 112.7584]}
+                          pmiCoords={getPMICoords(
+                            selectedPMI || pmiResults[0]?.id, 
+                            selectedPMI ? pmiResults.find(p => p.id === selectedPMI)?.name || '' : pmiResults[0]?.name
+                          )}
+                          pmiName={selectedPMI ? pmiResults.find(p => p.id === selectedPMI)?.name || 'PMI Terpilih' : pmiResults[0]?.name}
+                        />
                       </div>
-                    ))
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </div>

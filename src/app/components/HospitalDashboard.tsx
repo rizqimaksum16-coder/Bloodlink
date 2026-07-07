@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, LayoutGrid, Trash2, ChevronDown, Calendar
+  RefreshCw, LayoutGrid, Trash2, ChevronDown
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -189,7 +189,7 @@ export default function HospitalDashboard() {
 
   // Manage Blood Stock State
   const [stocks, setStocks] = useState<HospitalStock[]>(() => {
-    const saved = localStorage.getItem('shared_blood_stocks');
+    const saved = localStorage.getItem('shared_hospital_blood_stocks');
     return saved ? JSON.parse(saved) : initialHospitalStock;
   });
 
@@ -198,6 +198,14 @@ export default function HospitalDashboard() {
     async function fetchHospitalData() {
       if (!isSupabaseConfigured) return;
       try {
+        // 1. Dapatkan ID Rumah Sakit yang sedang login berdasarkan nama organisasi user
+        const { data: hData } = await supabase
+          .from('hospitals')
+          .select('id')
+          .eq('name', user?.org || 'RSUD Dr. Soetomo')
+          .single();
+        const currentHId = hData?.id;
+
         // Fetch PMI Units
         const { data: pmiData } = await supabase.from('pmi_units').select('*');
         if (pmiData && pmiData.length > 0) {
@@ -214,8 +222,12 @@ export default function HospitalDashboard() {
           setPmiList(mappedPMI);
         }
 
-        // Fetch Blood Orders / Requests
-        const { data: orderData } = await supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
+        // Fetch Blood Orders / Requests (Difilter khusus Rumah Sakit yang login)
+        let orderQuery = supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
+        if (currentHId) {
+          orderQuery = orderQuery.eq('hospital_id', currentHId);
+        }
+        const { data: orderData } = await orderQuery;
         if (orderData && orderData.length > 0) {
           const mappedOrders: BloodOrder[] = orderData.map((o: any) => ({
             id: o.id,
@@ -233,10 +245,14 @@ export default function HospitalDashboard() {
           setOrders(mappedOrders);
         }
 
-        // Fetch Hospital Blood Stock
-        const { data: stockData } = await supabase.from('blood_stock').select('*');
+        // Fetch Hospital Blood Stock (Difilter khusus Rumah Sakit yang login)
+        let stockQuery = supabase.from('blood_stock').select('*');
+        if (currentHId) {
+          stockQuery = stockQuery.eq('owner_hospital_id', currentHId);
+        }
+        const { data: stockData } = await stockQuery;
         if (stockData && stockData.length > 0) {
-          const rsStocksOnly = stockData.filter((s: any) => s.owner_hospital_id != null);
+          const rsStocksOnly = stockData;
           if (rsStocksOnly.length > 0) {
             const mappedStocks: HospitalStock[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(type => {
               const item = rsStocksOnly.find((s: any) => s.blood_type === type);
@@ -264,13 +280,13 @@ export default function HospitalDashboard() {
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('shared_blood_stocks', JSON.stringify(stocks));
+    localStorage.setItem('shared_hospital_blood_stocks', JSON.stringify(stocks));
   }, [stocks]);
 
   // Real-time synchronization across views/tabs
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'shared_blood_stocks' && e.newValue) {
+      if (e.key === 'shared_hospital_blood_stocks' && e.newValue) {
         setStocks(JSON.parse(e.newValue));
       }
     };
@@ -314,6 +330,50 @@ export default function HospitalDashboard() {
         updatedAt: 'Baru saja',
         trackingPct: 0,
       };
+
+      if (isSupabaseConfigured) {
+        (async () => {
+          try {
+            const { data: hData } = await supabase
+              .from('hospitals')
+              .select('id')
+              .eq('name', user?.org || 'RSUD Dr. Soetomo')
+              .single();
+            const hId = hData?.id;
+
+            const { data: pData } = await supabase
+              .from('pmi_units')
+              .select('id')
+              .eq('name', newOrder.pmi)
+              .single();
+            const pId = pData?.id;
+
+            if (hId) {
+              const { data: ordRes } = await supabase.from('blood_orders').insert({
+                hospital_id: hId,
+                pmi_id: pId,
+                blood_type: newOrder.bloodType,
+                quantity: newOrder.qty,
+                urgency: newOrder.urgency,
+                status: 'pending'
+              }).select('*').single();
+
+              await supabase.from('blood_requests').insert({
+                id: ordRes ? ordRes.id : undefined,
+                hospital_id: hId,
+                pmi_id: pId,
+                blood_type: newOrder.bloodType,
+                quantity: newOrder.qty,
+                urgency: newOrder.urgency,
+                status: 'pending'
+              });
+            }
+          } catch (e) {
+            console.warn('Gagal menyimpan pesanan ke Supabase:', e);
+          }
+        })();
+      }
+
       setOrders(prev => [newOrder, ...prev]);
       setOrderStep('done');
     }
@@ -350,6 +410,52 @@ export default function HospitalDashboard() {
         }
         return s;
       }));
+
+      if (isSupabaseConfigured) {
+        (async () => {
+          try {
+            await supabase
+              .from('blood_orders')
+              .update({ status: 'selesai', updated_at: new Date().toISOString() })
+              .eq('id', id);
+
+            await supabase
+              .from('blood_requests')
+              .update({ status: 'selesai', updated_at: new Date().toISOString() })
+              .eq('id', id);
+
+            const { data: hData } = await supabase
+              .from('hospitals')
+              .select('id')
+              .eq('name', user?.org || 'RSUD Dr. Soetomo')
+              .single();
+            
+            if (hData) {
+              const { data: stockRow } = await supabase
+                .from('blood_stock')
+                .select('*')
+                .eq('owner_hospital_id', hData.id)
+                .eq('blood_type', order.bloodType)
+                .single();
+
+              if (stockRow) {
+                const newQty = stockRow.stock_qty + order.qty;
+                await supabase
+                  .from('blood_stock')
+                  .update({
+                    stock_qty: newQty,
+                    status: newQty > 10 ? 'available' : newQty > 3 ? 'low' : 'critical',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', stockRow.id);
+              }
+            }
+          } catch (e) {
+            console.warn('Gagal update status & stok di Supabase:', e);
+          }
+        })();
+      }
+
       toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
     } else {
       toast.error('Order tidak ditemukan!');
@@ -400,7 +506,76 @@ export default function HospitalDashboard() {
 
   // Direct Inline Stock Modification
   const updateSingleStock = (type: string, key: 'stock' | 'target' | 'expiringSoon', val: number) => {
-    setStocks(prev => prev.map(s => s.type === type ? { ...s, [key]: Math.max(0, val), lastUpdated: 'Baru saja' } : s));
+    setStocks(prev => prev.map(s => {
+      if (s.type === type) {
+        const newStock = key === 'stock' ? Math.max(0, val) : s.stock;
+        const newTarget = key === 'target' ? Math.max(1, val) : s.target;
+        const newExpiringSoon = key === 'expiringSoon' ? Math.max(0, val) : s.expiringSoon;
+        
+        // Recalculate status
+        const pct = Math.round((newStock / newTarget) * 100);
+        const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
+
+        if (isSupabaseConfigured) {
+          (async () => {
+            try {
+              let orgName = user?.org || 'RSUD Dr. Soetomo';
+              if (orgName === 'Rumah Sakit A') orgName = 'RSUD Dr. Soetomo';
+              if (orgName === 'Rumah Sakit B') orgName = 'RS Siloam Surabaya';
+              if (orgName === 'Rumah Sakit C') orgName = 'RSAL Dr. Ramelan';
+
+              const { data: hData } = await supabase
+                .from('hospitals')
+                .select('id')
+                .eq('name', orgName)
+                .single();
+              const hId = hData?.id;
+
+              if (hId) {
+                const { data: stockRow } = await supabase
+                  .from('blood_stock')
+                  .select('*')
+                  .eq('owner_hospital_id', hId)
+                  .eq('blood_type', type)
+                  .single();
+
+                if (stockRow) {
+                  await supabase
+                    .from('blood_stock')
+                    .update({
+                      stock_qty: newStock,
+                      status: newStatus,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', stockRow.id);
+                } else {
+                  await supabase
+                    .from('blood_stock')
+                    .insert({
+                      owner_hospital_id: hId,
+                      blood_type: type,
+                      stock_qty: newStock,
+                      status: newStatus
+                    });
+                }
+              }
+            } catch (e) {
+              console.warn('Gagal sync stock ke Supabase:', e);
+            }
+          })();
+        }
+
+        return {
+          ...s,
+          stock: newStock,
+          target: newTarget,
+          expiringSoon: newExpiringSoon,
+          status: newStatus,
+          lastUpdated: 'Baru saja'
+        };
+      }
+      return s;
+    }));
   };
 
   const preventNegativeInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -795,7 +970,6 @@ export default function HospitalDashboard() {
             {[
               { value: 'stock', label: 'Stok RS', icon: Package },
               { value: 'order', label: 'Riwayat Order', icon: FileText },
-              { value: 'events', label: 'Event RS', icon: Calendar },
               { value: 'report', label: 'Laporan', icon: BarChart2 },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-xs data-[state=active]:bg-[#2980B9] data-[state=active]:text-white flex items-center gap-1.5 py-2.5 px-4 font-bold transition-all">
@@ -818,40 +992,7 @@ export default function HospitalDashboard() {
             {renderAlertsSection()}
           </TabsContent>
 
-          {/* TAB: EVENTS RS */}
-          <TabsContent value="events" className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-white rounded-3xl p-6 border border-border shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    🏥 Event Donor Darah Rumah Sakit
-                  </h3>
-                  <p className="text-xs text-[#9B9BB5]">Kelola dan pantau kegiatan donor darah yang diselenggarakan oleh Rumah Sakit</p>
-                </div>
-                <a
-                  href="/events"
-                  className="flex items-center gap-2 bg-[#2980B9] hover:bg-[#1B4F72] text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  Buka Portal Event
-                </a>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50/50">
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Aksi Donor Rumah Sakit A</span>
-                  <h4 className="font-bold text-sm text-[#1A1A2E] mt-2">Aksi Donor Darah Bakti Kesehatan</h4>
-                  <p className="text-xs text-[#4A4A6A] mt-1">🗓 25 Juli 2026 • 📍 Aula Rumah Sakit A</p>
-                  <p className="text-xs text-[#9B9BB5] mt-1">Target: 120 kantong • Terdaftar: 25 peserta</p>
-                </div>
-                <div className="p-4 rounded-2xl border border-purple-100 bg-purple-50/50">
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Donor Peduli RS Siloam</span>
-                  <h4 className="font-bold text-sm text-[#1A1A2E] mt-2">Donor Darah Berkala RS Siloam</h4>
-                  <p className="text-xs text-[#4A4A6A] mt-1">🗓 05 Agustus 2026 • 📍 Lobi Utama RS Siloam</p>
-                  <p className="text-xs text-[#9B9BB5] mt-1">Target: 100 kantong • Terdaftar: 14 peserta</p>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
+
 
           {/* TAB 4: REPORT ONLY */}
           <TabsContent value="report" className="max-w-4xl mx-auto">

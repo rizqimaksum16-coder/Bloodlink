@@ -48,10 +48,41 @@ export default function Events() {
     return saved ? JSON.parse(saved) : defaultEventsList;
   });
 
-  const [registeredEvents, setRegisteredEvents] = useState<number[]>(() => {
+  const [registeredEvents, setRegisteredEvents] = useState<(string | number)[]>(() => {
     const saved = localStorage.getItem('donor_registered_events');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Sync registered events from Supabase for the current donor
+  useEffect(() => {
+    async function loadRegisteredEvents() {
+      if (!isSupabaseConfigured || !user) return;
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+
+        if (userData) {
+          const { data: bookings, error } = await supabase
+            .from('event_bookings')
+            .select('event_id')
+            .eq('donor_id', userData.id);
+
+          if (error) throw error;
+          if (bookings) {
+            const bookedIds = bookings.map((b: any) => b.event_id);
+            setRegisteredEvents(bookedIds);
+            localStorage.setItem('donor_registered_events', JSON.stringify(bookedIds));
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat event terdaftar dari Supabase:', err);
+      }
+    }
+    loadRegisteredEvents();
+  }, [user]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -166,6 +197,12 @@ export default function Events() {
     const bySearch = searchQuery === '' || e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.location.toLowerCase().includes(searchQuery.toLowerCase()) || e.organizer.toLowerCase().includes(searchQuery.toLowerCase());
     const byStatus = filterStatus === 'all' || e.status === filterStatus;
     const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
+    
+    // Sembunyikan event RS dari tampilan pendonor (donor hanya boleh ikut event PMI)
+    if (!isCreator && isRs) {
+      return false;
+    }
+
     const byOrganizer = filterOrganizer === 'all' || (filterOrganizer === 'rs' ? isRs : !isRs);
     return bySearch && byStatus && byOrganizer;
   });
@@ -240,7 +277,35 @@ export default function Events() {
     });
   };
 
-  const handleCancelRegistration = (eventId: number) => {
+  const handleCancelRegistration = async (eventId: any) => {
+    if (isSupabaseConfigured && user) {
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+
+        if (userData) {
+          await supabase
+            .from('event_bookings')
+            .delete()
+            .eq('event_id', eventId)
+            .eq('donor_id', userData.id);
+
+          const currentEvt = eventList.find(e => e.id === eventId);
+          if (currentEvt) {
+            await supabase
+              .from('events')
+              .update({ registered: Math.max(0, currentEvt.registered - 1) })
+              .eq('id', eventId);
+          }
+        }
+      } catch (err) {
+        console.error('Gagal membatalkan booking di Supabase:', err);
+      }
+    }
+
     setEventList(prev => {
       const updated = prev.map(ev => {
         if (ev.id === eventId) {
@@ -263,7 +328,26 @@ export default function Events() {
     toast.info('Pendaftaran event berhasil dibatalkan.');
   };
 
-  const handleResetAllRegistrations = () => {
+  const handleResetAllRegistrations = async () => {
+    if (isSupabaseConfigured && user) {
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+
+        if (userData) {
+          await supabase
+            .from('event_bookings')
+            .delete()
+            .eq('donor_id', userData.id);
+        }
+      } catch (err) {
+        console.error('Gagal me-reset bookings di Supabase:', err);
+      }
+    }
+
     setRegisteredEvents([]);
     localStorage.removeItem('donor_registered_events');
 
@@ -279,10 +363,41 @@ export default function Events() {
     });
   };
 
-  const handleConfirmFinalRegistration = () => {
+  const handleConfirmFinalRegistration = async () => {
     if (!selectedEventForReg) return;
 
     const eventId = selectedEventForReg.id;
+    const randomTicketNum = Math.floor(1000 + Math.random() * 9000);
+    const ticketId = `EVT-SUB-${eventId}-${randomTicketNum}`;
+    const registeredAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+
+    if (isSupabaseConfigured && user) {
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+
+        if (userData) {
+          await supabase
+            .from('event_bookings')
+            .insert({
+              event_id: eventId,
+              donor_id: userData.id,
+              session: regSession,
+              ticket_id: ticketId
+            });
+
+          await supabase
+            .from('events')
+            .update({ registered: selectedEventForReg.registered + 1 })
+            .eq('id', eventId);
+        }
+      } catch (err) {
+        console.error('Gagal menyimpan booking event ke Supabase:', err);
+      }
+    }
 
     // Update registration stats
     setEventList(prev => {
@@ -302,10 +417,6 @@ export default function Events() {
       localStorage.setItem('donor_registered_events', JSON.stringify(updated));
       return updated;
     });
-
-    const randomTicketNum = Math.floor(1000 + Math.random() * 9000);
-    const ticketId = `EVT-SUB-${eventId}-${randomTicketNum}`;
-    const registeredAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
     setEventTicketData({
       ticketId,

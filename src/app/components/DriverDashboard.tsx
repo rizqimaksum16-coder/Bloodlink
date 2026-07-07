@@ -85,6 +85,7 @@ export default function DriverDashboard() {
   });
 
   const [filterMode, setFilterMode] = useState<'my' | 'all'>('my');
+  const [selectedDeliveryDetail, setSelectedDeliveryDetail] = useState<Delivery | null>(null);
 
   // Fetch deliveries from Supabase on mount
   useEffect(() => {
@@ -415,9 +416,115 @@ export default function DriverDashboard() {
                       Hanya dapat dioperasikan oleh driver yang bersangkutan ({d.driver}).
                     </div>
                   )}
+
+                  <div className="flex justify-between items-center gap-2 mt-4 pt-3 border-t border-dashed border-border text-[11px] text-[#9B9BB5]">
+                    <span>Update terakhir: {d.updatedAt}</span>
+                    <button onClick={() => setSelectedDeliveryDetail(d)}
+                      className="text-[#16A085] hover:text-[#117A65] font-bold flex items-center gap-1">
+                      <ListFilter className="w-3.5 h-3.5" /> Periksa Detail Pesanan →
+                    </button>
+                  </div>
                 </div>
               );
             })}
+          </div>
+        )}
+        {/* Detail Pesanan Modal */}
+        {selectedDeliveryDetail && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl max-h-[95vh] overflow-y-auto border border-border">
+              <div className="flex items-center justify-between mb-5 pb-3 border-b border-border">
+                <div>
+                  <span className="text-[10px] font-bold bg-[#E8F8F5] text-[#16A085] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                    Detail Manifest Kurir
+                  </span>
+                  <h3 className="font-extrabold text-[#1A1A2E] text-base mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Periksa Pesanan {selectedDeliveryDetail.orderId}
+                  </h3>
+                </div>
+                <button onClick={() => setSelectedDeliveryDetail(null)}
+                  className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors text-slate-500 font-bold text-sm">
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Blood info card */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-[#9B9BB5] font-semibold uppercase">Komoditas Logistik</p>
+                    <p className="text-sm font-extrabold text-[#1A1A2E] mt-0.5">Kantong Darah {selectedDeliveryDetail.bloodType}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-[#9B9BB5] font-semibold uppercase">Jumlah Volume</p>
+                    <p className="text-sm font-extrabold text-[#1A1A2E] mt-0.5">{selectedDeliveryDetail.qty} Kantong</p>
+                  </div>
+                </div>
+
+                {/* Rute & Alamat Detail */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-[#9B9BB5] uppercase tracking-wider">Rute Distribusi Darah</h4>
+                  <div className="relative border-l-2 border-dashed border-slate-200 pl-4 space-y-4 py-1">
+                    {/* Penjemputan (PMI) */}
+                    <div className="relative">
+                      <div className="absolute left-[-21px] top-1 w-2.5 h-2.5 rounded-full bg-[#16A085]" />
+                      <p className="text-xs font-bold text-[#16A085]">Penjemputan (Faskes Asal)</p>
+                      <p className="text-sm font-extrabold text-[#1A1A2E] mt-0.5">{selectedDeliveryDetail.from}</p>
+                      <p className="text-xs text-[#9B9BB5]">Unit Palang Merah Indonesia penyedia stok darah</p>
+                    </div>
+                    {/* Pengantaran (RS) */}
+                    <div className="relative">
+                      <div className="absolute left-[-21px] top-1 w-2.5 h-2.5 rounded-full bg-[#C0392B]" />
+                      <p className="text-xs font-bold text-[#C0392B]">Tujuan (Faskes Penerima)</p>
+                      <p className="text-sm font-extrabold text-[#1A1A2E] mt-0.5">{selectedDeliveryDetail.to}</p>
+                      <p className="text-xs text-[#9B9BB5]">Instansi Rumah Sakit Pemohon</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detail Logistik & Kontak */}
+                <div className="grid grid-cols-2 gap-4 border-t border-border pt-4 text-xs">
+                  <div>
+                    <p className="text-[#9B9BB5] font-semibold">Estimasi Tiba (ETA)</p>
+                    <p className="font-bold text-[#1A1A2E] text-sm mt-0.5">{selectedDeliveryDetail.eta} ({selectedDeliveryDetail.distance})</p>
+                  </div>
+                  <div>
+                    <p className="text-[#9B9BB5] font-semibold">Tingkat Urgensi</p>
+                    <p className={`font-bold text-sm mt-0.5 ${selectedDeliveryDetail.urgent ? 'text-[#C0392B]' : 'text-[#16A085]'}`}>
+                      {selectedDeliveryDetail.urgent ? '🚨 Darurat Utama' : '✅ Normal'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#9B9BB5] font-semibold">Kontak Kurir</p>
+                    <p className="font-bold text-[#1A1A2E] text-sm mt-0.5">{selectedDeliveryDetail.driverPhone}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#9B9BB5] font-semibold">Status Pengiriman</p>
+                    <span className="inline-block mt-1 font-bold text-[9px] uppercase tracking-wider text-white px-2 py-0.5 rounded bg-[#16A085]">
+                      {selectedDeliveryDetail.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Prosedur Keamanan & SOP */}
+                <div className="p-3 bg-[#FEF9E7] border border-[#F39C12]/20 rounded-2xl text-[11px] text-[#7D6608] space-y-1">
+                  <p className="font-bold flex items-center gap-1">
+                    ⚠️ SOP Logistik Rantai Dingin Darah:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    <li>Pastikan temperatur box pengiriman terjaga pada suhu 2°C s/d 6°C.</li>
+                    <li>Hindari guncangan berlebih saat membawa kantong darah.</li>
+                    <li>Lakukan konfirmasi serah terima berkas manifest setibanya di RS tujuan.</li>
+                  </ul>
+                </div>
+
+                {/* Action */}
+                <button onClick={() => setSelectedDeliveryDetail(null)}
+                  className="w-full py-2.5 mt-2 rounded-xl bg-[#16A085] hover:bg-[#117A65] text-white text-xs font-bold transition-all shadow-sm">
+                  Selesai Memeriksa Pesanan
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

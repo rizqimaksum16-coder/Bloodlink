@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
-export type UserRole = 'pmi' | 'rs' | 'donor' | 'driver';
+export type UserRole = 'pmi' | 'rs' | 'donor' | 'driver' | 'superadmin';
 
 export interface AuthUser {
   id?: string;
@@ -88,6 +88,12 @@ const roleDefaults: Record<UserRole, Omit<AuthUser, 'email'>> = {
     org: 'PMI A (Logistik)',
     avatar: 'BS',
   },
+  superadmin: {
+    name: 'Super Admin',
+    role: 'superadmin',
+    org: 'Suroboyo Bloods Pusat',
+    avatar: 'SA',
+  },
 };
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -99,6 +105,7 @@ const knownDemoUsers: Record<string, { name: string; org: string; avatar: string
   'admin@rumahsakita.com': { name: 'Admin Rumah Sakit A', org: 'Rumah Sakit A', avatar: 'RA' },
   'admin@rumahsakitb.com': { name: 'Admin Rumah Sakit B', org: 'Rumah Sakit B', avatar: 'RB' },
   'admin@rumahsakitc.com': { name: 'Admin Rumah Sakit C', org: 'Rumah Sakit C', avatar: 'RC' },
+  'superadmin@suroboyo.id': { name: 'Super Admin', org: 'Suroboyo Bloods Pusat', avatar: 'SA' },
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {

@@ -69,22 +69,63 @@ export default function AddBloodStock() {
 
     if (isSupabaseConfigured) {
       try {
-        // Insert stock entry
-        const { error: stockErr } = await supabase
-          .from('hospital_blood_stock')
-          .insert({
-            hospital_name: formData.hospitalName,
-            blood_type: formData.bloodType,
-            stock: qtyNum,
-            district: 'Surabaya',
-            address: 'Kota Surabaya',
-            phone: '031-5010000',
-            status: qtyNum > 10 ? 'available' : qtyNum > 3 ? 'low' : 'critical'
-          });
+        let ownerHospId = null;
+        let ownerPmiId = null;
 
-        if (stockErr) console.warn('Supabase stock insert notice:', stockErr);
+        const { data: hData } = await supabase
+          .from('hospitals')
+          .select('id')
+          .eq('name', formData.hospitalName)
+          .single();
+        if (hData) {
+          ownerHospId = hData.id;
+        } else {
+          const { data: pData } = await supabase
+            .from('pmi_units')
+            .select('id')
+            .eq('name', formData.hospitalName)
+            .single();
+          if (pData) {
+            ownerPmiId = pData.id;
+          }
+        }
 
-        // Insert activity log
+        if (ownerHospId || ownerPmiId) {
+          const query = supabase
+            .from('blood_stock')
+            .select('*')
+            .eq('blood_type', formData.bloodType);
+          
+          if (ownerHospId) query.eq('owner_hospital_id', ownerHospId);
+          if (ownerPmiId) query.eq('owner_pmi_id', ownerPmiId);
+
+          const { data: existingStock } = await query.single();
+
+          if (existingStock) {
+            const newQty = existingStock.stock_qty + qtyNum;
+            await supabase
+              .from('blood_stock')
+              .update({
+                stock_qty: newQty,
+                status: newQty > 10 ? 'available' : newQty > 3 ? 'low' : 'critical',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingStock.id);
+          } else {
+            await supabase
+              .from('blood_stock')
+              .insert({
+                owner_hospital_id: ownerHospId,
+                owner_pmi_id: ownerPmiId,
+                blood_type: formData.bloodType,
+                stock_qty: qtyNum,
+                status: qtyNum > 10 ? 'available' : qtyNum > 3 ? 'low' : 'critical'
+              });
+          }
+        } else {
+          console.warn('Nama Faskes tidak terdaftar di Supabase.');
+        }
+
         await supabase
           .from('activity_logs')
           .insert({

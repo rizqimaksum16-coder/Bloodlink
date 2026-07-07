@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { LogIn, Building2, HeartPulse, Heart, Eye, EyeOff, Droplets, ChevronRight, Truck } from 'lucide-react';
+import { LogIn, Building2, HeartPulse, Heart, Eye, EyeOff, Droplets, ChevronRight, Truck, Shield } from 'lucide-react';
 import { Input } from './ui/input';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { Label } from './ui/label';
@@ -43,7 +43,7 @@ const roleOptions: RoleOption[] = [
     demoEmail: 'admin@rumahsakita.com',
     demoPwd: 'demo123',
     redirectTo: '/dashboard/rs',
-    description: 'Pesan darah, tracking kurir, dan stok RS',
+    description: 'Pesan darah, konfirmasi kurir, dan stok RS',
   },
   {
     role: 'donor',
@@ -67,7 +67,19 @@ const roleOptions: RoleOption[] = [
     demoEmail: 'driver@suroboyoblood.id',
     demoPwd: 'demo123',
     redirectTo: '/dashboard/driver',
-    description: 'Antar stok darah, update status pengiriman, dan simulasi GPS',
+    description: 'Antar stok darah, update status pengiriman, dan serah terima aman',
+  },
+  {
+    role: 'superadmin',
+    label: 'Super Admin',
+    org: 'Suroboyo Bloods Pusat',
+    icon: Shield,
+    color: '#1A1A2E',
+    bg: '#EAEAF4',
+    demoEmail: 'superadmin@suroboyo.id',
+    demoPwd: 'superadmin123',
+    redirectTo: '/dashboard/superadmin',
+    description: 'Kelola seluruh akun PMI & RS, GPS rute, dan peta lokasi',
   },
 ];
 
@@ -114,17 +126,34 @@ export default function Login() {
     setPassword(opt.demoPwd);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { toast.error('Mohon lengkapi email dan password'); return; }
 
     setLoading(true);
-    setTimeout(() => {
-      login(selectedRole, email);
+    try {
+      // Validasi password untuk driver kustom yang ditambahkan oleh PMI
+      if (selectedRole === 'driver') {
+        const saved = localStorage.getItem('shared_driver_accounts_v1');
+        if (saved) {
+          const drivers = JSON.parse(saved);
+          const found = drivers.find((d: any) => d.email.toLowerCase() === email.trim().toLowerCase());
+          if (found && found.password && found.password !== password) {
+            toast.error('Password salah untuk akun driver ini!');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      await login(selectedRole, email);
       toast.success(`Login berhasil sebagai ${activeRole?.label}!`);
       setTimeout(() => navigate(activeRole!.redirectTo), 600);
+    } catch (err) {
+      toast.error('Gagal masuk. Silakan coba lagi.');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {

@@ -23,6 +23,7 @@ const RewardPage = lazy(() => import('./components/RewardPage'));
 const DriverDashboard = lazy(() => import('./components/DriverDashboard'));
 const NotFound = lazy(() => import('./components/NotFound'));
 const AlurDonor = lazy(() => import('./components/AlurDonor'));
+const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
 
 export default function App() {
   return (
@@ -44,16 +45,28 @@ export default function App() {
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<HomePage />} />
-                  <Route path="/search" element={<BloodSearch />} />
-                  <Route path="/add-stock" element={<AddBloodStock />} />
-                  <Route path="/events" element={<Events />} />
-                  <Route path="/alur" element={<AlurDonor />} />
-                  <Route path="/info" element={<Information />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/search" element={
+                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs']}><BloodSearch /></ProtectedRoute>
+                  } />
+                  <Route path="/add-stock" element={
+                    <ProtectedRoute allowedRoles={['pmi']}><AddBloodStock /></ProtectedRoute>
+                  } />
+                  <Route path="/events" element={
+                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs']}><Events /></ProtectedRoute>
+                  } />
+                  <Route path="/alur" element={
+                    <ProtectedRoute allowedRoles={['donor', 'driver']}><AlurDonor /></ProtectedRoute>
+                  } />
+                  <Route path="/info" element={
+                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver']}><Information /></ProtectedRoute>
+                  } />
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver']}><Dashboard /></ProtectedRoute>
+                  } />
 
                   {/* Fitur Baru */}
                   <Route path="/ai-matching" element={<Navigate to="/search?tab=ai-matching" replace />} />
-                  <Route path="/gps-tracking" element={<GPSTracking />} />
+                  <Route path="/gps-tracking" element={<Navigate to="/" replace />} />
                   <Route path="/qr-checkin" element={
                     <ProtectedRoute allowedRoles={['pmi', 'rs']}><QRCheckIn /></ProtectedRoute>
                   } />
@@ -73,6 +86,9 @@ export default function App() {
                   } />
                   <Route path="/dashboard/driver" element={
                     <ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>
+                  } />
+                  <Route path="/dashboard/superadmin" element={
+                    <ProtectedRoute allowedRoles={['superadmin']}><SuperAdminDashboard /></ProtectedRoute>
                   } />
 
                   {/* 404 — catch all */}

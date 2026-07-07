@@ -23,12 +23,14 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
       rs: 'Rumah Sakit',
       donor: 'Pendonor',
       driver: 'Driver Ambulans',
+      superadmin: 'Super Admin',
     };
     const dashboardLink: Record<UserRole, string> = {
       pmi: '/dashboard/pmi',
       rs: '/dashboard/rs',
       donor: '/dashboard/donor',
       driver: '/dashboard/driver',
+      superadmin: '/dashboard/superadmin',
     };
 
     return (

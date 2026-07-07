@@ -235,39 +235,75 @@ export default function PMIDashboard() {
 
   const [requests, setRequests] = useState<BloodRequest[]>(bloodRequests);
   const [stocks, setStocks] = useState<BloodStock[]>(() => {
-    const saved = localStorage.getItem('shared_blood_stocks');
+    const saved = localStorage.getItem('shared_pmi_blood_stocks');
     return saved ? JSON.parse(saved) : bloodStocks;
   });
 
   const [donorList, setDonorList] = useState<Donor[]>(donors);
   const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
+  
+  const [drivers, setDrivers] = useState<any[]>(() => {
+    const saved = localStorage.getItem('shared_driver_accounts_v1');
+    return saved ? JSON.parse(saved) : [
+      { id: 'DRV001', name: 'Budi Santoso', email: 'budi@kurir.id', phone: '081234567890', vehicleNo: 'L 1234 AB', org: 'PMI Kota Surabaya' },
+      { id: 'DRV002', name: 'Agus Prasetyo', email: 'agus@kurir.id', phone: '082198765432', vehicleNo: 'L 5678 CD', org: 'PMI Kota Surabaya' },
+      { id: 'DRV003', name: 'Hendra Wijaya', email: 'hendra@kurir.id', phone: '083147852369', vehicleNo: 'L 9012 EF', org: 'PMI Kota Surabaya' },
+      { id: 'DRV004', name: 'Rizal Firmansyah', email: 'rizal@kurir.id', phone: '085236987410', vehicleNo: 'L 3456 GH', org: 'PMI Kota Surabaya' }
+    ];
+  });
+
+  const [newDriverName, setNewDriverName] = useState('');
+  const [newDriverEmail, setNewDriverEmail] = useState('');
+  const [newDriverPhone, setNewDriverPhone] = useState('');
+  const [newDriverVehicle, setNewDriverVehicle] = useState('');
+  const [newDriverPassword, setNewDriverPassword] = useState('');
+  const [showAddDriverModal, setShowAddDriverModal] = useState(false);
+  const [driverSearchQuery, setDriverSearchQuery] = useState('');
+  const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
+  const [chosenDriverId, setChosenDriverId] = useState<string>('');
 
   // Load from Supabase if configured
   useEffect(() => {
     async function loadPMIData() {
       if (!isSupabaseConfigured) return;
       try {
-        // Load Requests
-        const { data: reqData } = await supabase.from('blood_requests').select('*').order('created_at', { ascending: false });
+        // 1. Dapatkan ID unit PMI yang sedang login berdasarkan nama organisasi user
+        const { data: pData } = await supabase
+          .from('pmi_units')
+          .select('id')
+          .eq('name', user?.org || 'PMI Kota Surabaya')
+          .single();
+        const currentPmiId = pData?.id;
+
+        // Load Requests (Difilter khusus unit PMI yang sedang login)
+        let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false });
+        if (currentPmiId) {
+          reqQuery = reqQuery.eq('pmi_id', currentPmiId);
+        }
+        const { data: reqData } = await reqQuery;
         if (reqData && reqData.length > 0) {
           const mappedReq: BloodRequest[] = reqData.map((r: any) => ({
             id: r.id,
-            hospital: r.hospital || r.org || 'RSUD Dr. Soetomo',
+            hospital: r.hospitals?.name || r.hospital || r.org || 'RSUD Dr. Soetomo',
             bloodType: r.blood_type,
             qty: r.quantity || r.qty || 5,
             priority: r.urgency || r.priority || 'normal',
             status: r.status || 'pending',
             time: new Date(r.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            address: r.address || 'Kota Surabaya',
-            contact: r.phone || r.contact || '031-5010000'
+            address: r.hospitals?.address || r.address || 'Kota Surabaya',
+            contact: r.hospitals?.phone || r.phone || r.contact || '031-5010000'
           }));
           setRequests(mappedReq);
         }
 
-        // Load Stock
-        const { data: stockData } = await supabase.from('blood_stock').select('*');
+        // Load Stock (Difilter khusus unit PMI yang sedang login)
+        let stockQuery = supabase.from('blood_stock').select('*');
+        if (currentPmiId) {
+          stockQuery = stockQuery.eq('owner_pmi_id', currentPmiId);
+        }
+        const { data: stockData } = await stockQuery;
         if (stockData && stockData.length > 0) {
-          const pmiStocksOnly = stockData.filter((s: any) => s.owner_pmi_id != null || !s.owner_hospital_id);
+          const pmiStocksOnly = stockData;
           if (pmiStocksOnly.length > 0) {
             const targetMap: Record<string, number> = {
               'A+': 20, 'A-': 15, 'B+': 25, 'B-': 10,
@@ -328,6 +364,32 @@ export default function PMIDashboard() {
           }));
           setEventsList(mappedEvts);
         }
+
+        // Load Drivers
+        const { data: driverData } = await supabase.from('users').select('*').eq('role', 'driver');
+        const dbDrivers = driverData ? driverData.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          email: d.email,
+          phone: '081234567890',
+          vehicleNo: d.org && d.org.includes('PMI') ? 'L 1234 AB' : (d.org || 'L 1234 AB'),
+          org: d.org && d.org.includes('PMI') ? d.org : 'PMI Kota Surabaya'
+        })) : [];
+
+        // Ambil driver dari localStorage untuk digabungkan (agar driver lokal tetap tampil jika insert Supabase diblokir RLS)
+        const savedLocal = localStorage.getItem('shared_driver_accounts_v1');
+        const localDrivers = savedLocal ? JSON.parse(savedLocal) : [];
+
+        // Gabungkan keduanya berdasarkan email unik
+        const mergedDrivers = [...dbDrivers];
+        localDrivers.forEach((ld: any) => {
+          if (!mergedDrivers.some(md => md.email.toLowerCase() === ld.email.toLowerCase())) {
+            mergedDrivers.push(ld);
+          }
+        });
+
+        setDrivers(mergedDrivers);
+        localStorage.setItem('shared_driver_accounts_v1', JSON.stringify(mergedDrivers));
       } catch (e) {
         console.warn('PMIDashboard Supabase fetch error:', e);
       }
@@ -337,13 +399,13 @@ export default function PMIDashboard() {
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('shared_blood_stocks', JSON.stringify(stocks));
+    localStorage.setItem('shared_pmi_blood_stocks', JSON.stringify(stocks));
   }, [stocks]);
 
   // Real-time synchronization across views/tabs
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'shared_blood_stocks' && e.newValue) {
+      if (e.key === 'shared_pmi_blood_stocks' && e.newValue) {
         setStocks(JSON.parse(e.newValue));
       }
     };
@@ -382,21 +444,226 @@ export default function PMIDashboard() {
   const handleApprove = (id: string) => {
     const req = requests.find(r => r.id === id);
     if (req) {
-      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'diproses' } : r));
-      setStocks(prev => prev.map(s => {
-        if (s.type === req.bloodType) {
-          const newStock = Math.max(0, s.stock - req.qty);
-          const pct = Math.round((newStock / s.target) * 100);
-          const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
-          return { ...s, stock: newStock, status: newStatus, lastUpdated: 'Baru saja' };
-        }
-        return s;
-      }));
-      toast.success(`Permintaan disetujui! Stok PMI ${req.bloodType} berkurang ${req.qty} kantong.`);
+      setApprovingRequestId(id);
+      if (drivers.length > 0) {
+        setChosenDriverId(drivers[0].id);
+      } else {
+        setChosenDriverId('');
+      }
     }
+  };
+
+  const confirmApprovalWithDriver = async () => {
+    if (!approvingRequestId) return;
+    const req = requests.find(r => r.id === approvingRequestId);
+    if (!req) return;
+
+    if (!chosenDriverId) {
+      toast.error('Silakan daftarkan atau pilih driver terlebih dahulu!');
+      return;
+    }
+
+    const selectedDriver = drivers.find(d => d.id === chosenDriverId);
+    if (!selectedDriver) {
+      toast.error('Driver terpilih tidak valid.');
+      return;
+    }
+
+    // 1. Update status permintaan darah & kurangi stok
+    setRequests(prev => prev.map(r => r.id === approvingRequestId ? { ...r, status: 'diproses' } : r));
+    setStocks(prev => prev.map(s => {
+      if (s.type === req.bloodType) {
+        const newStock = Math.max(0, s.stock - req.qty);
+        const pct = Math.round((newStock / s.target) * 100);
+        const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
+        return { ...s, stock: newStock, status: newStatus, lastUpdated: 'Baru saja' };
+      }
+      return s;
+    }));
+
+    // 2. Buat objek pengiriman baru
+    const newDelivery = {
+      id: `del_${Date.now()}`,
+      orderId: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      bloodType: req.bloodType,
+      qty: req.qty,
+      from: user?.org || 'PMI Kota Surabaya',
+      to: req.hospital,
+      driver: selectedDriver.name,
+      driverPhone: selectedDriver.phone || '081234567890',
+      status: 'disiapkan',
+      eta: '15 Menit',
+      distance: '2.5 km',
+      pct: 0,
+      urgent: req.priority === 'darurat' || req.priority === 'mendesak',
+      updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    // 3. Simpan ke database Supabase jika dikonfigurasi
+    if (isSupabaseConfigured) {
+      (async () => {
+        try {
+          await supabase.from('deliveries').insert({
+            order_id: newDelivery.orderId,
+            blood_type: newDelivery.bloodType,
+            qty: newDelivery.qty,
+            from_name: newDelivery.from,
+            to_name: newDelivery.to,
+            driver_name: newDelivery.driver,
+            driver_phone: newDelivery.driverPhone,
+            status: newDelivery.status,
+            eta: newDelivery.eta,
+            distance_km: newDelivery.distance,
+            pct: newDelivery.pct,
+            urgent: newDelivery.urgent
+          });
+
+          await supabase
+            .from('blood_requests')
+            .update({ status: 'diproses', updated_at: new Date().toISOString() })
+            .eq('id', approvingRequestId);
+
+          await supabase
+            .from('blood_orders')
+            .update({ status: 'diproses', updated_at: new Date().toISOString() })
+            .eq('id', approvingRequestId);
+
+          let orgName = user?.org || 'PMI Kota Surabaya';
+          if (orgName === 'PMI A') orgName = 'UTD PMI A';
+          if (orgName === 'PMI B') orgName = 'Markas PMI A';
+          if (orgName === 'PMI C') orgName = 'PMI Kabupaten Sidoarjo';
+
+          const { data: pData } = await supabase
+            .from('pmi_units')
+            .select('id')
+            .eq('name', orgName)
+            .single();
+          const pId = pData?.id;
+
+          if (pId) {
+            const { data: stockRow } = await supabase
+              .from('blood_stock')
+              .select('*')
+              .eq('owner_pmi_id', pId)
+              .eq('blood_type', req.bloodType)
+              .single();
+
+            if (stockRow) {
+              const newQty = Math.max(0, stockRow.stock_qty - req.qty);
+              await supabase
+                .from('blood_stock')
+                .update({
+                  stock_qty: newQty,
+                  status: newQty > 10 ? 'available' : newQty > 3 ? 'low' : 'critical',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', stockRow.id);
+            }
+          }
+        } catch (e) {
+          console.warn('Gagal sinkronisasi persetujuan ke Supabase:', e);
+        }
+      })();
+    }
+
+    // 4. Sinkronisasi ke localStorage untuk fallback lokal
+    const savedDeliveries = localStorage.getItem('shared_donor_deliveries_v1');
+    const deliveriesList = savedDeliveries ? JSON.parse(savedDeliveries) : [];
+    const updatedDeliveries = [newDelivery, ...deliveriesList];
+    localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(updatedDeliveries));
+
+    // 5. Beri feedback sukses
+    toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
+    setApprovingRequestId(null);
   };
   const handleReject = (id: string) => {
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'ditolak' } : r));
+  };
+
+  const handleAddDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDriverName || !newDriverEmail) {
+      toast.error('Mohon lengkapi nama dan email driver!');
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(newDriverEmail)) {
+      toast.error('Format email tidak valid!');
+      return;
+    }
+
+    const orgName = user?.org || 'PMI Kota Surabaya';
+    let newId = `drv_${Date.now()}`;
+
+    try {
+      if (isSupabaseConfigured) {
+        const { data: inserted, error } = await supabase
+          .from('users')
+          .insert({
+            name: newDriverName,
+            email: newDriverEmail,
+            role: 'driver',
+            org: newDriverVehicle || 'L 1234 AB',
+            avatar: newDriverName.slice(0, 2).toUpperCase()
+          })
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        if (inserted) {
+          newId = inserted.id;
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal menyimpan driver ke Supabase, menggunakan model local:', err);
+    }
+
+    const addedDriver = {
+      id: newId,
+      name: newDriverName,
+      email: newDriverEmail,
+      phone: newDriverPhone || '081234567890',
+      vehicleNo: newDriverVehicle || 'L 1234 AB',
+      org: orgName,
+      password: newDriverPassword || 'demo123'
+    };
+
+    setDrivers(prev => {
+      const updated = [...prev, addedDriver];
+      localStorage.setItem('shared_driver_accounts_v1', JSON.stringify(updated));
+      return updated;
+    });
+
+    setNewDriverName('');
+    setNewDriverEmail('');
+    setNewDriverPhone('');
+    setNewDriverVehicle('');
+    setNewDriverPassword('');
+    setShowAddDriverModal(false);
+    toast.success(`Driver "${newDriverName}" berhasil ditambahkan!`);
+  };
+
+  const handleDeleteDriver = async (id: string) => {
+    try {
+      if (isSupabaseConfigured) {
+        const { error } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.warn('Gagal menghapus driver di Supabase:', err);
+    }
+
+    setDrivers(prev => {
+      const updated = prev.filter(d => d.id !== id);
+      localStorage.setItem('shared_driver_accounts_v1', JSON.stringify(updated));
+      return updated;
+    });
+
+    toast.success('Driver berhasil dihapus.');
   };
 
   const handleDiscardExpired = (type: string) => {
@@ -451,6 +718,55 @@ export default function PMIDashboard() {
         const pct = Math.round((newStock / newTarget) * 100);
         const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
         
+        if (isSupabaseConfigured) {
+          (async () => {
+            try {
+              let orgName = user?.org || 'PMI Kota Surabaya';
+              if (orgName === 'PMI A') orgName = 'UTD PMI A';
+              if (orgName === 'PMI B') orgName = 'Markas PMI A';
+              if (orgName === 'PMI C') orgName = 'PMI Kabupaten Sidoarjo';
+
+              const { data: pData } = await supabase
+                .from('pmi_units')
+                .select('id')
+                .eq('name', orgName)
+                .single();
+              const pId = pData?.id;
+
+              if (pId) {
+                const { data: stockRow } = await supabase
+                  .from('blood_stock')
+                  .select('*')
+                  .eq('owner_pmi_id', pId)
+                  .eq('blood_type', type)
+                  .single();
+
+                if (stockRow) {
+                  await supabase
+                    .from('blood_stock')
+                    .update({
+                      stock_qty: newStock,
+                      status: newStatus,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', stockRow.id);
+                } else {
+                  await supabase
+                    .from('blood_stock')
+                    .insert({
+                      owner_pmi_id: pId,
+                      blood_type: type,
+                      stock_qty: newStock,
+                      status: newStatus
+                    });
+                }
+              }
+            } catch (e) {
+              console.warn('Gagal sync stock ke Supabase:', e);
+            }
+          })();
+        }
+
         return {
           ...s,
           stock: newStock,
@@ -530,6 +846,7 @@ export default function PMIDashboard() {
               { value: 'requests', label: 'Request RS', icon: Bell },
               { value: 'stock', label: 'Manajemen Stok', icon: Package },
               { value: 'donors', label: 'Database Donor', icon: Users },
+              { value: 'drivers', label: 'Kelola Driver', icon: Truck },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-sm data-[state=active]:bg-[#C0392B] data-[state=active]:text-white flex items-center gap-1.5">
                 <Icon className="w-3.5 h-3.5" />
@@ -816,6 +1133,85 @@ export default function PMIDashboard() {
               ))}
             </div>
           </TabsContent>
+
+          {/* ── Tab: Kelola Driver ──────────────────────────── */}
+          <TabsContent value="drivers" className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-border shadow-xs">
+              <div className="flex-1 max-w-md relative">
+                <Search className="w-4 h-4 text-[#9B9BB5] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari nama, email, atau nomor kendaraan..."
+                  value={driverSearchQuery}
+                  onChange={e => setDriverSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+              <button onClick={() => setShowAddDriverModal(true)}
+                className="bg-[#1ABC9C] hover:bg-[#16A085] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm shadow-teal-100">
+                <Plus className="w-4 h-4" /> Tambah Driver Baru
+              </button>
+            </div>
+
+            {/* Drivers list */}
+            {(() => {
+              const filteredDrivers = drivers.filter(d => 
+                d.name.toLowerCase().includes(driverSearchQuery.toLowerCase()) ||
+                d.email.toLowerCase().includes(driverSearchQuery.toLowerCase()) ||
+                d.vehicleNo.toLowerCase().includes(driverSearchQuery.toLowerCase())
+              );
+
+              if (filteredDrivers.length === 0) {
+                return (
+                  <div className="bg-white rounded-2xl border border-border p-12 text-center">
+                    <p className="text-2xl mb-2">🚚</p>
+                    <p className="text-sm font-bold text-[#1A1A2E]">Driver tidak ditemukan</p>
+                    <p className="text-xs text-[#9B9BB5] mt-1">Coba sesuaikan kata kunci pencarian Anda atau tambah driver baru.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredDrivers.map(d => (
+                    <div key={d.id} className="bg-white rounded-2xl border border-border p-4 flex flex-col justify-between hover:shadow-md transition-all duration-250">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#E8F8F5] text-[#1ABC9C] flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {d.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-[#1A1A2E] truncate">{d.name}</p>
+                          <p className="text-xs text-[#9B9BB5] truncate">{d.email}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-xs text-[#4A4A6A]">
+                        <p className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#1ABC9C]" />
+                          <strong>Kendaraan:</strong> <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-800">{d.vehicleNo}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#1ABC9C]" />
+                          <strong>Kontak:</strong> {d.phone || '081234567890'}
+                        </p>
+                        <p className="flex items-center gap-2 text-[10px] text-[#9B9BB5] truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          Unit: {d.org}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex justify-end gap-2">
+                        <button onClick={() => handleDeleteDriver(d.id)}
+                          className="p-1.5 rounded-lg border border-border hover:border-red-200 text-slate-400 hover:text-[#C0392B] hover:bg-red-50/50 transition-all flex items-center gap-1 text-xs">
+                          <Trash2 className="w-3.5 h-3.5" /> Hapus
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -875,6 +1271,172 @@ export default function PMIDashboard() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ── Add Driver Modal ───────────────────────────────── */}
+      {showAddDriverModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Tambah Driver Baru</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Daftarkan akun driver dan plat nomor kurir</p>
+              </div>
+              <button onClick={() => setShowAddDriverModal(false)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDriver} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nama Lengkap</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Budi Santoso"
+                  value={newDriverName}
+                  onChange={e => setNewDriverName(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Email Aktif (Untuk Login)</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Contoh: budi@kurir.id"
+                  value={newDriverEmail}
+                  onChange={e => setNewDriverEmail(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Password Akun Driver</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Masukkan password untuk login..."
+                  value={newDriverPassword}
+                  onChange={e => setNewDriverPassword(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nomor Telepon</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 081234567890"
+                  value={newDriverPhone}
+                  onChange={e => setNewDriverPhone(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nomor Kendaraan (Plat Nomer)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: L 1234 AB"
+                  value={newDriverVehicle}
+                  onChange={e => setNewDriverVehicle(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowAddDriverModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
+                  Batal
+                </button>
+                <button type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#1ABC9C] hover:bg-[#16A085] text-white text-xs font-bold transition-colors">
+                  Simpan Driver
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ── Assign Driver & Approve Modal ───────────────────── */}
+      {approvingRequestId && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Persetujuan Permintaan</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Pilih driver yang akan ditugaskan mengirim darah</p>
+              </div>
+              <button onClick={() => setApprovingRequestId(null)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const req = requests.find(r => r.id === approvingRequestId);
+              if (!req) return null;
+
+              return (
+                <div className="space-y-4">
+                  {/* Request details info block */}
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-1.5">
+                    <p className="text-[#4A4A6A]"><strong>RS Pemohon:</strong> {req.hospital}</p>
+                    <p className="text-[#4A4A6A]"><strong>Golongan Darah:</strong> {req.bloodType}</p>
+                    <p className="text-[#4A4A6A]"><strong>Jumlah Kantong:</strong> {req.qty} Kantong</p>
+                    <p className="text-[#4A4A6A]"><strong>Tingkat Urgensi:</strong> <span className={req.priority === 'darurat' ? 'text-[#C0392B] font-bold' : 'text-[#16A085] font-semibold'}>{req.priority.toUpperCase()}</span></p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pilih Driver Aktif</label>
+                    {drivers.length === 0 ? (
+                      <div className="text-center py-4 border-2 border-dashed border-border rounded-xl">
+                        <p className="text-xs text-[#9B9BB5]">Belum ada driver yang terdaftar.</p>
+                        <button type="button" onClick={() => { setApprovingRequestId(null); setShowAddDriverModal(true); }}
+                          className="mt-2 text-xs font-bold text-[#1ABC9C] hover:underline">
+                          + Tambah Driver Baru Sekarang
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {drivers.map(d => (
+                          <label key={d.id} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${chosenDriverId === d.id ? 'border-[#1ABC9C] bg-[#E8F8F5]/30' : 'border-border hover:border-slate-300'}`}>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name="chosenDriver"
+                                value={d.id}
+                                checked={chosenDriverId === d.id}
+                                onChange={() => setChosenDriverId(d.id)}
+                                className="text-[#1ABC9C] focus:ring-[#1ABC9C]"
+                              />
+                              <div className="text-left">
+                                <p className="text-xs font-bold text-[#1A1A2E]">{d.name}</p>
+                                <p className="text-[10px] text-[#9B9BB5]">{d.vehicleNo} • {d.phone || 'No Telp'}</p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-[#4A4A6A]">Ready</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onClick={() => setApprovingRequestId(null)}
+                      className="flex-1 py-2.5 rounded-xl border border-border text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
+                      Batal
+                    </button>
+                    <button type="button" onClick={confirmApprovalWithDriver} disabled={drivers.length === 0}
+                      className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${drivers.length === 0 ? 'bg-[#BDC3C7] cursor-not-allowed' : 'bg-[#C0392B] hover:bg-[#922B21]'}`}>
+                      Konfirmasi & Kirim
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

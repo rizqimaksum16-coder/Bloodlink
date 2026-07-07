@@ -8,7 +8,6 @@ const footerLinks = [
       { label: 'Cari Stok Darah', to: '/search' },
       { label: 'Tambah Stok', to: '/add-stock' },
       { label: 'Event Donor', to: '/events' },
-      { label: 'GPS Tracking', to: '/gps-tracking' },
     ],
   },
   {

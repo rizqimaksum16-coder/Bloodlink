@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router';
 import {
   Search, Plus, MapPin, Users, Heart, Calendar, TrendingUp, Shield,
   Droplets, ArrowRight, ChevronRight, Phone, HeartPulse, Building2,
@@ -64,13 +65,23 @@ const heroConfigs = {
   },
   driver: {
     title: 'Portal Logistik & Kurir Darah',
-    desc: 'Kelola penugasan pengiriman darah Anda secara efisien. Laporkan status penjemputan, perbarui posisi GPS perjalanan, dan konfirmasikan serah terima dengan aman.',
+    desc: 'Kelola penugasan pengiriman darah Anda secara efisien. Laporkan status penjemputan dan konfirmasikan serah terima dengan aman.',
     primaryBtn: { label: 'Dashboard Driver', to: '/dashboard/driver', icon: Truck },
-    secondaryBtn: { label: 'Peta Pelacakan', to: '/gps-tracking', icon: MapPin },
     stats: [
       { value: '4 Tugas', label: 'Siaga Pengiriman' },
       { value: '98%', label: 'Kepatuhan Waktu' },
       { value: 'Surabaya', label: 'Wilayah Layanan' }
+    ]
+  },
+  superadmin: {
+    title: 'Super Admin Pusat — Suroboyo Bloods',
+    desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di Kota Surabaya, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
+    primaryBtn: { label: 'Super Admin Dashboard', to: '/dashboard/superadmin', icon: Shield },
+    secondaryBtn: { label: 'Peta Lokasi Unit', to: '/dashboard/superadmin', icon: MapPin },
+    stats: [
+      { value: '3 PMI', label: 'Unit Terdaftar' },
+      { value: '3 RS', label: 'Rumah Sakit Terdaftar' },
+      { value: 'Terpusat', label: 'Pengawasan Sistem' }
     ]
   }
 };
@@ -84,14 +95,6 @@ const roleFeatures = {
       bg: 'bg-[#FDEDEC]',
       color: 'text-[#C0392B]',
       to: '/add-stock',
-    },
-    {
-      icon: MapPin,
-      title: 'GPS Live Tracking',
-      desc: 'Pantau posisi kurir pengiriman kantong darah ke Rumah Sakit tujuan di peta digital real-time.',
-      bg: 'bg-[#D6EAF8]',
-      color: 'text-[#2980B9]',
-      to: '/gps-tracking',
     },
     {
       icon: QrCode,
@@ -120,14 +123,6 @@ const roleFeatures = {
       to: '/search',
     },
     {
-      icon: MapPin,
-      title: 'GPS Live Tracking',
-      desc: 'Pantau kiriman kantong darah pesanan RS Anda secara langsung sejak kurir berangkat hingga tiba.',
-      bg: 'bg-[#D6EAF8]',
-      color: 'text-[#2980B9]',
-      to: '/gps-tracking',
-    },
-    {
       icon: QrCode,
       title: 'Scanner QR Check-In',
       desc: 'Pindai kode QR tiket pendonor untuk verifikasi kehadiran otomatis di lokasi event.',
@@ -147,26 +142,18 @@ const roleFeatures = {
   donor: [
     {
       icon: Calendar,
-      title: 'Cari Event Donor',
-      desc: 'Cari jadwal dan lokasi kegiatan donor darah PMI di Surabaya dan daftarkan diri Anda secara online.',
-      bg: 'bg-[#D5F5E3]',
-      color: 'text-[#27AE60]',
+      title: 'Booking Event Donor',
+      desc: 'Temukan jadwal kegiatan donor darah terdekat di Surabaya dan lakukan pendaftaran secara online.',
+      bg: 'bg-[#FDEDEC]',
+      color: 'text-[#C0392B]',
       to: '/events',
     },
     {
-      icon: QrCode,
-      title: 'Tiket QR Saya',
-      desc: 'Tampilkan tiket QR digital Anda untuk dipindai oleh petugas PMI saat check-in di lokasi.',
-      bg: 'bg-[#FDEDEC]',
-      color: 'text-[#C0392B]',
-      to: '/alur',
-    },
-    {
       icon: Trophy,
-      title: 'Reward & Gamifikasi',
-      desc: 'Tukarkan poin donor Anda dengan voucher menarik dan klaim lencana pendonor.',
+      title: 'Tukar Reward Poin',
+      desc: 'Kumpulkan poin dari setiap kegiatan donor darah Anda dan tukarkan dengan berbagai voucher menarik.',
       bg: 'bg-[#FEF9E7]',
-      color: 'text-[#E67E22]',
+      color: 'text-[#F39C12]',
       to: '/rewards',
     }
   ],
@@ -180,14 +167,6 @@ const roleFeatures = {
       to: '/dashboard/driver',
     },
     {
-      icon: MapPin,
-      title: 'GPS Live Tracking',
-      desc: 'Lihat rute pengiriman dan posisi pengemudi lain di peta digital Kota Surabaya.',
-      bg: 'bg-[#D6EAF8]',
-      color: 'text-[#2980B9]',
-      to: '/gps-tracking',
-    },
-    {
       icon: Info,
       title: 'Informasi Bantuan',
       desc: 'Pelajari prosedur pengiriman kantong darah darurat dan petunjuk keselamatan.',
@@ -195,19 +174,52 @@ const roleFeatures = {
       color: 'text-[#9B9BB5]',
       to: '/alur',
     }
+  ],
+  superadmin: [
+    {
+      icon: Shield,
+      title: 'Kelola Akun PMI & RS',
+      desc: 'Tambah, perbarui, atau nonaktifkan akun organisasi PMI dan Rumah Sakit di sistem.',
+      bg: 'bg-[#EAEAF4]',
+      color: 'text-[#1A1A2E]',
+      to: '/dashboard/superadmin',
+    },
+    {
+      icon: MapPin,
+      title: 'Atur Peta & Lokasi',
+      desc: 'Kelola koordinat lokasi unit PMI dan Rumah Sakit terdaftar secara interaktif di peta.',
+      bg: 'bg-[#D6EAF8]',
+      color: 'text-[#2980B9]',
+      to: '/dashboard/superadmin',
+    },
+    {
+      icon: Users,
+      title: 'Pengawasan Terpusat',
+      desc: 'Pantau seluruh aktivitas transaksi stok dan pengiriman darah secara langsung.',
+      bg: 'bg-[#EAFAF1]',
+      color: 'text-[#27AE60]',
+      to: '/dashboard/superadmin',
+    }
   ]
 };
 
 export default function HomePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const role = user?.role || 'donor';
+
+  useEffect(() => {
+    if (user?.role === 'superadmin') {
+      navigate('/dashboard/superadmin', { replace: true });
+    }
+  }, [user, navigate]);
 
   usePageTitle('Beranda');
 
-  const cfg = heroConfigs[role];
+  const cfg = heroConfigs[role] as any;
   const feats = roleFeatures[role];
   const PrimaryIcon = cfg.primaryBtn.icon;
-  const SecondaryIcon = cfg.secondaryBtn.icon;
+  const SecondaryIcon = cfg.secondaryBtn?.icon;
 
   return (
     <div className="min-h-screen bg-[#F7F7FB]">
@@ -244,17 +256,19 @@ export default function HomePage() {
                   {cfg.primaryBtn.label}
                 </button>
               </Link>
-              <Link to={cfg.secondaryBtn.to}>
-                <button className="flex items-center gap-2 bg-white/15 border border-white/30 text-white px-6 py-3 rounded-xl font-bold hover:bg-white/25 transition-all duration-200 backdrop-blur-sm text-sm">
-                  <SecondaryIcon className="w-4 h-4" />
-                  {cfg.secondaryBtn.label}
-                </button>
-              </Link>
+              {cfg.secondaryBtn && (
+                <Link to={cfg.secondaryBtn.to}>
+                  <button className="flex items-center gap-2 bg-white/15 border border-white/30 text-white px-6 py-3 rounded-xl font-bold hover:bg-white/25 transition-all duration-200 backdrop-blur-sm text-sm">
+                    {SecondaryIcon && <SecondaryIcon className="w-4 h-4" />}
+                    {cfg.secondaryBtn.label}
+                  </button>
+                </Link>
+              )}
             </div>
 
             {/* Role-Specific Stat Badges */}
             <div className="mt-12 grid grid-cols-3 gap-4 max-w-md mx-auto border-t border-white/10 pt-8">
-              {cfg.stats.map((s) => (
+              {cfg.stats.map((s: any) => (
                 <div key={s.label} className="text-center">
                   <p className="text-xl md:text-2xl font-black text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.value}</p>
                   <p className="text-[10px] md:text-xs text-red-200 mt-0.5 leading-tight">{s.label}</p>

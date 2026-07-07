@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import {
   Droplets, Search, LogIn, LayoutDashboard, Calendar, Info,
   Menu, X, ChevronRight, Building2, HeartPulse, Heart, LogOut, User,
-  ChevronDown, Sun, Moon, Truck, HelpCircle, Activity, QrCode, Trophy, Bell
+  ChevronDown, Sun, Moon, Truck, HelpCircle, Activity, QrCode, Trophy, Bell, Shield
 } from 'lucide-react';
 import { useAuth, UserRole } from '../context/AuthContext';
 import LogoutConfirmDialog from './LogoutConfirmDialog';
@@ -18,6 +18,7 @@ const roleNavExtra: Record<UserRole, { to: string; label: string; icon: React.El
   rs:    { to: '/dashboard/rs',    label: 'Dashboard RS',        icon: Building2 },
   donor: { to: '/dashboard/donor', label: 'Dashboard Saya',      icon: Heart },
   driver: { to: '/dashboard/driver', label: 'Dashboard Driver',   icon: Truck },
+  superadmin: { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
 };
 
 const roleColors: Record<UserRole, { color: string; bg: string; label: string }> = {
@@ -25,6 +26,7 @@ const roleColors: Record<UserRole, { color: string; bg: string; label: string }>
   rs:    { color: '#2980B9', bg: '#EAF7FB', label: 'RS' },
   donor: { color: '#8E44AD', bg: '#F4EFFE', label: 'Donor' },
   driver: { color: '#16A085', bg: '#E8F8F5', label: 'Driver' },
+  superadmin: { color: '#1A1A2E', bg: '#EAEAF4', label: 'Super Admin' },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -245,10 +247,12 @@ export default function Navigation() {
     navigate('/login');
   };
 
-  const coreLinks = [
+  const coreLinks = user?.role === 'superadmin' ? [
+    { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
+  ] : [
     { to: '/', label: 'Beranda', icon: Droplets },
-    ...(user?.role !== 'pmi' ? [{ to: '/search', label: 'Cari Stok', icon: Search }] : []),
-    { to: '/events', label: 'Event', icon: Calendar },
+    ...(user?.role !== 'pmi' && user?.role !== 'driver' ? [{ to: '/search', label: 'Cari Stok', icon: Search }] : []),
+    ...(user?.role !== 'driver' ? [{ to: '/events', label: 'Event', icon: Calendar }] : []),
     ...(user?.role === 'donor' ? [{ to: '/rewards', label: 'Reward', icon: Trophy }] : []),
     ...(user?.role === 'pmi' || user?.role === 'rs' ? [{ to: '/qr-checkin', label: 'QR Scan', icon: QrCode }] : []),
     { to: '/info', label: 'Info & FAQ', icon: HelpCircle },
@@ -333,7 +337,7 @@ export default function Navigation() {
               </button>
 
               {/* Notification Bell */}
-              {isAuthenticated && user && (
+              {isAuthenticated && user && user.role !== 'superadmin' && (
                 <div className="relative" ref={notifRefDesktop}>
                   <button
                     onClick={() => setNotifOpen(v => !v)}
@@ -464,7 +468,7 @@ export default function Navigation() {
 
             {/* Mobile right */}
             <div className="md:hidden ml-auto flex items-center gap-2">
-              {isAuthenticated && user && (
+              {isAuthenticated && user && user.role !== 'superadmin' && (
                 <div className="relative" ref={notifRefMobile}>
                   <button
                     onClick={() => setNotifOpen(v => !v)}
