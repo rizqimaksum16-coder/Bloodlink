@@ -7,6 +7,7 @@ import Navigation from './components/Navigation';
 import AppFooter from './components/AppFooter';
 
 // Lazy loading untuk seluruh komponen halaman demi optimasi performa FCP/LCP
+const LandingPage = lazy(() => import('./components/LandingPage'));
 const HomePage = lazy(() => import('./components/HomePage'));
 const BloodSearch = lazy(() => import('./components/BloodSearch'));
 const AddBloodStock = lazy(() => import('./components/AddBloodStock'));
@@ -40,11 +41,12 @@ export default function App() {
             }>
               <Routes>
                 {/* Public */}
+                <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
-                  <Route path="/" element={<HomePage />} />
+                  <Route path="/home" element={<HomePage />} />
                   <Route path="/search" element={
                     <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs']}><BloodSearch /></ProtectedRoute>
                   } />

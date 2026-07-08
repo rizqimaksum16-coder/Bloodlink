@@ -28,6 +28,7 @@ interface BloodRequest {
   time: string;
   address: string;
   contact: string;
+  pmi?: string;
 }
 
 interface StockBatch {
@@ -225,7 +226,15 @@ export default function PMIDashboard() {
     }
   }, [location.search, tabParam]);
 
-  const [requests, setRequests] = useState<BloodRequest[]>(bloodRequests);
+  const [requests, setRequests] = useState<BloodRequest[]>(() => {
+    // Baca request dari localStorage sebagai jembatan komunikasi dengan RS (fallback mode)
+    try {
+      const saved = localStorage.getItem('shared_blood_requests_v1');
+      return saved ? JSON.parse(saved) : bloodRequests;
+    } catch {
+      return bloodRequests;
+    }
+  });
   const [stocks, setStocks] = useState<BloodStock[]>(() => {
     const saved = localStorage.getItem('shared_pmi_blood_stocks');
     return saved ? JSON.parse(saved) : bloodStocks;
@@ -236,12 +245,26 @@ export default function PMIDashboard() {
   
   const [drivers, setDrivers] = useState<any[]>(() => {
     const saved = localStorage.getItem('shared_driver_accounts_v1');
-    return saved ? JSON.parse(saved) : [
-      { id: 'DRV001', name: 'Budi Santoso', email: 'budi@kurir.id', phone: '081234567890', vehicleNo: 'L 1234 AB', org: 'PMI Kota Surabaya' },
+    const defaultDrivers = [
+      { id: 'DRV001', name: 'Budi Santoso', email: 'driver@suroboyoblood.id', phone: '081234567890', vehicleNo: 'L 1234 AB', org: 'PMI A', password: 'demo123' },
       { id: 'DRV002', name: 'Agus Prasetyo', email: 'agus@kurir.id', phone: '082198765432', vehicleNo: 'L 5678 CD', org: 'PMI Kota Surabaya' },
       { id: 'DRV003', name: 'Hendra Wijaya', email: 'hendra@kurir.id', phone: '083147852369', vehicleNo: 'L 9012 EF', org: 'PMI Kota Surabaya' },
       { id: 'DRV004', name: 'Rizal Firmansyah', email: 'rizal@kurir.id', phone: '085236987410', vehicleNo: 'L 3456 GH', org: 'PMI Kota Surabaya' }
     ];
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Gabungkan parsed dengan defaultDrivers tanpa duplikat email
+        const merged = [...parsed];
+        defaultDrivers.forEach(def => {
+          if (!merged.find(m => m.email === def.email)) {
+            merged.push(def);
+          }
+        });
+        return merged;
+      }
+    }
+    return defaultDrivers;
   });
 
   const [newDriverName, setNewDriverName] = useState('');
@@ -253,6 +276,27 @@ export default function PMIDashboard() {
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
   const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
   const [chosenDriverId, setChosenDriverId] = useState<string>('');
+
+  // Sinkronisasi request dari localStorage (jembatan antara RS dan PMI)
+  useEffect(() => {
+    const syncFromStorage = () => {
+      try {
+        const saved = localStorage.getItem('shared_blood_requests_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRequests(parsed);
+          }
+        }
+      } catch (e) { console.warn('Gagal sync requests dari localStorage:', e); }
+    };
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener('sb_requests_changed', syncFromStorage);
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener('sb_requests_changed', syncFromStorage);
+    };
+  }, []);
 
   // Load from Supabase if configured
   useEffect(() => {
@@ -268,11 +312,12 @@ export default function PMIDashboard() {
           .single();
         const currentPmiId = pData?.id;
 
-        // Prepare queries
+        // Prepare queries — jika pmi_id ditemukan, filter; jika tidak, tampilkan semua request
         let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false });
         if (currentPmiId) {
           reqQuery = reqQuery.eq('pmi_id', currentPmiId);
         }
+        // Jika pmi_id tidak ditemukan, kita tetap lanjutkan tanpa filter (tampilkan semua request)
 
         let stockQuery = supabase.from('blood_stock').select('*');
         if (currentPmiId) {
@@ -429,11 +474,30 @@ export default function PMIDashboard() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Supabase Realtime — auto-refresh permintaan darah saat driver update status
+  // Supabase Realtime — auto-refresh permintaan darah saat ada INSERT atau UPDATE
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     const channel = supabase
       .channel('pmi_requests_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'blood_requests' },
+        (payload) => {
+          const newReq = payload.new as any;
+          const mapped: BloodRequest = {
+            id: newReq.id,
+            hospital: newReq.hospital || 'Rumah Sakit',
+            bloodType: newReq.blood_type,
+            qty: newReq.quantity || newReq.qty || 1,
+            priority: newReq.urgency || newReq.priority || 'normal',
+            status: newReq.status || 'pending',
+            time: new Date(newReq.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            address: newReq.address || 'Kota Surabaya',
+            contact: newReq.contact || newReq.phone || '031-5010000',
+          };
+          setRequests(prev => [mapped, ...prev]);
+        }
+      )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'blood_requests' },
@@ -472,7 +536,11 @@ export default function PMIDashboard() {
     }));
   };
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
+
+  const myPmiName = user?.org || 'PMI Kota Surabaya';
+  const displayedRequests = requests.filter(r => !r.pmi || r.pmi.toLowerCase() === myPmiName.toLowerCase());
+
+  const pendingCount = displayedRequests.filter(r => r.status === 'pending').length;
   const criticalStocks = stocks.filter(s => s.status === 'critical').length;
   const expiringSoon = stocks.reduce((sum, s) => sum + s.expiringSoon, 0);
   const totalDonors = donorList.length;
@@ -507,7 +575,15 @@ export default function PMIDashboard() {
     }
 
     // 1. Update status permintaan darah & kurangi stok
-    setRequests(prev => prev.map(r => r.id === approvingRequestId ? { ...r, status: 'diproses' } : r));
+    setRequests(prev => {
+      const updated = prev.map(r => r.id === approvingRequestId ? { ...r, status: 'diproses' as const } : r);
+      // Sync ke localStorage
+      try {
+        localStorage.setItem('shared_blood_requests_v1', JSON.stringify(updated));
+        window.dispatchEvent(new Event('sb_requests_changed'));
+      } catch (e) { console.warn(e); }
+      return updated;
+    });
     setStocks(prev => prev.map(s => {
       if (s.type === req.bloodType) {
         const newStock = Math.max(0, s.stock - req.qty);
@@ -614,7 +690,15 @@ export default function PMIDashboard() {
     setApprovingRequestId(null);
   };
   const handleReject = (id: string) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'ditolak' } : r));
+    setRequests(prev => {
+      const updated = prev.map(r => r.id === id ? { ...r, status: 'ditolak' as const } : r);
+      // Sync ke localStorage
+      try {
+        localStorage.setItem('shared_blood_requests_v1', JSON.stringify(updated));
+        window.dispatchEvent(new Event('sb_requests_changed'));
+      } catch (e) { console.warn(e); }
+      return updated;
+    });
   };
 
   const handleAddDriver = async (e: React.FormEvent) => {
@@ -897,7 +981,7 @@ export default function PMIDashboard() {
               <div className="flex gap-2">
                 {(['darurat', 'mendesak', 'normal'] as Priority[]).map(p => {
                   const cfg = priorityConfig[p];
-                  const cnt = requests.filter(r => r.priority === p && r.status === 'pending').length;
+                  const cnt = displayedRequests.filter(r => r.priority === p && r.status === 'pending').length;
                   return cnt > 0 ? (
                     <span key={p} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: cfg.bg, color: cfg.text }}>
                       {cnt} {cfg.label}
@@ -909,7 +993,7 @@ export default function PMIDashboard() {
 
             {/* Sort by priority */}
             {(['darurat', 'mendesak', 'normal'] as Priority[]).map(priority => {
-              const filtered = requests.filter(r => r.priority === priority);
+              const filtered = displayedRequests.filter(r => r.priority === priority);
               if (filtered.length === 0) return null;
               const p = priorityConfig[priority];
               return (
@@ -1408,7 +1492,7 @@ export default function PMIDashboard() {
             </div>
 
             {(() => {
-              const req = requests.find(r => r.id === approvingRequestId);
+              const req = displayedRequests.find(r => r.id === approvingRequestId);
               if (!req) return null;
 
               return (
@@ -1426,13 +1510,13 @@ export default function PMIDashboard() {
                     {drivers.length === 0 ? (
                       <div className="text-center py-4 border-2 border-dashed border-border rounded-xl">
                         <p className="text-xs text-[#9B9BB5]">Belum ada driver yang terdaftar.</p>
-                        <button type="button" onClick={() => { setApprovingRequestId(null); setShowAddDriverModal(true); }}
+                        <button type="button" onClick={() => setShowAddDriverModal(true)}
                           className="mt-2 text-xs font-bold text-[#1ABC9C] hover:underline">
                           + Tambah Driver Baru Sekarang
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1 pb-1">
                         {drivers.map(d => (
                           <label key={d.id} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${chosenDriverId === d.id ? 'border-[#1ABC9C] bg-[#E8F8F5]/30' : 'border-border hover:border-slate-300'}`}>
                             <div className="flex items-center gap-3">
@@ -1452,6 +1536,10 @@ export default function PMIDashboard() {
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-[#4A4A6A]">Ready</span>
                           </label>
                         ))}
+                        <button type="button" onClick={() => setShowAddDriverModal(true)}
+                          className="w-full mt-2 py-2.5 border-2 border-dashed border-[#1ABC9C] text-[#1ABC9C] rounded-xl text-xs font-bold hover:bg-[#E8F8F5] transition-colors flex items-center justify-center gap-1.5">
+                          <Plus className="w-4 h-4" /> Tambah Driver Baru
+                        </button>
                       </div>
                     )}
                   </div>

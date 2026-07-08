@@ -34,16 +34,7 @@ interface Achievement {
   total?: number;
 }
 
-const initialRewards: RewardItem[] = [
-  { id: 'R001', name: 'Voucher Indomaret 25K', description: 'Tukar poin untuk voucher belanja Indomaret', points: 500, category: 'voucher', icon: '🛒', available: true },
-  { id: 'R002', name: 'Voucher GoPay 50K', description: 'Saldo GoPay langsung ke akunmu', points: 900, category: 'voucher', icon: '💚', available: true },
-  { id: 'R003', name: 'Sertifikat Donor Digital', description: 'Sertifikat resmi PMI dengan QR verifikasi', points: 0, category: 'sertifikat', icon: '📜', available: true },
-  { id: 'R004', name: 'Pin Enamel Pahlawan Darah', description: 'Pin eksklusif koleksi terbatas', points: 1200, category: 'merchandise', icon: '📌', available: true, limited: true, limitCount: 50 },
-  { id: 'R005', name: 'Kaos PMI Surabaya', description: 'Kaos katun premium edisi terbatas', points: 2000, category: 'merchandise', icon: '👕', available: false, limited: true, limitCount: 20 },
-  { id: 'R006', name: 'Diskon Lab Medis 15%', description: 'Diskon pemeriksaan kesehatan di lab mitra', points: 800, category: 'privilege', icon: '🏥', available: true },
-  { id: 'R007', name: 'Priority Event Booking', description: 'Daftar event 24 jam lebih awal dari publik', points: 300, category: 'privilege', icon: '⭐', available: true },
-  { id: 'R008', name: 'Voucher Alfamart 25K', description: 'Voucher belanja Alfamart', points: 500, category: 'voucher', icon: '🏪', available: true },
-];
+const initialRewards: RewardItem[] = [];
 
 const achievements: Achievement[] = [
   { id: 'A001', name: 'Donor Pertama', description: 'Selesaikan donasi darah pertamamu', icon: Heart, color: '#C0392B', bg: '#FDEDEC', earned: true, earnedAt: '15 Des 2024' },
@@ -67,14 +58,7 @@ export default function RewardPage() {
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
   const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
 
-  const defaultLeaderboard = [
-    { rank: 1, name: 'Dewi Lestari', donations: 20, isMe: false },
-    { rank: 2, name: 'Budi Santoso', donations: 12, isMe: false },
-    { rank: 3, name: 'Nurul Hidayah', donations: 10, isMe: false },
-    { rank: 4, name: 'Ahmad Fauzi', donations: 9, isMe: false },
-    { rank: 5, name: user?.name || 'Rizky Pratama', donations: 9, isMe: true },
-    { rank: 6, name: 'Siti Rahayu', donations: 7, isMe: false },
-  ];
+  const defaultLeaderboard: any[] = [];
 
   const [leaderboardList, setLeaderboardList] = useState(defaultLeaderboard);
 

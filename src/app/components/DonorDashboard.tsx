@@ -71,45 +71,25 @@ interface Reward {
 // ─── Mock Data ─────────────────────────────────────────────────────────────────
 
 const initialProfile: DonorProfile = {
-  name: 'Rizky Pratama',
-  bloodType: 'O-',
-  dob: '1995-07-15',
-  phone: '081357924680',
-  address: 'Jl. Raya Darmo No. 45, Surabaya',
+  name: '',
+  bloodType: 'Belum Tahu',
+  dob: '',
+  phone: '',
+  address: '',
   registered: false,
-  totalDonations: 9,
-  lastDonation: '2025-10-22',
-  nextEligible: '2026-01-22',
+  totalDonations: 0,
+  lastDonation: null,
+  nextEligible: '',
   points: 0,
-  level: 'Veteran',
-  streak: 4,
+  level: 'Pemula',
+  streak: 0,
 };
 
 // Default fallback arrays (used when Supabase is offline or unconfigured)
-const fallbackDonationHistory: DonationHistory[] = [
-  { id: 'D001', date: '2025-10-22', location: 'PMI A', bloodType: 'O-', volume: 450, pointsEarned: 250, certificate: true },
-  { id: 'D002', date: '2025-07-10', location: 'Event Donor Unair', bloodType: 'O-', volume: 450, pointsEarned: 250, certificate: true },
-  { id: 'D003', date: '2025-04-05', location: 'PMI Surabaya Selatan', bloodType: 'O-', volume: 450, pointsEarned: 350, certificate: false },
-];
-
-const fallbackBookings: DonorBooking[] = [
-  { id: 'B001', event: 'Kampanye Donor PMI Juli 2026', date: '2026-07-05', location: 'Mall Galaxy Surabaya', status: 'terdaftar', qrCode: 'QR-B001-RIZKY', checkedIn: false },
-  { id: 'B002', event: 'Donor Darah Hari Pahlawan', date: '2026-08-17', location: 'Balai Kota Surabaya', status: 'terdaftar', qrCode: 'QR-B002-RIZKY', checkedIn: false },
-];
-
-const fallbackNotifications: Notification[] = [
-  { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI A sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa.', time: '5 menit lalu', read: false },
-  { id: 'N002', type: 'reminder', title: 'Kamu Sudah Bisa Donor Lagi', message: 'Masa tunggu 3 bulanmu sudah selesai. Jadwalkan donor sekarang.', time: '1 hari lalu', read: false },
-];
-
-const fallbackRewards: Reward[] = [
-  { id: 'R001', name: 'Voucher Indomaret Rp25.000', description: 'Dapat ditukarkan di seluruh Indomaret Surabaya', points: 500, icon: '🛒', claimed: false, available: true },
-  { id: 'R002', name: 'Sertifikat Donor Digital', description: 'Sertifikat resmi dengan QR verifikasi dari PMI', points: 0, icon: '📜', claimed: true, available: true },
-  { id: 'R003', name: 'Diskon Lab 20% RS Mitra', description: 'Diskon cek kesehatan di RS mitra Suroboyo Blood', points: 1000, icon: '🏥', claimed: false, available: true },
-  { id: 'R004', name: 'Kaos Eksklusif Donor', description: 'Kaos edisi terbatas untuk Veteran Donor', points: 2000, icon: '👕', claimed: false, available: true },
-  { id: 'R005', name: 'Tiket Bioskop 2x', description: 'Dua tiket bioskop XXI untuk pendonor aktif', points: 1500, icon: '🎬', claimed: false, available: false },
-  { id: 'R006', name: 'Badge Pahlawan Darah', description: 'Badge digital eksklusif setelah 10x donor', points: 0, icon: '🏅', claimed: false, available: false },
-];
+const fallbackDonationHistory: DonationHistory[] = [];
+const fallbackBookings: DonorBooking[] = [];
+const fallbackNotifications: Notification[] = [];
+const fallbackRewards: Reward[] = [];
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 

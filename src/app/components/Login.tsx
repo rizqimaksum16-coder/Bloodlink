@@ -131,22 +131,30 @@ export default function Login() {
     if (!email || !password) { toast.error('Mohon lengkapi email dan password'); return; }
 
     setLoading(true);
+    let customName: string | undefined;
+    let customOrg: string | undefined;
+
     try {
+
       // Validasi password untuk driver kustom yang ditambahkan oleh PMI
       if (selectedRole === 'driver') {
         const saved = localStorage.getItem('shared_driver_accounts_v1');
         if (saved) {
           const drivers = JSON.parse(saved);
           const found = drivers.find((d: any) => d.email.toLowerCase() === email.trim().toLowerCase());
-          if (found && found.password && found.password !== password) {
-            toast.error('Password salah untuk akun driver ini!');
-            setLoading(false);
-            return;
+          if (found) {
+            if (found.password && found.password !== password) {
+              toast.error('Password salah untuk akun driver ini!');
+              setLoading(false);
+              return;
+            }
+            customName = found.name;
+            customOrg = found.org;
           }
         }
       }
 
-      await login(selectedRole, email);
+      await login(selectedRole, email, customName, customOrg);
       toast.success(`Login berhasil sebagai ${activeRole?.label}!`);
       setTimeout(() => navigate(activeRole?.redirectTo || '/'), 600);
     } catch (err) {

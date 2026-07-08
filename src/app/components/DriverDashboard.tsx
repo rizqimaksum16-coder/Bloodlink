@@ -28,36 +28,7 @@ interface Delivery {
   updatedAt: string;
 }
 
-const initialDeliveries: Delivery[] = [
-  {
-    id: 'DEL001', orderId: 'ORD-2847', bloodType: 'O+', qty: 5,
-    from: 'PMI A', to: 'RSUD Dr. Soetomo',
-    driver: 'Budi Santoso', driverPhone: '081234567890',
-    status: 'perjalanan', eta: '6 mnt', distance: '2.1 km',
-    pct: 72, urgent: true, updatedAt: '2 mnt lalu',
-  },
-  {
-    id: 'DEL002', orderId: 'ORD-2851', bloodType: 'A-', qty: 3,
-    from: 'PMI Surabaya Timur', to: 'RS Siloam Surabaya',
-    driver: 'Agus Prasetyo', driverPhone: '082198765432',
-    status: 'dijemput', eta: '18 mnt', distance: '5.4 km',
-    pct: 25, urgent: false, updatedAt: '5 mnt lalu',
-  },
-  {
-    id: 'DEL003', orderId: 'ORD-2838', bloodType: 'B+', qty: 8,
-    from: 'PMI A', to: 'RS Premier Surabaya',
-    driver: 'Hendra Wijaya', driverPhone: '083147852369',
-    status: 'tiba', eta: 'Sudah tiba', distance: '3.8 km',
-    pct: 100, urgent: false, updatedAt: '12 mnt lalu',
-  },
-  {
-    id: 'DEL004', orderId: 'ORD-2855', bloodType: 'AB-', qty: 2,
-    from: 'PMI Surabaya Selatan', to: 'RS Husada Utama',
-    driver: 'Rizal Firmansyah', driverPhone: '085236987410',
-    status: 'disiapkan', eta: '30 mnt', distance: '8.2 km',
-    pct: 5, urgent: true, updatedAt: 'Baru saja',
-  },
-];
+const initialDeliveries: Delivery[] = [];
 
 const statusSteps: DeliveryStatus[] = ['disiapkan', 'dijemput', 'perjalanan', 'tiba'];
 

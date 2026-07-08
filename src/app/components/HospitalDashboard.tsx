@@ -308,6 +308,39 @@ export default function HospitalDashboard() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Sinkronisasi status pesanan dari PMI (via localStorage bridge)
+  // Ketika PMI menyetujui/menolak request, status pesanan RS otomatis terupdate
+  useEffect(() => {
+    const syncOrdersFromPMI = () => {
+      try {
+        const raw = localStorage.getItem('shared_blood_requests_v1');
+        if (!raw) return;
+        const bridgeRequests: Array<{ id: string; status: string }> = JSON.parse(raw);
+        setOrders(prev => prev.map(order => {
+          const match = bridgeRequests.find(r => r.id === order.id);
+          if (!match) return order;
+          // Map status dari format PMI ke format RS
+          const statusMap: Record<string, BloodOrder['status']> = {
+            pending: 'menunggu',
+            diproses: 'diproses',
+            selesai: 'selesai',
+            ditolak: 'ditolak',
+            menunggu: 'menunggu',
+          };
+          const mappedStatus = statusMap[match.status] || order.status;
+          return { ...order, status: mappedStatus, updatedAt: 'Baru saja' };
+        }));
+      } catch (e) { console.warn('Gagal sync orders dari PMI:', e); }
+    };
+    window.addEventListener('sb_requests_changed', syncOrdersFromPMI);
+    window.addEventListener('storage', (e: StorageEvent) => {
+      if (e.key === 'shared_blood_requests_v1') syncOrdersFromPMI();
+    });
+    return () => {
+      window.removeEventListener('sb_requests_changed', syncOrdersFromPMI);
+    };
+  }, []);
+
   // Supabase Realtime — auto-refresh orders saat driver update status pengiriman
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -416,6 +449,28 @@ export default function HospitalDashboard() {
       }
 
       setOrders(prev => [newOrder, ...prev]);
+
+      // Simpan ke localStorage sebagai jembatan komunikasi ke PMIDashboard (fallback mode)
+      try {
+        const existingRaw = localStorage.getItem('shared_blood_requests_v1');
+        const existing: BloodRequest[] = existingRaw ? JSON.parse(existingRaw) : [];
+        const bridgeReq = {
+          id: newOrder.id,
+          hospital: user?.org || 'Rumah Sakit',
+          bloodType: newOrder.bloodType,
+          qty: newOrder.qty,
+          priority: newOrder.urgency,
+          status: 'pending',
+          time: 'Baru saja',
+          address: '',
+          contact: '',
+          pmi: newOrder.pmi,
+        };
+        const updated = [bridgeReq, ...existing];
+        localStorage.setItem('shared_blood_requests_v1', JSON.stringify(updated));
+        window.dispatchEvent(new Event('sb_requests_changed'));
+      } catch (e) { console.warn('Gagal simpan request ke localStorage:', e); }
+
       setOrderStep('done');
     }
   };

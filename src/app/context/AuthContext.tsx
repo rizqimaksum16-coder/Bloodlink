@@ -145,14 +145,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncProfileOnStart();
   }, []);
 
-  const login = async (role: UserRole, email: string, name?: string) => {
+  const login = async (role: UserRole, email: string, name?: string, org?: string) => {
     const defaults = roleDefaults[role];
     const demoMeta = knownDemoUsers[email];
     let loggedUser: AuthUser = {
       ...defaults,
       email,
       name: demoMeta ? demoMeta.name : (name || defaults.name),
-      org: demoMeta ? demoMeta.org : defaults.org,
+      org: demoMeta ? demoMeta.org : (org || defaults.org),
       avatar: demoMeta ? demoMeta.avatar : (name || defaults.name).slice(0, 2).toUpperCase(),
     };
 
