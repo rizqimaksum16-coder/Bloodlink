@@ -131,21 +131,64 @@ export default function DriverDashboard() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  // Mapping status delivery driver → status pesanan di RS/PMI
+  const mapDeliveryStatusToOrderStatus = (deliveryStatus: DeliveryStatus): string => {
+    switch (deliveryStatus) {
+      case 'disiapkan': return 'pending';
+      case 'dijemput':  return 'diproses';
+      case 'perjalanan': return 'dikirim';
+      case 'tiba':      return 'selesai';
+      default:          return 'diproses';
+    }
+  };
+
   const updateDelivery = async (updated: Delivery) => {
     const newList = deliveryList.map(d => d.id === updated.id ? updated : d);
     setDeliveryList(newList);
     localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(newList));
     window.dispatchEvent(new Event('storage'));
-    // Persist to Supabase
+
     if (isSupabaseConfigured) {
       try {
+        // 1. Update tabel deliveries
         await supabase.from('deliveries').update({
           status: updated.status,
           pct: updated.pct,
           eta: updated.eta,
           updated_at: new Date().toISOString(),
         }).eq('id', updated.id);
-      } catch (e) { console.warn('Gagal update delivery di Supabase:', e); }
+
+        // 2. Mirror ke blood_orders dan blood_requests agar PMI & RS ter-update
+        //    Lookup berdasarkan kesamaan to_name (nama RS), blood_type, dan qty
+        const orderStatus = mapDeliveryStatusToOrderStatus(updated.status);
+        const now = new Date().toISOString();
+
+        const { data: matchedOrders } = await supabase
+          .from('blood_orders')
+          .select('id')
+          .eq('blood_type', updated.bloodType)
+          .eq('quantity', updated.qty)
+          .neq('status', 'selesai')
+          .neq('status', 'ditolak')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (matchedOrders && matchedOrders.length > 0) {
+          const orderId = matchedOrders[0].id;
+
+          await supabase
+            .from('blood_orders')
+            .update({ status: orderStatus, updated_at: now })
+            .eq('id', orderId);
+
+          await supabase
+            .from('blood_requests')
+            .update({ status: orderStatus, updated_at: now })
+            .eq('id', orderId);
+        }
+      } catch (e) {
+        console.warn('Gagal update delivery/order di Supabase:', e);
+      }
     }
   };
 
@@ -182,32 +225,6 @@ export default function DriverDashboard() {
     updateDelivery(updated);
   };
 
-  const handleSimulateGPS = (d: Delivery) => {
-    if (d.status !== 'perjalanan') {
-      toast.error('Simulasi GPS hanya aktif saat kurir dalam perjalanan.');
-      return;
-    }
-    const currentPct = d.pct;
-    let nextPct = currentPct + 10;
-    let nextEta = d.eta;
-    if (nextPct >= 95) {
-      nextPct = 95;
-      nextEta = '1 mnt';
-    } else {
-      const minutesRemaining = Math.max(1, Math.round((100 - nextPct) / 8));
-      nextEta = `${minutesRemaining} mnt`;
-    }
-
-    const updated: Delivery = {
-      ...d,
-      pct: nextPct,
-      eta: nextEta,
-      updatedAt: 'Baru saja'
-    };
-
-    updateDelivery(updated);
-    toast.info(`Simulasi GPS: Posisi kurir ${d.orderId} maju ke ${nextPct}%`);
-  };
 
   // Filter deliveries
   // Driver name matches user.name
@@ -394,14 +411,6 @@ export default function DriverDashboard() {
                         {d.status === 'dijemput' && 'Mulai Pengiriman'}
                         {d.status === 'perjalanan' && 'Konfirmasi Tiba di Tujuan'}
                       </button>
-                      
-                      {d.status === 'perjalanan' && (
-                        <button onClick={() => handleSimulateGPS(d)}
-                          className="py-2.5 px-4 rounded-xl border-2 border-[#16A085] text-[#16A085] hover:bg-[#E8F8F5] text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                          <Navigation className="w-3.5 h-3.5 animate-pulse" />
-                          Simulasi GPS (+10%)
-                        </button>
-                      )}
                     </div>
                   )}
 

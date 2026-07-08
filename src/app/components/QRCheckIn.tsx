@@ -32,19 +32,9 @@ interface Booking {
   checkedInAt?: string;
 }
 
-const defaultEventsList: DonorEvent[] = [
-  { id: 'E001', name: 'Donor Darah PMI Juli 2026', date: '2026-07-05', time: '08:00 – 14:00', location: 'Mall Galaxy Surabaya, Lt. 1', registered: 5, checkedIn: 3, target: 150, status: 'open' },
-  { id: 'E002', name: 'Kampanye Donor Unair', date: '2026-07-20', time: '07:30 – 13:00', location: 'Kampus B Unair, Aula Besar', registered: 12, checkedIn: 2, target: 300, status: 'open' },
-  { id: 'E003', name: 'Donor Hari Pahlawan', date: '2026-08-17', time: '09:00 – 15:00', location: 'Balai Kota Surabaya', registered: 8, checkedIn: 0, target: 200, status: 'open' },
-];
+const defaultEventsList: DonorEvent[] = [];
 
-const initialDefaultBookings: Booking[] = [
-  { id: 'B001', donorName: 'Rizky Pratama', bloodType: 'O-', qrCode: 'SB-E001-RP-2847', eventId: 'E001', checkedIn: false },
-  { id: 'B002', donorName: 'Siti Rahayu', bloodType: 'A-', qrCode: 'SB-E001-SR-2848', eventId: 'E001', checkedIn: false },
-  { id: 'B003', donorName: 'Budi Santoso', bloodType: 'O+', qrCode: 'SB-E001-BS-2849', eventId: 'E001', checkedIn: false },
-  { id: 'B004', donorName: 'Dewi Lestari', bloodType: 'AB+', qrCode: 'SB-E001-DL-2850', eventId: 'E001', checkedIn: false },
-  { id: 'B005', donorName: 'Ahmad Fauzi', bloodType: 'B+', qrCode: 'SB-E001-AF-2851', eventId: 'E001', checkedIn: false },
-];
+const initialDefaultBookings: Booking[] = [];
 
 const btColor: Record<string, string> = {
   'A+': '#E74C3C', 'A-': '#C0392B', 'B+': '#2980B9', 'B-': '#1A5276',
@@ -75,20 +65,41 @@ export default function QRCheckIn() {
             target: e.capacity || 100,
             status: 'open',
           }));
-          return [...mapped, ...defaultEventsList];
+          return mapped;
         }
       }
     } catch (e) {
       console.warn('Error reading shared_donor_events_v5:', e);
     }
-    return defaultEventsList;
+    return [];
   });
 
   const [selectedEventId, setSelectedEventId] = useState<string>(() => {
-    return eventList.length > 0 ? eventList[0].id : defaultEventsList[0].id;
+    const params = new URLSearchParams(window.location.search);
+    const queryId = params.get('eventId');
+    if (queryId) return queryId;
+    return eventList.length > 0 ? eventList[0].id : '';
   });
 
-  const activeEvent = eventList.find((e) => e.id === selectedEventId) || eventList[0] || defaultEventsList[0];
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryId = params.get('eventId');
+    if (queryId && eventList.some((e) => String(e.id) === queryId)) {
+      setSelectedEventId(queryId);
+    }
+  }, [eventList]);
+
+  const activeEvent = eventList.find((e) => e.id === selectedEventId) || eventList[0] || {
+    id: '',
+    name: 'Tidak Ada Event Aktif',
+    date: '-',
+    time: '-',
+    location: '-',
+    registered: 0,
+    checkedIn: 0,
+    target: 0,
+    status: 'closed'
+  };
 
   // Safely load bookings list dynamically with localStorage persistence + Supabase sync
   const [localBookings, setLocalBookings] = useState<Booking[]>(() => {
@@ -155,20 +166,43 @@ export default function QRCheckIn() {
     }
   }, [localBookings]);
 
-  // Ensure selected event has participants if empty
+  // Load real bookings from Supabase
   useEffect(() => {
-    const hasBookings = localBookings.some((b) => b.eventId === activeEvent.id);
-    if (!hasBookings) {
-      const effectiveDonorName = user?.role === 'donor' ? (user?.name || 'Rizky Pratama') : 'Rizky Pratama';
-      const generated: Booking[] = [
-        { id: `AUTO-${activeEvent.id}-1`, donorName: effectiveDonorName, bloodType: 'O-', qrCode: `EVT-SUB-${activeEvent.id}-8841`, eventId: activeEvent.id, checkedIn: false },
-        { id: `AUTO-${activeEvent.id}-2`, donorName: 'Siti Rahayu', bloodType: 'A-', qrCode: `EVT-SUB-${activeEvent.id}-2848`, eventId: activeEvent.id, checkedIn: false },
-        { id: `AUTO-${activeEvent.id}-3`, donorName: 'Budi Santoso', bloodType: 'O+', qrCode: `EVT-SUB-${activeEvent.id}-2849`, eventId: activeEvent.id, checkedIn: false },
-        { id: `AUTO-${activeEvent.id}-4`, donorName: 'Dewi Lestari', bloodType: 'AB+', qrCode: `EVT-SUB-${activeEvent.id}-2850`, eventId: activeEvent.id, checkedIn: false },
-      ];
-      setLocalBookings((prev) => [...generated, ...prev]);
-    }
-  }, [activeEvent.id, user?.name, user?.role]);
+    if (!isSupabaseConfigured) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('event_bookings')
+          .select(`
+            id,
+            event_id,
+            qr_code,
+            checked_in,
+            donor_profiles (
+              blood_type,
+              users (
+                name
+              )
+            )
+          `);
+        if (error) throw error;
+        if (data) {
+          const mapped: Booking[] = data.map((b: any) => ({
+            id: b.id,
+            donorName: b.donor_profiles?.users?.name || 'Pendonor Terdaftar',
+            bloodType: b.donor_profiles?.blood_type || 'O-',
+            qrCode: b.qr_code,
+            eventId: String(b.event_id),
+            checkedIn: b.checked_in,
+          }));
+          setLocalBookings(mapped);
+          localStorage.setItem('qr_checkin_bookings_v2', JSON.stringify(mapped));
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data event bookings dari Supabase:', err);
+      }
+    })();
+  }, []);
 
   // Handle cross-tab updates
   useEffect(() => {

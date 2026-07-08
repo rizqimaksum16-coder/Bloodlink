@@ -418,7 +418,7 @@ export default function PMIDashboard() {
     localStorage.setItem('shared_pmi_blood_stocks', JSON.stringify(stocks));
   }, [stocks]);
 
-  // Real-time synchronization across views/tabs
+  // Real-time synchronization across views/tabs (localStorage)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'shared_pmi_blood_stocks' && e.newValue) {
@@ -427,6 +427,27 @@ export default function PMIDashboard() {
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Supabase Realtime — auto-refresh permintaan darah saat driver update status
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const channel = supabase
+      .channel('pmi_requests_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'blood_requests' },
+        (payload) => {
+          const updated = payload.new as any;
+          setRequests(prev => prev.map(r =>
+            r.id === updated.id
+              ? { ...r, status: updated.status || r.status }
+              : r
+          ));
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
   const [searchDonor, setSearchDonor] = useState('');
   const [filterBlood, setFilterBlood] = useState('Semua');

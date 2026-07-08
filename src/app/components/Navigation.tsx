@@ -62,6 +62,10 @@ export default function Navigation() {
 
     async function loadNotifications() {
       if (!user) return;
+
+      const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
+      const deletedIds: string[] = deletedSaved ? JSON.parse(deletedSaved) : [];
+
       // Try fetching live notifications from Supabase first
       if (isSupabaseConfigured) {
         try {
@@ -78,8 +82,9 @@ export default function Navigation() {
               }));
               const defaults = getRoleDefaultNotifications('pmi');
               const merged = [...liveNotifs, ...defaults.slice(liveNotifs.length)];
-              setNotifications(merged);
-              localStorage.setItem(userKey, JSON.stringify(merged));
+              const filtered = merged.filter((n: any) => !deletedIds.includes(n.id));
+              setNotifications(filtered);
+              localStorage.setItem(userKey, JSON.stringify(filtered));
               return;
             }
           } else if (user.role === 'driver') {
@@ -93,8 +98,9 @@ export default function Navigation() {
                 time: d.updated_at ? new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
                 read: false
               }));
-              setNotifications(liveNotifs);
-              localStorage.setItem(userKey, JSON.stringify(liveNotifs));
+              const filtered = liveNotifs.filter((n: any) => !deletedIds.includes(n.id));
+              setNotifications(filtered);
+              localStorage.setItem(userKey, JSON.stringify(filtered));
               return;
             }
           }
@@ -108,14 +114,19 @@ export default function Navigation() {
         const saved = localStorage.getItem(userKey);
         if (saved) {
           const parsed = JSON.parse(saved);
-          const isRoleMatch = Array.isArray(parsed) && parsed.length > 0 && (
+          if (parsed.length === 0) {
+            setNotifications([]);
+            return;
+          }
+          const isRoleMatch = Array.isArray(parsed) && (
             (user.role === 'pmi' && parsed[0]?.id?.includes('PMI')) ||
             (user.role === 'rs' && parsed[0]?.id?.includes('RS')) ||
             (user.role === 'driver' && parsed[0]?.id?.includes('DRV')) ||
             (user.role === 'donor' && !parsed[0]?.id?.includes('PMI') && !parsed[0]?.id?.includes('RS') && !parsed[0]?.id?.includes('DRV'))
           );
           if (isRoleMatch) {
-            setNotifications(parsed);
+            const filtered = parsed.filter((n: any) => !deletedIds.includes(n.id));
+            setNotifications(filtered);
             return;
           }
         }
@@ -123,8 +134,9 @@ export default function Navigation() {
 
       // Reset to exact role defaults
       const defaults = getRoleDefaultNotifications(user.role);
-      setNotifications(defaults);
-      localStorage.setItem(userKey, JSON.stringify(defaults));
+      const filtered = defaults.filter((n: any) => !deletedIds.includes(n.id));
+      setNotifications(filtered);
+      localStorage.setItem(userKey, JSON.stringify(filtered));
       window.dispatchEvent(new Event('sb_notifications_changed'));
     }
 
@@ -144,6 +156,20 @@ export default function Navigation() {
     setTimeout(() => {
       window.location.href = targetPath;
     }, 50);
+  };
+
+  const handleDeleteNotification = (notifId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = notifications.filter(n => n.id !== notifId);
+    setNotifications(updated);
+    if (user) {
+      localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
+      const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
+      const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
+      const newDeleted = Array.from(new Set([...deletedIds, notifId]));
+      localStorage.setItem(`sb_deleted_notifications_${user.email}`, JSON.stringify(newDeleted));
+    }
+    window.dispatchEvent(new Event('sb_notifications_changed'));
   };
 
   useEffect(() => {
@@ -254,7 +280,6 @@ export default function Navigation() {
     ...(user?.role !== 'pmi' && user?.role !== 'driver' ? [{ to: '/search', label: 'Cari Stok', icon: Search }] : []),
     ...(user?.role !== 'driver' ? [{ to: '/events', label: 'Event', icon: Calendar }] : []),
     ...(user?.role === 'donor' ? [{ to: '/rewards', label: 'Reward', icon: Trophy }] : []),
-    ...(user?.role === 'pmi' || user?.role === 'rs' ? [{ to: '/qr-checkin', label: 'QR Scan', icon: QrCode }] : []),
     { to: '/info', label: 'Info & FAQ', icon: HelpCircle },
   ];
 
@@ -376,8 +401,14 @@ export default function Navigation() {
                             )}
                             <button
                               onClick={() => {
+                                if (user) {
+                                  const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
+                                  const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
+                                  const newDeleted = Array.from(new Set([...deletedIds, ...notifications.map(n => n.id)]));
+                                  localStorage.setItem(`sb_deleted_notifications_${user.email}`, JSON.stringify(newDeleted));
+                                  localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
+                                }
                                 setNotifications([]);
-                                if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
                                 window.dispatchEvent(new Event('sb_notifications_changed'));
                               }}
                               className="text-[10px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
@@ -396,7 +427,7 @@ export default function Navigation() {
                               <div
                                 key={notif.id}
                                 onClick={() => handleNotificationClick(notif.id)}
-                                className={`p-3.5 text-left cursor-pointer transition-colors hover:bg-[#F8F9FA] flex gap-2.5 items-start ${isUnread ? 'bg-[#FDEDEC]/10' : ''}`}
+                                className={`p-3.5 text-left cursor-pointer transition-colors hover:bg-[#F8F9FA] flex gap-2.5 items-start group ${isUnread ? 'bg-[#FDEDEC]/10' : ''}`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isUnread ? 'bg-[#C0392B]' : 'bg-transparent'}`} />
                                 <div className="flex-1 min-w-0">
@@ -416,6 +447,14 @@ export default function Navigation() {
                                   )}
                                   <span className="text-[9px] text-[#9B9BB5] block mt-1.5">{notif.time}</span>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteNotification(notif.id, e)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[#F4F4F8] text-[#9B9BB5] hover:text-[#C0392B] transition-all cursor-pointer flex-shrink-0 self-start"
+                                  title="Hapus"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             );
                           })
@@ -524,8 +563,14 @@ export default function Navigation() {
                             )}
                             <button
                               onClick={() => {
+                                if (user) {
+                                  const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
+                                  const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
+                                  const newDeleted = Array.from(new Set([...deletedIds, ...notifications.map(n => n.id)]));
+                                  localStorage.setItem(`sb_deleted_notifications_${user.email}`, JSON.stringify(newDeleted));
+                                  localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
+                                }
                                 setNotifications([]);
-                                if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
                                 window.dispatchEvent(new Event('sb_notifications_changed'));
                               }}
                               className="text-[9px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
@@ -564,6 +609,14 @@ export default function Navigation() {
                                   )}
                                   <span className="text-[9px] text-[#9B9BB5] block mt-1">{notif.time}</span>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteNotification(notif.id, e)}
+                                  className="p-1 rounded hover:bg-[#F4F4F8] text-[#9B9BB5] hover:text-[#C0392B] transition-colors cursor-pointer flex-shrink-0 self-start"
+                                  title="Hapus"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             );
                           })

@@ -297,7 +297,7 @@ export default function HospitalDashboard() {
     localStorage.setItem('shared_hospital_blood_stocks', JSON.stringify(stocks));
   }, [stocks]);
 
-  // Real-time synchronization across views/tabs
+  // Real-time synchronization across views/tabs (localStorage)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'shared_hospital_blood_stocks' && e.newValue) {
@@ -306,6 +306,33 @@ export default function HospitalDashboard() {
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Supabase Realtime — auto-refresh orders saat driver update status pengiriman
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const channel = supabase
+      .channel('hospital_orders_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'blood_orders' },
+        (payload) => {
+          const updated = payload.new as any;
+          setOrders(prev => prev.map(o =>
+            o.id === updated.id
+              ? {
+                  ...o,
+                  status: updated.status || o.status,
+                  eta: updated.eta || o.eta,
+                  trackingPct: updated.tracking_pct ?? o.trackingPct,
+                  updatedAt: 'Baru saja'
+                }
+              : o
+          ));
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
   const [showAllBatches, setShowAllBatches] = useState<Record<string, boolean>>({});

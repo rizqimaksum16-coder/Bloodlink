@@ -885,8 +885,16 @@ export default function Events() {
                         )}
 
                         {user?.role !== 'donor' && (
-                          <div className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-[#F4F4F8] border border-border/80 text-[#4A4A6A] flex items-center justify-center shadow-inner">
-                            {event.organizer === user?.org ? '★ Event Milik Anda' : 'Mode Preview'}
+                          <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                            <div className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-[#F4F4F8] border border-border/80 text-[#4A4A6A] flex items-center justify-center shadow-inner">
+                              {event.organizer === user?.org ? '★ Event Milik Anda' : 'Mode Preview'}
+                            </div>
+                            <Link
+                              to={`/qr-checkin?eventId=${event.id}`}
+                              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#C0392B] hover:bg-[#922B21] transition-all text-center flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <QrCode className="w-3.5 h-3.5" /> Scan QR Check-In
+                            </Link>
                           </div>
                         )}
 

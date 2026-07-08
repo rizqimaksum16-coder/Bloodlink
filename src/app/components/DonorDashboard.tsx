@@ -410,7 +410,10 @@ export default function DonorDashboard() {
   const [notifs, setNotifs] = useState<Notification[]>(() => {
     try {
       const saved = localStorage.getItem(notifKey);
-      return saved ? JSON.parse(saved) : fallbackNotifications;
+      const deletedSaved = localStorage.getItem(user ? `sb_deleted_notifications_${user.email}` : '');
+      const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
+      const baseNotifs = saved ? JSON.parse(saved) : fallbackNotifications;
+      return baseNotifs.filter((n: any) => !deletedIds.includes(n.id));
     } catch { return fallbackNotifications; }
   });
 
@@ -425,6 +428,8 @@ export default function DonorDashboard() {
         if (!dp?.id) return;
         const { data } = await supabase.from('donor_notifications').select('*').eq('donor_id', dp.id).order('created_at', { ascending: false });
         if (data && data.length > 0) {
+          const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
+          const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
           const mapped: Notification[] = data.map(n => ({
             id: n.id,
             type: n.type as Notification['type'],
@@ -433,7 +438,8 @@ export default function DonorDashboard() {
             time: new Date(n.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
             read: n.read,
           }));
-          setNotifs(mapped);
+          const filtered = mapped.filter(n => !deletedIds.includes(n.id));
+          setNotifs(filtered);
         }
       } catch (e) { console.warn('Gagal fetch donor_notifications:', e); }
     })();
