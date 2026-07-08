@@ -51,7 +51,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
           <p className="text-xs text-[#9B9BB5] mb-6">
             Kamu login sebagai <span className="font-semibold">{roleLabels[user.role]}</span>.
           </p>
-          <Link to={dashboardLink[user.role]}>
+          <Link to={(user?.role && dashboardLink[user.role]) ? dashboardLink[user.role] : '/'}>
             <button className="w-full py-2.5 rounded-xl bg-[#C0392B] text-white text-sm font-semibold hover:bg-[#922B21] transition-colors flex items-center justify-center gap-2">
               <Droplets className="w-4 h-4" />
               Ke Dashboard Saya

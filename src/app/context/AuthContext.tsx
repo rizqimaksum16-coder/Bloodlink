@@ -204,6 +204,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     deleteCookie();
+    localStorage.removeItem('shared_pmi_blood_stocks');
+    localStorage.removeItem('shared_hospital_blood_stocks');
   };
 
   const registerDonor = async (name: string, email: string, bloodType: string, phone: string, address: string) => {

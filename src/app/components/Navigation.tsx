@@ -309,7 +309,7 @@ export default function Navigation() {
               ))}
 
               {/* Role-based dashboard link */}
-              {isAuthenticated && user && (
+              {isAuthenticated && user && roleNavExtra[user.role] && (
                 <Link to={roleNavExtra[user.role].to}>
                   <button className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive(roleNavExtra[user.role].to)
@@ -355,19 +355,36 @@ export default function Navigation() {
                   {notifOpen && (
                     <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 bg-white border border-border rounded-2xl shadow-xl w-80 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                       <div className="px-4 py-3 border-b border-border bg-[#F9F9FC] flex items-center justify-between">
-                        <span className="font-bold text-xs text-[#1A1A2E]">Notifikasi centre</span>
-                        {notifications.filter(n => !n.read).length > 0 && (
-                          <button
-                            onClick={() => {
-                              const updated = notifications.map(n => ({ ...n, read: true }));
-                              setNotifications(updated);
-                              if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                              window.dispatchEvent(new Event('sb_notifications_changed'));
-                            }}
-                            className="text-[10px] text-[#C0392B] font-semibold hover:underline"
-                          >
-                            Tandai Semua Dibaca
-                          </button>
+                        <span className="font-bold text-xs text-[#1A1A2E]">Notifikasi Centre</span>
+                        {notifications.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            {notifications.some(n => !n.read) && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    const updated = notifications.map(n => ({ ...n, read: true }));
+                                    setNotifications(updated);
+                                    if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
+                                    window.dispatchEvent(new Event('sb_notifications_changed'));
+                                  }}
+                                  className="text-[10px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
+                                >
+                                  Tandai Dibaca
+                                </button>
+                                <span className="text-[#9B9BB5] text-[10px]">•</span>
+                              </>
+                            )}
+                            <button
+                              onClick={() => {
+                                setNotifications([]);
+                                if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
+                                window.dispatchEvent(new Event('sb_notifications_changed'));
+                              }}
+                              className="text-[10px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
+                            >
+                              Hapus Semua
+                            </button>
+                          </div>
                         )}
                       </div>
 
@@ -487,18 +504,35 @@ export default function Navigation() {
                     <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-[-40px] mt-2 bg-white border border-border rounded-2xl shadow-xl w-72 overflow-hidden z-50">
                       <div className="px-4 py-3 border-b border-border bg-[#F9F9FC] flex items-center justify-between">
                         <span className="font-bold text-xs text-[#1A1A2E]">Notifikasi</span>
-                        {notifications.filter(n => !n.read).length > 0 && (
-                          <button
-                            onClick={() => {
-                              const updated = notifications.map(n => ({ ...n, read: true }));
-                              setNotifications(updated);
-                              if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                              window.dispatchEvent(new Event('sb_notifications_changed'));
-                            }}
-                            className="text-[9px] text-[#C0392B] font-semibold hover:underline"
-                          >
-                            Tandai Semua Dibaca
-                          </button>
+                        {notifications.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            {notifications.some(n => !n.read) && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    const updated = notifications.map(n => ({ ...n, read: true }));
+                                    setNotifications(updated);
+                                    if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
+                                    window.dispatchEvent(new Event('sb_notifications_changed'));
+                                  }}
+                                  className="text-[9px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
+                                >
+                                  Tandai Dibaca
+                                </button>
+                                <span className="text-[#9B9BB5] text-[9px]">•</span>
+                              </>
+                            )}
+                            <button
+                              onClick={() => {
+                                setNotifications([]);
+                                if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
+                                window.dispatchEvent(new Event('sb_notifications_changed'));
+                              }}
+                              className="text-[9px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
+                            >
+                              Hapus Semua
+                            </button>
+                          </div>
                         )}
                       </div>
 
@@ -637,7 +671,7 @@ export default function Navigation() {
             </div>
 
             {/* Dashboard link */}
-            {isAuthenticated && user && (
+            {isAuthenticated && user && roleNavExtra[user.role] && (
               <>
                 <div className="h-4" />
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[#9B9BB5] px-3 pb-2">Dashboard</p>

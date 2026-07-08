@@ -195,6 +195,7 @@ export default function HospitalDashboard() {
 
   // Load data from Supabase if configured
   useEffect(() => {
+    if (!user) return;
     async function fetchHospitalData() {
       if (!isSupabaseConfigured) return;
       try {
@@ -202,12 +203,38 @@ export default function HospitalDashboard() {
         const { data: hData } = await supabase
           .from('hospitals')
           .select('id')
-          .eq('name', user?.org || 'RSUD Dr. Soetomo')
+          .eq('name', user?.org || 'Rumah Sakit A')
           .single();
         const currentHId = hData?.id;
 
-        // Fetch PMI Units
-        const { data: pmiData } = await supabase.from('pmi_units').select('*');
+        // Prepare queries
+        const pmiQuery = supabase.from('pmi_units').select('*');
+        
+        let orderQuery = supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
+        if (currentHId) {
+          orderQuery = orderQuery.eq('hospital_id', currentHId);
+        }
+
+        let stockQuery = supabase.from('blood_stock').select('*');
+        if (currentHId) {
+          stockQuery = stockQuery.eq('owner_hospital_id', currentHId);
+        }
+
+        // Run queries in parallel
+        const [pmiResult, orderResult, stockResult] = await Promise.all([
+          pmiQuery,
+          orderQuery,
+          stockQuery
+        ]);
+
+        if (pmiResult.error) throw pmiResult.error;
+        if (orderResult.error) throw orderResult.error;
+        if (stockResult.error) throw stockResult.error;
+
+        const pmiData = pmiResult.data;
+        const orderData = orderResult.data;
+        const stockData = stockResult.data;
+
         if (pmiData && pmiData.length > 0) {
           const mappedPMI: PMIOption[] = pmiData.map((p: any) => ({
             id: p.id,
@@ -222,12 +249,6 @@ export default function HospitalDashboard() {
           setPmiList(mappedPMI);
         }
 
-        // Fetch Blood Orders / Requests (Difilter khusus Rumah Sakit yang login)
-        let orderQuery = supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
-        if (currentHId) {
-          orderQuery = orderQuery.eq('hospital_id', currentHId);
-        }
-        const { data: orderData } = await orderQuery;
         if (orderData && orderData.length > 0) {
           const mappedOrders: BloodOrder[] = orderData.map((o: any) => ({
             id: o.id,
@@ -244,13 +265,6 @@ export default function HospitalDashboard() {
           }));
           setOrders(mappedOrders);
         }
-
-        // Fetch Hospital Blood Stock (Difilter khusus Rumah Sakit yang login)
-        let stockQuery = supabase.from('blood_stock').select('*');
-        if (currentHId) {
-          stockQuery = stockQuery.eq('owner_hospital_id', currentHId);
-        }
-        const { data: stockData } = await stockQuery;
         if (stockData && stockData.length > 0) {
           const rsStocksOnly = stockData;
           if (rsStocksOnly.length > 0) {
@@ -276,7 +290,7 @@ export default function HospitalDashboard() {
       }
     }
     fetchHospitalData();
-  }, []);
+  }, [user]);
 
   // Sync to localStorage
   useEffect(() => {

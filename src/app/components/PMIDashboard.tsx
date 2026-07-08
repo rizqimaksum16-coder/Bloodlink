@@ -82,14 +82,6 @@ const bloodStocks: BloodStock[] = [
   { type: 'O-', stock: 0, target: 20, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
 ];
 
-const donors: Donor[] = [
-  { id: 'D001', name: 'Budi Santoso', bloodType: 'O+', lastDonor: '2025-12-15', phone: '081234567890', eligible: true, totalDonations: 12 },
-  { id: 'D002', name: 'Siti Rahayu', bloodType: 'A-', lastDonor: '2026-02-20', phone: '082198765432', eligible: true, totalDonations: 7 },
-  { id: 'D003', name: 'Ahmad Fauzi', bloodType: 'B+', lastDonor: '2026-04-10', phone: '083147852369', eligible: false, totalDonations: 5 },
-  { id: 'D004', name: 'Dewi Lestari', bloodType: 'AB+', lastDonor: '2025-11-05', phone: '085236987410', eligible: true, totalDonations: 20 },
-  { id: 'D005', name: 'Rizky Pratama', bloodType: 'O-', lastDonor: '2025-10-22', phone: '081357924680', eligible: true, totalDonations: 9 },
-  { id: 'D006', name: 'Nurul Hidayah', bloodType: 'A+', lastDonor: '2026-05-01', phone: '082469135780', eligible: false, totalDonations: 3 },
-];
 
 const donorEvents: DonorEvent[] = [];
 
@@ -122,8 +114,8 @@ const btColor: Record<string, string> = {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RequestCard({ req, onApprove, onReject }: { req: BloodRequest; onApprove: (id: string) => void; onReject: (id: string) => void }) {
-  const p = priorityConfig[req.priority];
-  const s = statusConfig[req.status];
+  const p = priorityConfig[req.priority] || priorityConfig.normal;
+  const s = statusConfig[req.status] || statusConfig.pending;
   return (
     <div className="bg-white border border-border rounded-2xl p-5 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -239,7 +231,7 @@ export default function PMIDashboard() {
     return saved ? JSON.parse(saved) : bloodStocks;
   });
 
-  const [donorList, setDonorList] = useState<Donor[]>(donors);
+  const [donorList, setDonorList] = useState<Donor[]>([]);
   const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
   
   const [drivers, setDrivers] = useState<any[]>(() => {
@@ -264,6 +256,7 @@ export default function PMIDashboard() {
 
   // Load from Supabase if configured
   useEffect(() => {
+    if (!user) return;
     async function loadPMIData() {
       if (!isSupabaseConfigured) return;
       try {
@@ -271,16 +264,46 @@ export default function PMIDashboard() {
         const { data: pData } = await supabase
           .from('pmi_units')
           .select('id')
-          .eq('name', user?.org || 'PMI Kota Surabaya')
+          .eq('name', user?.org || 'PMI A')
           .single();
         const currentPmiId = pData?.id;
 
-        // Load Requests (Difilter khusus unit PMI yang sedang login)
+        // Prepare queries
         let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false });
         if (currentPmiId) {
           reqQuery = reqQuery.eq('pmi_id', currentPmiId);
         }
-        const { data: reqData } = await reqQuery;
+
+        let stockQuery = supabase.from('blood_stock').select('*');
+        if (currentPmiId) {
+          stockQuery = stockQuery.eq('owner_pmi_id', currentPmiId);
+        }
+
+        const donorsQuery = supabase.from('donor_profiles').select('*, users(name, email)');
+        const eventsQuery = supabase.from('events').select('id, name, date, location, capacity, registered').order('date', { ascending: true });
+        const driversQuery = supabase.from('users').select('*').eq('role', 'driver');
+
+        // Run all queries in parallel
+        const [reqResult, stockResult, donorsResult, eventsResult, driversResult] = await Promise.all([
+          reqQuery,
+          stockQuery,
+          donorsQuery,
+          eventsQuery,
+          driversQuery
+        ]);
+
+        if (reqResult.error) throw reqResult.error;
+        if (stockResult.error) throw stockResult.error;
+        if (donorsResult.error) throw donorsResult.error;
+        if (eventsResult.error) throw eventsResult.error;
+        if (driversResult.error) throw driversResult.error;
+
+        const reqData = reqResult.data;
+        const stockData = stockResult.data;
+        const dpData = donorsResult.data;
+        const evtData = eventsResult.data;
+        const driverData = driversResult.data;
+
         if (reqData && reqData.length > 0) {
           const mappedReq: BloodRequest[] = reqData.map((r: any) => ({
             id: r.id,
@@ -296,12 +319,6 @@ export default function PMIDashboard() {
           setRequests(mappedReq);
         }
 
-        // Load Stock (Difilter khusus unit PMI yang sedang login)
-        let stockQuery = supabase.from('blood_stock').select('*');
-        if (currentPmiId) {
-          stockQuery = stockQuery.eq('owner_pmi_id', currentPmiId);
-        }
-        const { data: stockData } = await stockQuery;
         if (stockData && stockData.length > 0) {
           const pmiStocksOnly = stockData;
           if (pmiStocksOnly.length > 0) {
@@ -319,25 +336,28 @@ export default function PMIDashboard() {
               const target = targetMap[type] || 20;
               const pct = Math.round((qty / Math.max(1, target)) * 100);
               const status: StockStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
+              
+              // Resolve batches structure locally for presentation
+              const generatedBatches = [
+                { id: `BTC-${type}-01`, qty: Math.round(qty * 0.6), entryDate: '3 Jul 2026', expDate: '3 Aug 2026' },
+                { id: `BTC-${type}-02`, qty: qty - Math.round(qty * 0.6), entryDate: '5 Jul 2026', expDate: '5 Aug 2026' }
+              ].filter(b => b.qty > 0);
+
               return {
                 type,
                 stock: qty,
                 target,
-                status,
                 expiringSoon: Math.floor(qty * 0.1),
+                status,
                 predictedShortfall: qty < 5,
                 lastUpdated: 'Baru saja',
-                batches: [
-                  { id: `BTC-${type}-01`, qty: Math.max(1, qty), entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
-                ]
+                batches: generatedBatches
               };
             });
             setStocks(mappedStock);
           }
         }
 
-        // Load Donors
-        const { data: dpData } = await supabase.from('donor_profiles').select('*, users(name, email)');
         if (dpData && dpData.length > 0) {
           const mappedDonors: Donor[] = dpData.map((d: any) => ({
             id: d.id,
@@ -351,8 +371,6 @@ export default function PMIDashboard() {
           setDonorList(mappedDonors);
         }
 
-        // Load Events
-        const { data: evtData } = await supabase.from('events').select('*').order('date', { ascending: true });
         if (evtData && evtData.length > 0) {
           const mappedEvts: DonorEvent[] = evtData.map((e: any) => ({
             id: e.id,
@@ -365,8 +383,6 @@ export default function PMIDashboard() {
           setEventsList(mappedEvts);
         }
 
-        // Load Drivers
-        const { data: driverData } = await supabase.from('users').select('*').eq('role', 'driver');
         const dbDrivers = driverData ? driverData.map((d: any) => ({
           id: d.id,
           name: d.name,
@@ -721,15 +737,10 @@ export default function PMIDashboard() {
         if (isSupabaseConfigured) {
           (async () => {
             try {
-              let orgName = user?.org || 'PMI Kota Surabaya';
-              if (orgName === 'PMI A') orgName = 'UTD PMI A';
-              if (orgName === 'PMI B') orgName = 'Markas PMI A';
-              if (orgName === 'PMI C') orgName = 'PMI Kabupaten Sidoarjo';
-
               const { data: pData } = await supabase
                 .from('pmi_units')
                 .select('id')
-                .eq('name', orgName)
+                .eq('name', user?.org || 'PMI A')
                 .single();
               const pId = pData?.id;
 
@@ -791,7 +802,7 @@ export default function PMIDashboard() {
     setTimeout(() => { setBroadcastSent(false); setShowBroadcastModal(false); setBroadcastMsg(''); }, 2000);
   };
 
-  const filteredDonors = donors.filter(d => {
+  const filteredDonors = donorList.filter(d => {
     const matchSearch = d.name.toLowerCase().includes(searchDonor.toLowerCase()) || d.bloodType.includes(searchDonor.toUpperCase());
     const matchBlood = filterBlood === 'Semua' || d.bloodType === filterBlood;
     return matchSearch && matchBlood;
@@ -1257,7 +1268,7 @@ export default function PMIDashboard() {
               <div className="bg-[#EAF7FB] rounded-xl p-3 flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#2980B9]" />
                 <p className="text-xs text-[#2980B9]">
-                  <span className="font-bold">{donors.filter(d => d.eligible && (broadcastType === 'Semua' || d.bloodType === broadcastType)).length} donor</span>
+                  <span className="font-bold">{donorList.filter(d => d.eligible && (broadcastType === 'Semua' || d.bloodType === broadcastType)).length} donor</span>
                   {' '}golongan {broadcastType} akan menerima notifikasi ini
                 </p>
               </div>

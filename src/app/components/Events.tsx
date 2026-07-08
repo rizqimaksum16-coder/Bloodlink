@@ -15,7 +15,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 interface Event {
-  id: number;
+  id: any;
   name: string;
   organizer: string;
   organizerType?: 'pmi' | 'rs';
@@ -147,24 +147,39 @@ export default function Events() {
     async function fetchSupabaseEvents() {
       if (!isSupabaseConfigured) return;
       try {
-        const { data, error } = await supabase.from('events').select('*').order('date', { ascending: true });
+        const { data, error } = await supabase
+          .from('events')
+          .select('id, name, organizer, organizer_type, date, time, location, address, capacity, registered, description, status')
+          .order('date', { ascending: true });
         if (error) throw error;
         if (data) {
-          const mapped: Event[] = data.map((e: any) => ({
-            id: e.id,
-            name: e.name,
-            organizer: e.organizer || 'PMI A',
-            organizerType: (e.organizer_type || (e.organizer?.toLowerCase().includes('rs') || e.organizer?.toLowerCase().includes('siloam') || e.organizer?.toLowerCase().includes('soetomo') ? 'rs' : 'pmi')) as 'pmi' | 'rs',
-            date: e.date,
-            time: e.time || '08:00 - 14:00',
-            location: e.location,
-            address: e.address,
-            capacity: e.capacity || 100,
-            registered: e.registered || 0,
-            description: e.description || '',
-            requirements: typeof e.requirements === 'string' ? e.requirements.split(', ') : (e.requirements || ['Sehat jasmani']),
-            status: e.status || 'upcoming'
-          }));
+          const mapped: Event[] = data.map((e: any) => {
+            let parsedDesc = e.description || '';
+            let parsedReqs = ['Sehat jasmani'];
+            if (e.description && e.description.startsWith('{') && e.description.endsWith('}')) {
+              try {
+                const parsed = JSON.parse(e.description);
+                parsedDesc = parsed.desc || '';
+                parsedReqs = parsed.reqs || parsedReqs;
+              } catch (err) {}
+            }
+
+            return {
+              id: e.id,
+              name: e.name,
+              organizer: e.organizer || 'PMI A',
+              organizerType: (e.organizer_type || (e.organizer?.toLowerCase().includes('rs') || e.organizer?.toLowerCase().includes('siloam') || e.organizer?.toLowerCase().includes('soetomo') ? 'rs' : 'pmi')) as 'pmi' | 'rs',
+              date: e.date,
+              time: e.time || '08:00 - 14:00',
+              location: e.location,
+              address: e.address,
+              capacity: e.capacity || 100,
+              registered: e.registered || 0,
+              description: parsedDesc,
+              requirements: parsedReqs,
+              status: e.status || 'upcoming'
+            };
+          });
           setEventList(mapped);
         }
       } catch (err) {
@@ -492,14 +507,28 @@ export default function Events() {
     }
   };
 
-
-  const handleDeleteEvent = (eventId: number, eventName: string) => {
-    setEventList(prev => {
-      const updated = prev.filter(e => e.id !== eventId);
-      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
-      return updated;
-    });
-    toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus.` });
+  const handleDeleteEvent = async (eventId: any, eventName: string) => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('events')
+          .delete()
+          .eq('id', eventId);
+        if (error) throw error;
+        setEventList(prev => prev.filter(e => e.id !== eventId));
+        toast.success('Event berhasil dihapus dari database!');
+      } catch (err: any) {
+        console.error('Gagal menghapus event dari Supabase:', err);
+        toast.error(`Gagal menghapus event: ${err.message || JSON.stringify(err)}`);
+      }
+    } else {
+      setEventList(prev => {
+        const updated = prev.filter(e => e.id !== eventId);
+        localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
+        return updated;
+      });
+      toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus.` });
+    }
   };
 
   const handleCreateEvent = (e: React.FormEvent) => {
@@ -544,24 +573,99 @@ export default function Events() {
       status: status
     };
 
-    setEventList(prev => {
-      const updated = [created, ...prev];
-      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
-      return updated;
-    });
+    if (isSupabaseConfigured) {
+      (async () => {
+        try {
+          // Serialize description and requirements together to bypass PostgREST cache errors on 'requirements' column
+          const combinedDesc = JSON.stringify({
+            desc: newEvent.description,
+            reqs: requirementsList
+          });
 
-    toast.success('Event berhasil dibuat!', { description: `Event "${newEvent.name}" telah aktif.` });
-    setShowCreateModal(false);
-    setNewEvent({
-      name: '',
-      date: '',
-      time: '',
-      location: '',
-      address: '',
-      capacity: 100,
-      description: '',
-      requirements: '',
-    });
+          const { data, error } = await supabase
+            .from('events')
+            .insert({
+              name: newEvent.name,
+              organizer: user?.org || 'Institusi Kesehatan',
+              organizer_type: user?.role || 'pmi',
+              date: newEvent.date,
+              time: newEvent.time,
+              location: newEvent.location,
+              address: newEvent.address,
+              capacity: Number(newEvent.capacity),
+              registered: 0,
+              description: combinedDesc,
+              status: status
+            })
+            .select('id, name, organizer, organizer_type, date, time, location, address, capacity, registered, description, status')
+            .single();
+
+          if (error) throw error;
+
+          if (data) {
+            let parsedDesc = data.description || '';
+            let parsedReqs = requirementsList;
+            if (data.description && data.description.startsWith('{') && data.description.endsWith('}')) {
+              try {
+                const parsed = JSON.parse(data.description);
+                parsedDesc = parsed.desc || '';
+                parsedReqs = parsed.reqs || parsedReqs;
+              } catch (err) {}
+            }
+
+            const mappedNew: Event = {
+              id: data.id,
+              name: data.name,
+              organizer: data.organizer,
+              organizerType: data.organizer_type,
+              date: data.date,
+              time: data.time || '08:00 - 14:00',
+              location: data.location,
+              address: data.address,
+              capacity: data.capacity,
+              registered: data.registered,
+              description: parsedDesc,
+              requirements: parsedReqs,
+              status: data.status as 'upcoming' | 'ongoing' | 'completed'
+            };
+            setEventList(prev => [mappedNew, ...prev]);
+            toast.success('Event berhasil dibuat di database!');
+            setShowCreateModal(false);
+            setNewEvent({
+              name: '',
+              date: '',
+              time: '',
+              location: '',
+              address: '',
+              capacity: 100,
+              description: '',
+              requirements: '',
+            });
+          }
+        } catch (err: any) {
+          console.error('Gagal membuat event di Supabase:', err);
+          toast.error(`Gagal menyimpan ke database: ${err.message || JSON.stringify(err)}`);
+        }
+      })();
+    } else {
+      setEventList(prev => {
+        const updated = [created, ...prev];
+        localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
+        return updated;
+      });
+      toast.success('Event berhasil dibuat!', { description: `Event "${newEvent.name}" telah aktif.` });
+      setShowCreateModal(false);
+      setNewEvent({
+        name: '',
+        date: '',
+        time: '',
+        location: '',
+        address: '',
+        capacity: 100,
+        description: '',
+        requirements: '',
+      });
+    }
   };
 
   return (

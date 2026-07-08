@@ -328,29 +328,34 @@ CREATE OR REPLACE FUNCTION match_closest_pmi(
   p_blood_type VARCHAR, p_required_qty INT
 )
 RETURNS TABLE (
-  pmi_id UUID, pmi_name VARCHAR, pmi_address TEXT,
-  distance_km FLOAT, travel_time_est VARCHAR,
-  stock_count INT, response_rate INT, avg_delivery VARCHAR,
+  pmi_id UUID, pmi_name TEXT, pmi_address TEXT,
+  pmi_latitude FLOAT, pmi_longitude FLOAT,
+  distance_km FLOAT, travel_time_est TEXT,
+  stock_count INT, response_rate INT, avg_delivery TEXT,
   match_score INT, reasons TEXT[]
 )
 AS $$
 BEGIN
   RETURN QUERY
   SELECT
-    p.id, p.name, p.address,
+    p.id AS pmi_id,
+    p.name::text AS pmi_name,
+    p.address::text AS pmi_address,
+    p.latitude::float AS pmi_latitude,
+    p.longitude::float AS pmi_longitude,
     ROUND((6371 * acos(LEAST(1.0, GREATEST(-1.0,
       cos(radians(p_hospital_lat)) * cos(radians(p.latitude)) *
       cos(radians(p.longitude) - radians(p_hospital_lng)) +
       sin(radians(p_hospital_lat)) * sin(radians(p.latitude))
-    ))))::numeric, 1)::float,
+    ))))::numeric, 1)::float AS distance_km,
     (ROUND(((6371 * acos(LEAST(1.0, GREATEST(-1.0,
       cos(radians(p_hospital_lat)) * cos(radians(p.latitude)) *
       cos(radians(p.longitude) - radians(p_hospital_lng)) +
       sin(radians(p_hospital_lat)) * sin(radians(p.latitude))
-    )))) * 3 + 5)::numeric, 0)::text || ' mnt'),
-    COALESCE(bs.stock_qty, 0),
-    p.response_rate,
-    (p.avg_delivery_mins || ' mnt'),
+    )))) * 3 + 5)::numeric, 0)::text || ' mnt') AS travel_time_est,
+    COALESCE(bs.stock_qty, 0)::int AS stock_count,
+    p.response_rate::int AS response_rate,
+    (p.avg_delivery_mins::text || ' mnt')::text AS avg_delivery,
     (GREATEST(0, LEAST(100, ROUND(
       (100 - (6371 * acos(LEAST(1.0, GREATEST(-1.0,
         cos(radians(p_hospital_lat)) * cos(radians(p.latitude)) *
@@ -360,7 +365,7 @@ BEGIN
       (CASE WHEN COALESCE(bs.stock_qty,0) >= p_required_qty THEN 30
             WHEN COALESCE(bs.stock_qty,0) > 0 THEN 10 ELSE 0 END) +
       (p.response_rate * 0.3)
-    )::int))),
+    )::int))) AS match_score,
     ARRAY[
       CASE WHEN COALESCE(bs.stock_qty,0) >= p_required_qty THEN 'Stok sangat mencukupi (' || bs.stock_qty || ' kantong)'
            WHEN COALESCE(bs.stock_qty,0) > 0 THEN 'Stok terbatas (' || bs.stock_qty || ' kantong)'
@@ -371,7 +376,7 @@ BEGIN
         cos(radians(p.longitude) - radians(p_hospital_lng)) +
         sin(radians(p_hospital_lat)) * sin(radians(p.latitude))
       ))))::numeric, 1)::text || ' km'
-    ]
+    ]::text[] AS reasons
   FROM pmi_units p
   LEFT JOIN blood_stock bs ON bs.owner_pmi_id = p.id AND bs.blood_type = p_blood_type
   ORDER BY match_score DESC;
@@ -381,22 +386,22 @@ $$ LANGUAGE plpgsql;
 -- =============================================================================
 -- 6. ROW LEVEL SECURITY (RLS)
 -- =============================================================================
-ALTER TABLE users                ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pmi_units            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE hospitals            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE blood_stock          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE blood_requests       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE activity_logs        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE events               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rewards              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pmi_blood_stock      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE hospital_blood_stock ENABLE ROW LEVEL SECURITY;
-ALTER TABLE blood_orders         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE donor_profiles       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE donation_records     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE event_bookings       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE donor_notifications  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deliveries           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users                DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pmi_units            DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hospitals            DISABLE ROW LEVEL SECURITY;
+ALTER TABLE blood_stock          DISABLE ROW LEVEL SECURITY;
+ALTER TABLE blood_requests       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs        DISABLE ROW LEVEL SECURITY;
+ALTER TABLE events               DISABLE ROW LEVEL SECURITY;
+ALTER TABLE rewards              DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pmi_blood_stock      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hospital_blood_stock DISABLE ROW LEVEL SECURITY;
+ALTER TABLE blood_orders         DISABLE ROW LEVEL SECURITY;
+ALTER TABLE donor_profiles       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE donation_records     DISABLE ROW LEVEL SECURITY;
+ALTER TABLE event_bookings       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE donor_notifications  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE deliveries           DISABLE ROW LEVEL SECURITY;
 
 -- Users
 CREATE POLICY "public read users"        ON users FOR SELECT USING (true);

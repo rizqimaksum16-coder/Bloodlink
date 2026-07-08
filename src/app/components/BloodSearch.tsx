@@ -8,7 +8,8 @@ import {
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { supabase } from '../utils/supabase';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -99,6 +100,8 @@ interface PMIResult {
   reasons: string[];
   tag?: string;
   tagColor?: string;
+  lat?: number;
+  lng?: number;
 }
 
 const bloodTypesList: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -159,11 +162,12 @@ function ScoreMeter({ score }: { score: number }) {
 
 interface RouteMapProps {
   hospitalCoords: [number, number];
+  hospitalName: string;
   pmiCoords: [number, number];
   pmiName: string;
 }
 
-function RouteMap({ hospitalCoords, pmiCoords, pmiName }: RouteMapProps) {
+function RouteMap({ hospitalCoords, hospitalName, pmiCoords, pmiName }: RouteMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
@@ -211,7 +215,7 @@ function RouteMap({ hospitalCoords, pmiCoords, pmiName }: RouteMapProps) {
     });
     L.marker(hospitalCoords, { icon: hospitalIcon })
       .addTo(markers)
-      .bindPopup('<b>RSUD Dr. Soetomo</b><br/>RS Pemohon');
+      .bindPopup(`<b>${hospitalName}</b><br/>RS Pemohon`);
 
     // 2. PMI Marker (Red)
     const pmiIcon = L.divIcon({
@@ -294,6 +298,44 @@ export default function BloodSearch() {
   const [hospitalsList, setHospitalsList] = useState<BloodStock[]>(mockHospitals);
   const [resultTab, setResultTab] = useState<'ai-matching' | 'hospital-stock'>('ai-matching');
 
+  const { user } = useAuth();
+  const [activeHospital, setActiveHospital] = useState<{
+    name: string;
+    lat: number;
+    lng: number;
+    address: string;
+  }>({
+    name: 'Rumah Sakit A',
+    lat: -7.2678,
+    lng: 112.7584,
+    address: 'Surabaya'
+  });
+
+  // Load active hospital coordinates dynamically based on logged in user session
+  useEffect(() => {
+    async function loadActiveHospital() {
+      if (!isSupabaseConfigured || !user || user.role !== 'rs') return;
+      try {
+        const { data: hData } = await supabase
+          .from('hospitals')
+          .select('*')
+          .eq('name', user.org)
+          .single();
+        if (hData) {
+          setActiveHospital({
+            name: hData.name,
+            lat: hData.latitude || -7.2678,
+            lng: hData.longitude || 112.7584,
+            address: hData.address || 'Surabaya'
+          });
+        }
+      } catch (e) {
+        console.warn('Gagal memuat koordinat RS dari Supabase:', e);
+      }
+    }
+    loadActiveHospital();
+  }, [user]);
+
   // Dynamically compute PMI search recommendations from local storage (Super Admin locations)
   const getDynamicPMIResults = (bloodType: BloodType, requiredQty: number): PMIResult[] => {
     const saved = localStorage.getItem('shared_orgs_v1');
@@ -364,6 +406,13 @@ export default function BloodSearch() {
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
+    // 1. Cek dari hasil kueri aktif Supabase (RPC)
+    const activeMatch = pmiResults?.find(p => p.id === pmiId || p.name === pmiName);
+    if (activeMatch && typeof activeMatch.lat === 'number' && typeof activeMatch.lng === 'number') {
+      return [activeMatch.lat, activeMatch.lng];
+    }
+
+    // 2. Fallback ke localStorage
     const saved = localStorage.getItem('shared_orgs_v1');
     if (saved) {
       try {
@@ -413,6 +462,78 @@ export default function BloodSearch() {
     loadHospitals();
   }, []);
 
+  // Create blood order and request dynamically in Supabase
+  const handleCreateOrder = async (pmiId: string, pmiName: string) => {
+    if (!user) {
+      toast.error('Anda harus masuk untuk memesan darah.');
+      return;
+    }
+
+    try {
+      // 1. Dapatkan ID Rumah Sakit yang sedang login berdasarkan nama organisasi user
+      const { data: hData } = await supabase
+        .from('hospitals')
+        .select('id')
+        .eq('name', user.org)
+        .single();
+      const currentHId = hData?.id;
+
+      if (!currentHId) {
+        toast.error('Rumah sakit Anda tidak terdaftar di sistem.');
+        return;
+      }
+
+      const orderQty = Number(qty) || 1;
+      const orderUrgency = urgency === 'darurat' || urgency === 'mendesak' ? 'mendesak' : 'normal';
+
+      // 2. Insert into blood_requests (untuk PMI)
+      const { error: reqErr } = await supabase
+        .from('blood_requests')
+        .insert({
+          hospital_id: currentHId,
+          pmi_id: pmiId,
+          blood_type: selectedBloodType,
+          quantity: orderQty,
+          urgency: orderUrgency,
+          status: 'pending'
+        });
+
+      if (reqErr) throw reqErr;
+
+      // 3. Insert into blood_orders (untuk Rumah Sakit)
+      const { error: orderErr } = await supabase
+        .from('blood_orders')
+        .insert({
+          hospital_id: currentHId,
+          pmi_id: pmiId,
+          blood_type: selectedBloodType,
+          quantity: orderQty,
+          urgency: orderUrgency,
+          status: 'pending'
+        });
+
+      if (orderErr) throw orderErr;
+
+      // 4. Insert into activity_logs
+      await supabase
+        .from('activity_logs')
+        .insert({
+          action: `RS memesan ${orderQty} kantong darah ${selectedBloodType} ke ${pmiName}`,
+          blood_type: selectedBloodType,
+          quantity: orderQty,
+          user_name: user.name,
+          time_ago: 'Baru saja',
+          positive: true
+        });
+
+      setConfirmedPMIId(pmiId);
+      toast.success('Permintaan darah berhasil dikirim ke Supabase!');
+    } catch (e: any) {
+      console.error('Gagal mengirim pesanan darah:', e);
+      toast.error(`Gagal mengirim pesanan: ${e.message || JSON.stringify(e)}`);
+    }
+  };
+
   // Trigger search and AI analysis via Supabase RPC or mock fallback
   const handleSearchAndMatch = async () => {
     setIsMatching(true);
@@ -424,10 +545,10 @@ export default function BloodSearch() {
 
     try {
       const { data, error } = await supabase.rpc('match_closest_pmi', {
-        p_hospital_lat: -7.2678, // RSUD Dr. Soetomo
-        p_hospital_lng: 112.7584,
+        p_hospital_lat: activeHospital.lat,
+        p_hospital_lng: activeHospital.lng,
         p_blood_type: searchBt,
-        p_required_qty: qty
+        p_required_qty: Number(qty) || 1
       });
 
       if (error) throw error;
@@ -437,6 +558,8 @@ export default function BloodSearch() {
           id: item.pmi_id,
           name: item.pmi_name,
           address: item.pmi_address,
+          lat: item.pmi_latitude,
+          lng: item.pmi_longitude,
           distance: `${item.distance_km.toFixed(1)} km`,
           travelTime: item.travel_time_est,
           stock: item.stock_count,
@@ -450,10 +573,12 @@ export default function BloodSearch() {
         }));
         setPmiResults(mappedResults);
       } else {
+        toast.info('Hasil kueri AI database kosong, memuat cadangan.');
         setPmiResults(getDynamicPMIResults(searchBt, Number(qty) || 5));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Menggunakan data fallback AI Matching karena Supabase belum dikonfigurasi:', err);
+      toast.error(`Koneksi AI Gagal: ${err?.message || JSON.stringify(err)}`);
       setTimeout(() => {
         setPmiResults(getDynamicPMIResults(searchBt, Number(qty) || 5));
         setIsMatching(false);
@@ -771,7 +896,7 @@ export default function BloodSearch() {
                                           </div>
                                         </div>
                                       ) : (
-                                        <button onClick={e => { e.stopPropagation(); setConfirmedPMIId(pmi.id); }}
+                                        <button onClick={e => { e.stopPropagation(); handleCreateOrder(pmi.id, pmi.name); }}
                                           className="mt-3 w-full py-2 rounded-lg bg-[#C0392B] text-white text-xs font-bold hover:bg-[#922B21] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
                                           <CheckCircle className="w-3.5 h-3.5" /> Pesan Sekarang (PMI Terpilih)
                                         </button>
@@ -800,10 +925,11 @@ export default function BloodSearch() {
                           <Map className="w-4 h-4 text-[#8E44AD]" /> Peta Rute Distribusi AI
                         </h4>
                         <div className="text-[11px] text-[#9B9BB5] leading-relaxed">
-                          Menampilkan estimasi rute tercepat dari unit PMI terpilih menuju **RSUD Dr. Soetomo** (RS Pengaju).
+                          Menampilkan estimasi rute tercepat dari unit PMI terpilih menuju **{activeHospital.name}** (RS Pengaju).
                         </div>
                         <RouteMap 
-                          hospitalCoords={[-7.2678, 112.7584]}
+                          hospitalCoords={[activeHospital.lat, activeHospital.lng]}
+                          hospitalName={activeHospital.name}
                           pmiCoords={getPMICoords(
                             selectedPMI || pmiResults[0]?.id, 
                             selectedPMI ? pmiResults.find(p => p.id === selectedPMI)?.name || '' : pmiResults[0]?.name

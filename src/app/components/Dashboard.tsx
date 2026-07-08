@@ -25,6 +25,7 @@ const initialEvents = [
 ];
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; barColor: string }> = {
+  available: { label: 'Baik', bg: '#EAFAF1', text: '#1E8449', barColor: '#27AE60' },
   good: { label: 'Baik', bg: '#EAFAF1', text: '#1E8449', barColor: '#27AE60' },
   low: { label: 'Rendah', bg: '#FEF9E7', text: '#E67E22', barColor: '#E67E22' },
   critical: { label: 'Kritis', bg: '#FDEDEC', text: '#C0392B', barColor: '#E74C3C' },
@@ -53,9 +54,9 @@ export default function Dashboard() {
           const mapped = invData.map((item: any) => ({
             id: item.id,
             type: item.blood_type,
-            stock: item.stock,
+            stock: item.quantity !== undefined ? item.quantity : (item.stock || 0),
             target: 50,
-            status: item.status || 'good',
+            status: item.status || 'available',
             expiringSoon: item.expiring_soon || 0
           }));
           setBloodInventory(mapped);
@@ -77,7 +78,9 @@ export default function Dashboard() {
         }
 
         // Fetch events
-        const { data: evtData } = await supabase.from('events').select('*');
+        const { data: evtData } = await supabase
+          .from('events')
+          .select('id, name, date, location, capacity, registered');
         if (evtData && evtData.length > 0) {
           const mappedEvt = evtData.map((item: any) => ({
             id: item.id,
@@ -181,7 +184,7 @@ export default function Dashboard() {
                   </thead>
                   <tbody>
                     {bloodInventory.map((blood) => {
-                      const s = statusConfig[blood.status];
+                      const s = statusConfig[blood.status] || statusConfig.good;
                       return (
                         <tr key={blood.id} className="border-t border-border hover:bg-[#F4F4F8]/50 transition-colors">
                           <td className="px-5 py-4">

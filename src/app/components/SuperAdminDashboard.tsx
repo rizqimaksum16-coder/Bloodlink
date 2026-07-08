@@ -187,21 +187,20 @@ export default function SuperAdminDashboard() {
     async function syncFromSupabase() {
       if (!isSupabaseConfigured) return;
       try {
-        const { data: users, error: errUsers } = await supabase
-          .from('users')
-          .select('*')
-          .in('role', ['pmi', 'rs']);
-        if (errUsers) throw errUsers;
+        // Fetch users, pmi_units, and hospitals in parallel
+        const [usersResult, pmisResult, hospitalsResult] = await Promise.all([
+          supabase.from('users').select('*').in('role', ['pmi', 'rs']),
+          supabase.from('pmi_units').select('*'),
+          supabase.from('hospitals').select('*')
+        ]);
 
-        const { data: pmis, error: errPmi } = await supabase
-          .from('pmi_units')
-          .select('*');
-        if (errPmi) throw errPmi;
+        if (usersResult.error) throw usersResult.error;
+        if (pmisResult.error) throw pmisResult.error;
+        if (hospitalsResult.error) throw hospitalsResult.error;
 
-        const { data: hospitals, error: errRs } = await supabase
-          .from('hospitals')
-          .select('*');
-        if (errRs) throw errRs;
+        const users = usersResult.data;
+        const pmis = pmisResult.data;
+        const hospitals = hospitalsResult.data;
 
         const merged: OrgAccount[] = [];
 

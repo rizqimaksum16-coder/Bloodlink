@@ -7,6 +7,7 @@ import { Progress } from './ui/progress';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { toast } from 'sonner';
 
 interface RewardItem {
   id: string;
@@ -64,6 +65,7 @@ export default function RewardPage() {
   const [filter, setFilter] = useState('all');
   const [claimed, setClaimed] = useState<string[]>(['R003']);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
+  const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
 
   const defaultLeaderboard = [
     { rank: 1, name: 'Dewi Lestari', donations: 20, isMe: false },
@@ -95,6 +97,30 @@ export default function RewardPage() {
           }));
           setLeaderboardList(mappedLb);
         }
+
+        if (user?.email) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', user.email)
+            .single();
+
+          if (userData) {
+            const { data: dp } = await supabase
+              .from('donor_profiles')
+              .select('*')
+              .eq('user_id', userData.id)
+              .single();
+
+            if (dp) {
+              setDonorProfile({
+                points: dp.points || 0,
+                totalDonations: dp.total_donations || 0,
+                streak: dp.streak || 0
+              });
+            }
+          }
+        }
       } catch (e) {
         console.warn('Error loading RewardPage data from Supabase:', e);
       }
@@ -104,9 +130,53 @@ export default function RewardPage() {
 
   const filtered = filter === 'all' ? rewardsList : rewardsList.filter(r => r.category === filter);
 
-  const handleClaim = (id: string) => {
+  const handleClaim = (id: string, cost: number) => {
+    if (donorProfile && donorProfile.points < cost) {
+      toast.error('Poin Anda tidak mencukupi untuk menukarkan reward ini.');
+      return;
+    }
+
     setClaimAnim(id);
-    setTimeout(() => { setClaimed(prev => [...prev, id]); setClaimAnim(null); }, 800);
+
+    if (isSupabaseConfigured && donorProfile && user?.email) {
+      (async () => {
+        try {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', user.email)
+            .single();
+
+          if (userData) {
+            const { data: dp } = await supabase
+              .from('donor_profiles')
+              .select('id, points')
+              .eq('user_id', userData.id)
+              .single();
+
+            if (dp) {
+              const newPoints = Math.max(0, dp.points - cost);
+              await supabase
+                .from('donor_profiles')
+                .update({ points: newPoints })
+                .eq('id', dp.id);
+              
+              setDonorProfile(p => p ? { ...p, points: newPoints } : null);
+              toast.success('Poin berhasil ditukarkan!');
+            }
+          }
+        } catch (e) {
+          console.warn('Gagal memotong poin di Supabase:', e);
+        }
+      })();
+    } else if (!isSupabaseConfigured) {
+      toast.success('Poin berhasil ditukarkan (Simulasi)!');
+    }
+
+    setTimeout(() => {
+      setClaimed(prev => [...prev, id]);
+      setClaimAnim(null);
+    }, 800);
   };
 
 
@@ -139,18 +209,18 @@ export default function RewardPage() {
               </div>
               <div className="text-right">
                 <p className="text-white/70 text-xs font-semibold">Total Poin</p>
-                <p className="text-3xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{(350).toLocaleString('id-ID')}</p>
+                <p className="text-3xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{(donorProfile ? donorProfile.points : 350).toLocaleString('id-ID')}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Droplets className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">9× donor</span>
+                <span className="text-sm font-bold">{donorProfile ? donorProfile.totalDonations : 9}× donor</span>
               </div>
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Flame className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">Streak 4</span>
+                <span className="text-sm font-bold">Streak {donorProfile ? donorProfile.streak : 4}</span>
               </div>
             </div>
           </div>
@@ -188,7 +258,7 @@ export default function RewardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filtered.map(r => {
                 const isClaimed = claimed.includes(r.id);
-                const canAfford = 350 >= r.points;
+                const canAfford = (donorProfile ? donorProfile.points : 350) >= r.points;
                 const isAnimating = claimAnim === r.id;
                 return (
                   <div key={r.id} className={`bg-white rounded-2xl border p-5 transition-all ${isClaimed ? 'border-[#27AE60]/40 bg-[#EAFAF1]/20' : 'border-border hover:shadow-sm'}`}>
@@ -205,7 +275,7 @@ export default function RewardPage() {
                     </div>
                     {r.limited && r.limitCount && (
                       <p className="text-[10px] text-[#E67E22] font-semibold mb-2 flex items-center gap-1">
-                        <Flame className="w-3 h-3" /> Stok terbatas: {r.limitCount} tersisa
+                        <Flame className="w-3.5 h-3.5" /> Stok terbatas: {r.limitCount} tersisa
                       </p>
                     )}
                     <div className="flex items-center justify-between mt-3">
@@ -222,7 +292,7 @@ export default function RewardPage() {
                           <Lock className="w-3.5 h-3.5" /> Habis
                         </span>
                       ) : (
-                        <button onClick={() => handleClaim(r.id)} disabled={!canAfford || isAnimating}
+                        <button onClick={() => handleClaim(r.id, r.points)} disabled={!canAfford || isAnimating}
                           className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${canAfford ? 'bg-[#C0392B] text-white hover:bg-[#922B21]' : 'bg-[#F4F4F8] text-[#9B9BB5] cursor-not-allowed'}`}>
                           {isAnimating ? '✓' : canAfford ? 'Klaim' : 'Poin Kurang'}
                         </button>

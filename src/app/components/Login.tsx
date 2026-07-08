@@ -148,7 +148,7 @@ export default function Login() {
 
       await login(selectedRole, email);
       toast.success(`Login berhasil sebagai ${activeRole?.label}!`);
-      setTimeout(() => navigate(activeRole!.redirectTo), 600);
+      setTimeout(() => navigate(activeRole?.redirectTo || '/'), 600);
     } catch (err) {
       toast.error('Gagal masuk. Silakan coba lagi.');
     } finally {
