@@ -319,34 +319,37 @@ export default function Navigation() {
             {/* Desktop links */}
             <div className="hidden md:flex items-center gap-0.5 flex-1">
               {coreLinks.map(({ to, label, icon: Icon }) => (
-                <Link key={to} to={to}>
-                  <button className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                <Link
+                  key={to}
+                  to={to}
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive(to)
                       ? 'text-[#C0392B] bg-[#FDEDEC]'
                       : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#1A1A2E]'
-                  }`}>
-                    <Icon className="w-3.5 h-3.5" />{label}
-                    {isActive(to) && (
-                      <span className="absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-0.5 bg-[#C0392B] rounded-full" />
-                    )}
-                  </button>
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />{label}
+                  {isActive(to) && (
+                    <span className="absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-0.5 bg-[#C0392B] rounded-full" />
+                  )}
                 </Link>
               ))}
 
               {/* Role-based dashboard link */}
               {isAuthenticated && user && roleNavExtra[user.role] && (
-                <Link to={roleNavExtra[user.role].to}>
-                  <button className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                <Link
+                  to={roleNavExtra[user.role].to}
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive(roleNavExtra[user.role].to)
                       ? 'bg-[#FDEDEC] text-[#C0392B]'
                       : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#1A1A2E]'
-                  }`}>
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                    Dashboard
-                    {isActive(roleNavExtra[user.role].to) && (
-                      <span className="absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-0.5 bg-[#C0392B] rounded-full" />
-                    )}
-                  </button>
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  Dashboard
+                  {isActive(roleNavExtra[user.role].to) && (
+                    <span className="absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-0.5 bg-[#C0392B] rounded-full" />
+                  )}
                 </Link>
               )}
             </div>
@@ -709,7 +712,7 @@ export default function Navigation() {
             <p className="text-[11px] font-bold uppercase tracking-widest text-[#9B9BB5] px-3 pb-2">Menu Utama</p>
             <div className="space-y-0.5">
               {coreLinks.map(({ to, label, icon: Icon }) => (
-                <Link key={to} to={to}>
+                <Link key={to} to={to} onClick={() => setDrawerOpen(false)}>
                   <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(to) ? 'bg-[#FDEDEC] text-[#C0392B]' : 'text-[#4A4A6A] hover:bg-[#F4F4F8]'}`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive(to) ? 'bg-[#C0392B]/10' : 'bg-[#F4F4F8]'}`}>
@@ -729,7 +732,7 @@ export default function Navigation() {
                 <div className="h-4" />
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[#9B9BB5] px-3 pb-2">Dashboard</p>
                 <div className="space-y-0.5">
-                  <Link to={roleNavExtra[user.role].to}>
+                  <Link to={roleNavExtra[user.role].to} onClick={() => setDrawerOpen(false)}>
                     <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(roleNavExtra[user.role].to) ? 'bg-[#FDEDEC] text-[#C0392B]' : 'text-[#4A4A6A] hover:bg-[#F4F4F8]'}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive(roleNavExtra[user.role].to) ? 'bg-[#C0392B]/10' : 'bg-[#F4F4F8]'}`}>

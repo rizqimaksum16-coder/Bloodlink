@@ -469,6 +469,11 @@ export default function BloodSearch() {
       return;
     }
 
+    if (user.role === 'donor') {
+      toast.error('Pengguna donor hanya diizinkan memantau stok, pemesanan hanya untuk Rumah Sakit.');
+      return;
+    }
+
     try {
       // 1. Dapatkan ID Rumah Sakit yang sedang login berdasarkan nama organisasi user
       const { data: hData } = await supabase
@@ -875,7 +880,12 @@ export default function BloodSearch() {
                                 return (
                                   <>
                                     {isCardSelected && !isCardConfirmed && (
-                                      pmi.stock === 0 ? (
+                                      user?.role === 'donor' ? (
+                                        <div className="mt-3 bg-[#EAF7FB] text-[#2980B9] border border-[#2980B9]/20 rounded-xl p-3 text-[11px] font-semibold flex items-start gap-2 shadow-sm">
+                                          <AlertCircle className="w-4 h-4 text-[#2980B9] shrink-0 mt-0.5" />
+                                          <span>Informasi stok darah tersedia untuk dipantau. Fitur pemesanan & pengantaran ambulans/kurir logistik khusus untuk akun Rumah Sakit (RS).</span>
+                                        </div>
+                                      ) : pmi.stock === 0 ? (
                                         <div className="mt-3 flex flex-col gap-2">
                                           <div className="bg-[#FDEDEC] text-[#C0392B] border border-[#F5B7B1]/30 rounded-lg p-2.5 text-[11px] font-medium flex items-start gap-1.5">
                                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -925,7 +935,10 @@ export default function BloodSearch() {
                           <Map className="w-4 h-4 text-[#8E44AD]" /> Peta Rute Distribusi AI
                         </h4>
                         <div className="text-[11px] text-[#9B9BB5] leading-relaxed">
-                          Menampilkan estimasi rute tercepat dari unit PMI terpilih menuju **{activeHospital.name}** (RS Pengaju).
+                          {user?.role === 'donor'
+                            ? 'Menampilkan estimasi rute distribusi ambulans dari unit PMI menuju lokasi Rumah Sakit.'
+                            : `Menampilkan estimasi rute tercepat dari unit PMI terpilih menuju ${activeHospital.name} (RS Pengaju).`
+                          }
                         </div>
                         <RouteMap 
                           hospitalCoords={[activeHospital.lat, activeHospital.lng]}
