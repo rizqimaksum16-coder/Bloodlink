@@ -4,10 +4,6 @@ import {
   Truck, CheckCircle, BarChart2, Users, Calendar, Heart, Trophy, QrCode,
   Clock, Zap, Globe, Phone, ChevronDown
 } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, Cell, LineChart, Line, PieChart, Pie, AreaChart, Area
-} from 'recharts';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useState } from 'react';
@@ -193,32 +189,27 @@ export default function LandingPage() {
             <div className="flex-1 w-full bg-white p-8 rounded-3xl border border-border shadow-sm">
               <h3 className="font-bold text-[#1A1A2E] mb-2 text-center" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Distribusi Stok per Unit PMI</h3>
               <p className="text-xs text-[#9B9BB5] text-center mb-6">Total kantong darah tersedia di masing-masing PMI</p>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={distributionData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={90}
-                      paddingAngle={4}
-                      dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
-                    >
-                      {distributionData.map((entry, index) => (
-                        <Cell key={`pie-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="flex items-center justify-center h-56">
+                <svg viewBox="0 0 200 200" className="w-48 h-48">
+                  {/* Background Track */}
+                  <circle cx="100" cy="100" r="70" fill="transparent" stroke="#F4F4F8" strokeWidth="18" />
+                  {/* PMI A (42%): strokeDasharray="184.8 440" dashoffset="0" */}
+                  <circle cx="100" cy="100" r="70" fill="transparent" stroke="#E74C3C" strokeWidth="18" strokeDasharray="184.8 440" strokeDashoffset="0" transform="rotate(-90 100 100)" strokeLinecap="round" />
+                  {/* PMI B (31%): strokeDasharray="136.4 440" dashoffset="-184.8" */}
+                  <circle cx="100" cy="100" r="70" fill="transparent" stroke="#2980B9" strokeWidth="18" strokeDasharray="136.4 440" strokeDashoffset="-184.8" transform="rotate(-90 100 100)" strokeLinecap="round" />
+                  {/* PMI C (27%): strokeDasharray="118.8 440" strokeDashoffset="-321.2" */}
+                  <circle cx="100" cy="100" r="70" fill="transparent" stroke="#8E44AD" strokeWidth="18" strokeDasharray="118.8 440" strokeDashoffset="-321.2" transform="rotate(-90 100 100)" strokeLinecap="round" />
+                  
+                  {/* Center Text */}
+                  <text x="100" y="98" textAnchor="middle" className="text-xl font-extrabold fill-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>1.000</text>
+                  <text x="100" y="116" textAnchor="middle" className="text-[10px] font-bold fill-[#9B9BB5] uppercase tracking-wider">Kantong</text>
+                </svg>
               </div>
               <div className="flex justify-center gap-6 mt-4">
                 {distributionData.map((d, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full" style={{ background: d.fill }} />
-                    <span className="text-xs font-semibold text-[#4A4A6A]">{d.name}</span>
+                    <span className="text-xs font-semibold text-[#4A4A6A]">{d.name} ({Math.round(d.value / 10)}%)</span>
                   </div>
                 ))}
               </div>
@@ -257,6 +248,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════════ GRAFIK STOK DARAH (Bar Chart) ═══════════ */}
+      {/* ═══════════ BLOOD STOCK BAR CHART (CSS) ═══════════ */}
       <section className="py-20 bg-[#F7F7FB] border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center gap-12">
@@ -286,34 +278,32 @@ export default function LandingPage() {
               </ul>
             </div>
 
+            {/* CSS Bar Chart — zero dependency */}
             <div className="flex-1 w-full bg-white p-6 rounded-3xl border border-border shadow-sm">
               <h3 className="font-bold text-[#1A1A2E] mb-6 text-center">Grafik Stok Darah (Ilustrasi)</h3>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bloodStockData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E9ECEF" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#4A4A6A' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#4A4A6A' }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Bar dataKey="stock" radius={[6, 6, 0, 0]}>
-                      {bloodStockData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-end gap-1.5 h-44">
+                {bloodStockData.map((d) => (
+                  <div key={d.name} className="flex flex-col items-center flex-1 gap-1">
+                    <span className="text-[9px] font-bold tabular-nums" style={{ color: d.fill }}>{d.stock}</span>
+                    <div
+                      className="w-full rounded-t-md"
+                      style={{ height: `${Math.round((d.stock / 150) * 140)}px`, background: d.fill }}
+                    />
+                    <span className="text-[9px] font-semibold text-[#4A4A6A]">{d.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ═══════════ TREN DONOR & PERMINTAAN (Line Chart + Area Chart) ═══════════ */}
+      {/* ═══════════ TREN DONOR & PERMINTAAN (SVG Lightweight) ═══════════ */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-extrabold text-[#1A1A2E] mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Tren Donasi & Permintaan Darah
+              Tren Donasi &amp; Permintaan Darah
             </h2>
             <p className="text-[#4A4A6A] max-w-2xl mx-auto">
               Data historis menunjukkan pertumbuhan konsisten jumlah pendonor dan permintaan darah di Kota Surabaya sepanjang tahun 2026.
@@ -321,50 +311,76 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Line Chart: Donor vs Permintaan */}
+            {/* SVG Line Chart: Donor vs Permintaan */}
             <div className="bg-[#F7F7FB] p-6 rounded-3xl border border-border">
-              <h3 className="font-bold text-[#1A1A2E] mb-2">Donor vs Permintaan (Bulanan)</h3>
-              <p className="text-xs text-[#9B9BB5] mb-6">Perbandingan jumlah donor masuk dan permintaan RS per bulan</p>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlyTrendData} margin={{ top: 5, right: 20, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E9ECEF" />
-                    <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: '#4A4A6A' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#4A4A6A' }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Line type="monotone" dataKey="donor" stroke="#27AE60" strokeWidth={3} dot={{ r: 4, fill: '#27AE60' }} name="Donor Masuk" />
-                    <Line type="monotone" dataKey="permintaan" stroke="#C0392B" strokeWidth={3} dot={{ r: 4, fill: '#C0392B' }} name="Permintaan RS" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex justify-center gap-6 mt-4">
+              <h3 className="font-bold text-[#1A1A2E] mb-1">Donor vs Permintaan (Bulanan)</h3>
+              <p className="text-xs text-[#9B9BB5] mb-4">Perbandingan jumlah donor masuk dan permintaan RS per bulan</p>
+              <svg viewBox="0 0 600 190" className="w-full" aria-hidden="true">
+                {/* Grid lines */}
+                {[10, 50, 90, 130, 170].map(y => (
+                  <line key={y} x1="20" y1={y} x2="580" y2={y} stroke="#E9ECEF" strokeDasharray="4 2" strokeWidth="1" />
+                ))}
+                {/* X labels */}
+                {['Jan','Feb','Mar','Apr','Mei','Jun','Jul'].map((l, i) => (
+                  <text key={l} x={20 + i * 90} y="188" textAnchor="middle" fontSize="10" fill="#9B9BB5">{l}</text>
+                ))}
+                {/* Donor line (green) — values [320,410,380,520,480,600,550] */}
+                <polyline
+                  points="20,85 110,61 200,69 290,31 380,42 470,10 560,23"
+                  fill="none" stroke="#27AE60" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
+                />
+                {[85,61,69,31,42,10,23].map((y, i) => (
+                  <circle key={i} cx={20 + i * 90} cy={y} r="4" fill="#27AE60" />
+                ))}
+                {/* Permintaan line (red) — values [280,350,310,420,390,460,430] */}
+                <polyline
+                  points="20,95 110,77 200,87 290,58 380,66 470,47 560,55"
+                  fill="none" stroke="#C0392B" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
+                />
+                {[95,77,87,58,66,47,55].map((y, i) => (
+                  <circle key={i} cx={20 + i * 90} cy={y} r="4" fill="#C0392B" />
+                ))}
+              </svg>
+              <div className="flex justify-center gap-6 mt-2">
                 <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#27AE60]" /><span className="text-xs font-semibold text-[#4A4A6A]">Donor Masuk</span></div>
                 <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#C0392B]" /><span className="text-xs font-semibold text-[#4A4A6A]">Permintaan RS</span></div>
               </div>
             </div>
 
-            {/* Area Chart: Waktu Respons */}
+            {/* SVG Area Chart: Waktu Respons */}
             <div className="bg-[#F7F7FB] p-6 rounded-3xl border border-border">
-              <h3 className="font-bold text-[#1A1A2E] mb-2">Rata-rata Waktu Respons</h3>
-              <p className="text-xs text-[#9B9BB5] mb-6">Penurunan waktu respons pengiriman darurat (dalam menit)</p>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={responseTimeData} margin={{ top: 5, right: 20, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gradientResponse" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2980B9" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#2980B9" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E9ECEF" />
-                    <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: '#4A4A6A' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#4A4A6A' }} axisLine={false} tickLine={false} unit=" mnt" />
-                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(v: any) => [`${v} menit`, 'Waktu Respons']} />
-                    <Area type="monotone" dataKey="waktu" stroke="#2980B9" strokeWidth={3} fill="url(#gradientResponse)" dot={{ r: 4, fill: '#2980B9' }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex items-center justify-center gap-2 mt-4">
+              <h3 className="font-bold text-[#1A1A2E] mb-1">Rata-rata Waktu Respons</h3>
+              <p className="text-xs text-[#9B9BB5] mb-4">Penurunan waktu respons pengiriman darurat (dalam menit)</p>
+              <svg viewBox="0 0 600 190" className="w-full" aria-hidden="true">
+                <defs>
+                  <linearGradient id="gradResp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2980B9" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#2980B9" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* Grid lines */}
+                {[10, 50, 90, 130, 170].map(y => (
+                  <line key={y} x1="20" y1={y} x2="580" y2={y} stroke="#E9ECEF" strokeDasharray="4 2" strokeWidth="1" />
+                ))}
+                {/* X labels */}
+                {['Jan','Feb','Mar','Apr','Mei','Jun','Jul'].map((l, i) => (
+                  <text key={l} x={20 + i * 90} y="188" textAnchor="middle" fontSize="10" fill="#9B9BB5">{l}</text>
+                ))}
+                {/* Area fill — values [22,19,17,14,12,10,9], max=25, y=10+(v/25)*155 */}
+                <path
+                  d="M 20,147 L 110,128 L 200,115 L 290,97 L 380,84 L 470,72 L 560,66 L 560,170 L 20,170 Z"
+                  fill="url(#gradResp)"
+                />
+                {/* Line */}
+                <polyline
+                  points="20,147 110,128 200,115 290,97 380,84 470,72 560,66"
+                  fill="none" stroke="#2980B9" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
+                />
+                {[147,128,115,97,84,72,66].map((y, i) => (
+                  <circle key={i} cx={20 + i * 90} cy={y} r="4" fill="#2980B9" />
+                ))}
+              </svg>
+              <div className="flex items-center justify-center gap-2 mt-2">
                 <Zap className="w-4 h-4 text-[#2980B9]" />
                 <span className="text-xs font-semibold text-[#4A4A6A]">Turun 59% dalam 7 bulan terakhir</span>
               </div>

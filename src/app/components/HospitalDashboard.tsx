@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, LayoutGrid, Trash2, ChevronDown
+  RefreshCw, LayoutGrid, Trash2, ChevronDown, Save
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Urgency = 'darurat' | 'mendesak' | 'normal';
-type OrderStatus = 'menunggu' | 'diproses' | 'dikirim' | 'selesai' | 'ditolak';
+type OrderStatus = 'menunggu' | 'diproses' | 'dikirim' | 'tiba' | 'selesai' | 'ditolak';
 
 interface PMIOption {
   id: string;
@@ -133,6 +133,7 @@ const orderStatusConfig: Record<OrderStatus, { label: string; bg: string; text: 
   menunggu: { label: 'Menunggu', bg: '#FEF9E7', text: '#E67E22', icon: Clock },
   diproses: { label: 'Diproses', bg: '#EAF7FB', text: '#2980B9', icon: RefreshCw },
   dikirim: { label: 'Dikirim', bg: '#E8DAEF', text: '#8E44AD', icon: Truck },
+  tiba: { label: 'Tiba di RS', bg: '#EAF7FB', text: '#16A085', icon: MapPin },
   selesai: { label: 'Selesai', bg: '#EAFAF1', text: '#1E8449', icon: CheckCircle },
   ditolak: { label: 'Ditolak', bg: '#FDEDEC', text: '#C0392B', icon: X },
 };
@@ -177,6 +178,8 @@ function TrackingBar({ order }: { order: BloodOrder }) {
 export default function HospitalDashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('stock');
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedBlood, setSelectedBlood] = useState('O+');
   const [selectedQty, setSelectedQty] = useState<number | ''>(3);
@@ -186,12 +189,11 @@ export default function HospitalDashboard() {
   const [orders, setOrders] = useState<BloodOrder[]>(bloodOrders);
   const [pmiList, setPmiList] = useState<PMIOption[]>(pmiOptions);
   const [showConfirmReceive, setShowConfirmReceive] = useState<string | null>(null);
+  // Koordinat RS yang sedang login — dipakai untuk kalkulasi jarak dinamis ke PMI
+  const [hospitalCoords, setHospitalCoords] = useState<{ lat: number; lng: number }>({ lat: -7.2678, lng: 112.7584 });
+  const [isLoadingPMI, setIsLoadingPMI] = useState(false);
 
-  // Manage Blood Stock State
-  const [stocks, setStocks] = useState<HospitalStock[]>(() => {
-    const saved = localStorage.getItem('shared_hospital_blood_stocks');
-    return saved ? JSON.parse(saved) : initialHospitalStock;
-  });
+  const [stocks, setStocks] = useState<HospitalStock[]>(initialHospitalStock);
 
   // Load data from Supabase if configured
   useEffect(() => {
@@ -199,18 +201,26 @@ export default function HospitalDashboard() {
     async function fetchHospitalData() {
       if (!isSupabaseConfigured) return;
       try {
-        // 1. Dapatkan ID Rumah Sakit yang sedang login berdasarkan nama organisasi user
+        // 1. Dapatkan data lengkap RS yang sedang login termasuk koordinat
+        const orgName = user?.org || 'Rumah Sakit A';
+
         const { data: hData } = await supabase
           .from('hospitals')
-          .select('id')
-          .eq('name', user?.org || 'Rumah Sakit A')
+          .select('id, latitude, longitude')
+          .eq('name', orgName)
           .single();
         const currentHId = hData?.id;
 
-        // Prepare queries
-        const pmiQuery = supabase.from('pmi_units').select('*');
-        
-        let orderQuery = supabase.from('blood_orders').select('*').order('created_at', { ascending: false });
+        // Simpan koordinat RS untuk kalkulasi jarak ke PMI
+        if (hData?.latitude && hData?.longitude) {
+          setHospitalCoords({ lat: hData.latitude, lng: hData.longitude });
+        }
+
+        // Prepare queries — order join pmi_units untuk mendapat nama PMI yang benar
+        let orderQuery = supabase
+          .from('blood_orders')
+          .select('*, pmi_units(name)')
+          .order('created_at', { ascending: false });
         if (currentHId) {
           orderQuery = orderQuery.eq('hospital_id', currentHId);
         }
@@ -220,51 +230,65 @@ export default function HospitalDashboard() {
           stockQuery = stockQuery.eq('owner_hospital_id', currentHId);
         }
 
+        // Ambil data pengiriman logistik aktif ke RS ini
+        let deliveriesQuery = supabase
+          .from('deliveries')
+          .select('*')
+          .eq('to_name', orgName);
+
         // Run queries in parallel
-        const [pmiResult, orderResult, stockResult] = await Promise.all([
-          pmiQuery,
+        const [orderResult, stockResult, deliveryResult] = await Promise.all([
           orderQuery,
-          stockQuery
+          stockQuery,
+          deliveriesQuery
         ]);
 
-        if (pmiResult.error) throw pmiResult.error;
         if (orderResult.error) throw orderResult.error;
         if (stockResult.error) throw stockResult.error;
+        if (deliveryResult.error) throw deliveryResult.error;
 
-        const pmiData = pmiResult.data;
         const orderData = orderResult.data;
         const stockData = stockResult.data;
-
-        if (pmiData && pmiData.length > 0) {
-          const mappedPMI: PMIOption[] = pmiData.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            address: p.address,
-            distance: '2.5 km',
-            stock: 45,
-            capacity: 100,
-            score: p.response_rate || 90,
-            travelTime: `${p.avg_delivery_mins || 15} mnt`
-          }));
-          setPmiList(mappedPMI);
-        }
+        const deliveryData = deliveryResult.data;
 
         if (orderData && orderData.length > 0) {
-          const mappedOrders: BloodOrder[] = orderData.map((o: any) => ({
-            id: o.id,
-            bloodType: o.blood_type,
-            qty: o.quantity || o.qty || 3,
-            urgency: o.urgency || 'normal',
-            status: o.status || 'menunggu',
-            pmi: o.pmi || 'PMI A',
-            createdAt: new Date(o.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            updatedAt: 'Baru saja',
-            driver: o.driver,
-            eta: o.eta,
-            trackingPct: o.tracking_pct || 0
-          }));
+          const mappedOrders: BloodOrder[] = orderData.map((o: any) => {
+            // Cocokkan order dengan delivery aktif
+            const activeDelivery = deliveryData?.find((d: any) => 
+              d.blood_type === o.blood_type &&
+              d.qty === o.quantity &&
+              d.status !== 'selesai'
+            );
+
+            // Resolusi status berdasarkan logistik kurir
+            let orderStatus = o.status === 'pending' ? 'menunggu' : (o.status || 'menunggu');
+            if (activeDelivery) {
+              if (activeDelivery.status === 'tiba') {
+                orderStatus = 'tiba';
+              } else if (activeDelivery.status === 'perjalanan') {
+                orderStatus = 'dikirim';
+              } else if (activeDelivery.status === 'dijemput' || activeDelivery.status === 'disiapkan') {
+                orderStatus = 'diproses';
+              }
+            }
+
+            return {
+              id: o.id,
+              bloodType: o.blood_type,
+              qty: o.quantity || o.qty || 3,
+              urgency: o.urgency || 'normal',
+              status: orderStatus,
+              pmi: o.pmi_units?.name || 'PMI A',
+              createdAt: new Date(o.created_at || Date.now()).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+              updatedAt: o.updated_at ? new Date(o.updated_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
+              driver: activeDelivery?.driver_name,
+              eta: activeDelivery?.eta,
+              trackingPct: activeDelivery?.pct || 0
+            };
+          });
           setOrders(mappedOrders);
         }
+
         if (stockData && stockData.length > 0) {
           const rsStocksOnly = stockData;
           if (rsStocksOnly.length > 0) {
@@ -291,22 +315,40 @@ export default function HospitalDashboard() {
     }
     fetchHospitalData();
   }, [user]);
-
-  // Sync to localStorage
+  // Load initial stocks cache scoped by user organization
   useEffect(() => {
+    if (!user?.org) return;
+    const cacheKey = `shared_hospital_blood_stocks_${user.org}`;
+    const saved = localStorage.getItem(cacheKey);
+    if (saved) {
+      try {
+        setStocks(JSON.parse(saved));
+      } catch (e) {
+        console.warn('Failed parsing cached stocks:', e);
+      }
+    }
+  }, [user]);
+
+  // Sync to scoped localStorage
+  useEffect(() => {
+    if (!user?.org) return;
+    const cacheKey = `shared_hospital_blood_stocks_${user.org}`;
+    localStorage.setItem(cacheKey, JSON.stringify(stocks));
     localStorage.setItem('shared_hospital_blood_stocks', JSON.stringify(stocks));
-  }, [stocks]);
+  }, [stocks, user]);
 
   // Real-time synchronization across views/tabs (localStorage)
   useEffect(() => {
+    if (!user?.org) return;
+    const cacheKey = `shared_hospital_blood_stocks_${user.org}`;
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'shared_hospital_blood_stocks' && e.newValue) {
+      if ((e.key === cacheKey || e.key === 'shared_hospital_blood_stocks') && e.newValue) {
         setStocks(JSON.parse(e.newValue));
       }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [user]);
 
   // Sinkronisasi status pesanan dari PMI (via localStorage bridge)
   // Ketika PMI menyetujui/menolak request, status pesanan RS otomatis terupdate
@@ -389,8 +431,72 @@ export default function HospitalDashboard() {
   const expiringSoon = stocks.reduce((sum, s) => sum + s.expiringSoon, 0);
   const totalStock = stocks.reduce((sum, s) => sum + s.stock, 0);
 
+  // Fetch daftar PMI dengan stok NYATA per blood type saat user masuk step AI
+  const fetchDynamicPMIList = async (bloodType: string, reqQty: number) => {
+    if (!isSupabaseConfigured) return;
+    setIsLoadingPMI(true);
+    try {
+      const { data: pmiData, error } = await supabase
+        .from('pmi_units')
+        .select(`
+          id, name, address, latitude, longitude, response_rate, avg_delivery_mins,
+          blood_stock!blood_stock_owner_pmi_id_fkey(blood_type, stock_qty)
+        `);
+
+      if (!error && pmiData && pmiData.length > 0) {
+        const rsLat = hospitalCoords.lat;
+        const rsLng = hospitalCoords.lng;
+
+        const mapped: PMIOption[] = pmiData.map((p: any) => {
+          const dLat = p.latitude - rsLat;
+          const dLng = p.longitude - rsLng;
+          const distKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+          const travelMin = Math.round(distKm * 2.5 + 4);
+
+          // Stok nyata untuk blood type yang dipilih
+          const stockEntry = (p.blood_stock || []).find((bs: any) => bs.blood_type === bloodType);
+          const stockQty = stockEntry ? (stockEntry.stock_qty ?? 0) : 0;
+
+          // Skor AI sama seperti di BloodSearch
+          const score = Math.max(50, Math.min(99, Math.round(
+            (100 - distKm * 4) +
+            (stockQty >= reqQty ? 30 : stockQty > 0 ? 10 : 0) +
+            (p.response_rate * 0.3)
+          )));
+
+          return {
+            id: p.id,
+            name: p.name,
+            address: p.address,
+            distance: `${distKm.toFixed(1)} km`,
+            stock: stockQty,
+            capacity: stockQty + 30,
+            score,
+            travelTime: `${travelMin} mnt`
+          };
+        });
+
+        // Urutkan by skor tertinggi
+        mapped.sort((a, b) => b.score - a.score);
+        setPmiList(mapped);
+        if (mapped.length > 0 && !selectedPMI) {
+          setSelectedPMI(mapped[0].name);
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat PMI list dinamis:', e);
+    } finally {
+      setIsLoadingPMI(false);
+    }
+  };
+
   const handleSubmitOrder = () => {
-    if (orderStep === 'form') { setOrderStep('ai'); return; }
+    if (orderStep === 'form') {
+      // Fetch PMI list dinamis dengan stok nyata sebelum masuk ke AI step
+      fetchDynamicPMIList(selectedBlood, typeof selectedQty === 'number' ? selectedQty : 1);
+      setOrderStep('ai');
+      return;
+    }
     if (orderStep === 'ai') { setOrderStep('confirm'); return; }
     if (orderStep === 'confirm') {
       const newOrder: BloodOrder = {
@@ -408,10 +514,13 @@ export default function HospitalDashboard() {
       if (isSupabaseConfigured) {
         (async () => {
           try {
+            // Nama hospitals.name sudah konsisten dengan users.org
+            const orgName = user?.org || 'Rumah Sakit A';
+
             const { data: hData } = await supabase
               .from('hospitals')
               .select('id')
-              .eq('name', user?.org || 'RSUD Dr. Soetomo')
+              .eq('name', orgName)
               .single();
             const hId = hData?.id;
 
@@ -520,10 +629,30 @@ export default function HospitalDashboard() {
               .update({ status: 'selesai', updated_at: new Date().toISOString() })
               .eq('id', id);
 
+            // Nama hospitals.name sudah konsisten dengan users.org
+            const orgName = user?.org || 'Rumah Sakit A';
+
+            // Cari delivery aktif untuk order ini dan update statusnya ke selesai
+            const { data: matchedDels } = await supabase
+              .from('deliveries')
+              .select('id')
+              .eq('to_name', orgName)
+              .eq('blood_type', order.bloodType)
+              .eq('qty', order.qty)
+              .neq('status', 'selesai')
+              .limit(1);
+
+            if (matchedDels && matchedDels.length > 0) {
+              await supabase
+                .from('deliveries')
+                .update({ status: 'selesai', updated_at: new Date().toISOString() })
+                .eq('id', matchedDels[0].id);
+            }
+
             const { data: hData } = await supabase
               .from('hospitals')
               .select('id')
-              .eq('name', user?.org || 'RSUD Dr. Soetomo')
+              .eq('name', orgName)
               .single();
             
             if (hData) {
@@ -550,6 +679,23 @@ export default function HospitalDashboard() {
             console.warn('Gagal update status & stok di Supabase:', e);
           }
         })();
+      }
+
+      // Sinkronisasi ke localStorage untuk fallback lokal
+      try {
+        const savedDeliveries = localStorage.getItem('shared_donor_deliveries_v1');
+        if (savedDeliveries) {
+          const delsList = JSON.parse(savedDeliveries);
+          const updated = delsList.map((d: any) => 
+            d.bloodType === order.bloodType && d.qty === order.qty && d.status !== 'selesai'
+              ? { ...d, status: 'selesai' }
+              : d
+          );
+          localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+        }
+      } catch (e) {
+        console.warn(e);
       }
 
       toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
@@ -602,6 +748,7 @@ export default function HospitalDashboard() {
 
   // Direct Inline Stock Modification
   const updateSingleStock = (type: string, key: 'stock' | 'target' | 'expiringSoon', val: number) => {
+    setIsDirty(true);
     setStocks(prev => prev.map(s => {
       if (s.type === type) {
         const newStock = key === 'stock' ? Math.max(0, val) : s.stock;
@@ -611,55 +758,6 @@ export default function HospitalDashboard() {
         // Recalculate status
         const pct = Math.round((newStock / newTarget) * 100);
         const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
-
-        if (isSupabaseConfigured) {
-          (async () => {
-            try {
-              let orgName = user?.org || 'RSUD Dr. Soetomo';
-              if (orgName === 'Rumah Sakit A') orgName = 'RSUD Dr. Soetomo';
-              if (orgName === 'Rumah Sakit B') orgName = 'RS Siloam Surabaya';
-              if (orgName === 'Rumah Sakit C') orgName = 'RSAL Dr. Ramelan';
-
-              const { data: hData } = await supabase
-                .from('hospitals')
-                .select('id')
-                .eq('name', orgName)
-                .single();
-              const hId = hData?.id;
-
-              if (hId) {
-                const { data: stockRow } = await supabase
-                  .from('blood_stock')
-                  .select('*')
-                  .eq('owner_hospital_id', hId)
-                  .eq('blood_type', type)
-                  .single();
-
-                if (stockRow) {
-                  await supabase
-                    .from('blood_stock')
-                    .update({
-                      stock_qty: newStock,
-                      status: newStatus,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', stockRow.id);
-                } else {
-                  await supabase
-                    .from('blood_stock')
-                    .insert({
-                      owner_hospital_id: hId,
-                      blood_type: type,
-                      stock_qty: newStock,
-                      status: newStatus
-                    });
-                }
-              }
-            } catch (e) {
-              console.warn('Gagal sync stock ke Supabase:', e);
-            }
-          })();
-        }
 
         return {
           ...s,
@@ -673,6 +771,76 @@ export default function HospitalDashboard() {
       return s;
     }));
   };
+
+  const saveStocksToDatabase = async () => {
+    if (!isSupabaseConfigured) {
+      toast.info('Perubahan disimpan lokal (Supabase belum terhubung)');
+      setIsDirty(false);
+      return;
+    }
+    setIsSaving(true);
+    const toastId = toast.loading('Menyimpan perubahan stok ke database...');
+    try {
+      const orgName = user?.org || 'Rumah Sakit A';
+      const { data: hData } = await supabase
+        .from('hospitals')
+        .select('id')
+        .eq('name', orgName)
+        .single();
+      
+      const hId = hData?.id;
+      if (!hId) throw new Error('Rumah Sakit tidak ditemukan di database.');
+
+      const promises = stocks.map(async (s) => {
+        const { data: stockRow } = await supabase
+          .from('blood_stock')
+          .select('id')
+          .eq('owner_hospital_id', hId)
+          .eq('blood_type', s.type)
+          .single();
+
+        if (stockRow) {
+          return supabase
+            .from('blood_stock')
+            .update({
+              stock_qty: s.stock,
+              status: s.status === 'good' ? 'available' : s.status,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', stockRow.id);
+        } else {
+          return supabase
+            .from('blood_stock')
+            .insert({
+              owner_hospital_id: hId,
+              blood_type: s.type,
+              stock_qty: s.stock,
+              status: s.status === 'good' ? 'available' : s.status
+            });
+        }
+      });
+
+      await Promise.all(promises);
+      setIsDirty(false);
+      toast.success('Semua perubahan stok berhasil disimpan ke database!', { id: toastId });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Gagal menyimpan stok: ${e.message || e}`, { id: toastId });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Expose isStockDirty and saveStockToDb on the window object for auto-save during logout
+  // Must be placed AFTER saveStocksToDatabase declaration to avoid TDZ error
+  useEffect(() => {
+    (window as any).isStockDirty = isDirty;
+    (window as any).saveStockToDb = saveStocksToDatabase;
+    return () => {
+      (window as any).isStockDirty = false;
+      (window as any).saveStockToDb = null;
+    };
+  }, [isDirty, saveStocksToDatabase]);
 
   const preventNegativeInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === 'E') {
@@ -712,7 +880,7 @@ export default function HospitalDashboard() {
             const u = urgencyConfig[order.urgency];
             const s = orderStatusConfig[order.status];
             const StatusIcon = s.icon;
-            const isActive = order.status === 'dikirim' || order.status === 'diproses';
+            const isActive = order.status === 'dikirim' || order.status === 'diproses' || order.status === 'tiba';
             return (
               <div key={order.id} className={`border rounded-xl p-4 transition-all ${isActive ? 'border-[#8E44AD]/30 bg-[#F4EFFE]/5 shadow-sm' : 'border-border'}`}>
                 <div className="flex items-start justify-between mb-2">
@@ -739,31 +907,31 @@ export default function HospitalDashboard() {
                 </div>
 
                 {/* GPS Tracking Bar */}
-                {(order.status === 'dikirim' || order.status === 'diproses') && (
+                {(order.status === 'dikirim' || order.status === 'diproses' || order.status === 'tiba') && (
                   <TrackingBar order={order} />
                 )}
 
-                {/* Fake map for dikirim */}
-                {order.status === 'dikirim' && (
-                  <div className="mt-3 bg-gradient-to-br from-[#EAF7FB] to-[#D6EAF8] rounded-xl p-3 flex items-center justify-between">
+                {/* Info kurir untuk dikirim & tiba */}
+                {(order.status === 'dikirim' || order.status === 'tiba') && (
+                  <div className="mt-3 bg-gradient-to-br from-[#EAF7FB] to-[#D6EAF8] rounded-xl p-3 flex items-center justify-between animate-pulse">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 bg-[#8E44AD] rounded-lg flex items-center justify-center">
                         <Truck className="w-3.5 h-3.5 text-white" />
                       </div>
                       <div>
-                        <p className="text-[11px] font-bold text-[#1A1A2E]">{order.driver}</p>
-                        <p className="text-[9px] text-[#4A4A6A]">Kurir membawa pesanan</p>
+                        <p className="text-[11px] font-bold text-[#1A1A2E]">{order.driver || 'Kurir Logistik'}</p>
+                        <p className="text-[9px] text-[#4A4A6A]">{order.status === 'tiba' ? 'Kurir telah tiba di lokasi RS' : 'Kurir membawa pesanan'}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-bold text-[#8E44AD]">{order.eta}</p>
-                      <p className="text-[9px] text-[#9B9BB5]">Estimasi tiba</p>
+                      <p className="text-xs font-bold text-[#8E44AD]">{order.status === 'tiba' ? 'Tiba' : (order.eta || '10 mnt')}</p>
+                      <p className="text-[9px] text-[#9B9BB5]">{order.status === 'tiba' ? 'Status' : 'Estimasi tiba'}</p>
                     </div>
                   </div>
                 )}
 
                 {/* Confirm receive button */}
-                {order.status === 'dikirim' && (
+                {(order.status === 'dikirim' || order.status === 'tiba') && (
                   <button onClick={() => setShowConfirmReceive(order.id)}
                     className="mt-3 w-full py-2 rounded-lg border-2 border-[#27AE60] text-[#27AE60] text-xs font-bold hover:bg-[#EAFAF1] transition-colors flex items-center justify-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5" /> Konfirmasi Penerimaan Darah
@@ -792,6 +960,23 @@ export default function HospitalDashboard() {
         </h3>
         <p className="text-xs text-[#9B9BB5] mt-0.5">Edit jumlah kantong, target, dan kadaluarsa secara langsung di bawah ini</p>
       </div>
+
+      {/* Tombol Simpan Perubahan ke Database */}
+      {isDirty && (
+        <div className="mb-5 bg-[#EAFAF1] border border-[#27AE60]/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 animate-fade-in shadow-sm">
+          <div>
+            <p className="text-sm font-bold text-[#27AE60]">Perubahan Stok Belum Disimpan</p>
+            <p className="text-xs text-[#2E7D32] mt-0.5">Ada data stok darah yang Anda ubah namun belum disinkronkan ke database.</p>
+          </div>
+          <button
+            onClick={saveStocksToDatabase}
+            disabled={isSaving}
+            className="bg-[#27AE60] hover:bg-[#219653] disabled:opacity-50 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow transition-all transform active:scale-95 text-xs uppercase tracking-wider"
+          >
+            <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan ke Database'}
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {stocks.map(blood => {
@@ -964,7 +1149,7 @@ export default function HospitalDashboard() {
         <h3 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           Laporan Pemakaian Darah
         </h3>
-        <p className="text-xs text-[#9B9BB5] mt-0.5">Statistik penggunaan darah bulanan di Rumah Sakit A</p>
+        <p className="text-xs text-[#9B9BB5] mt-0.5">Statistik penggunaan darah bulanan di {user?.org || 'Rumah Sakit A'}</p>
       </div>
 
       <div className="py-3">
@@ -1243,7 +1428,7 @@ export default function HospitalDashboard() {
                     { label: 'Jumlah', value: `${selectedQty} kantong` },
                     { label: 'Urgensi', value: urgencyConfig[selectedUrgency].label },
                     { label: 'PMI Tujuan', value: selectedPMI || pmiList[0]?.name || 'PMI A' },
-                    { label: 'Rumah Sakit', value: 'Rumah Sakit A' },
+                    { label: 'Rumah Sakit', value: user?.org || 'Rumah Sakit A' },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex items-center justify-between">
                       <span className="text-xs text-[#9B9BB5]">{label}</span>

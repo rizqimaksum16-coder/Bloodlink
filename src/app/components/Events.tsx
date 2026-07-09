@@ -212,11 +212,6 @@ export default function Events() {
     const bySearch = searchQuery === '' || e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.location.toLowerCase().includes(searchQuery.toLowerCase()) || e.organizer.toLowerCase().includes(searchQuery.toLowerCase());
     const byStatus = filterStatus === 'all' || e.status === filterStatus;
     const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
-    
-    // Sembunyikan event RS dari tampilan pendonor (donor hanya boleh ikut event PMI)
-    if (!isCreator && isRs) {
-      return false;
-    }
 
     const byOrganizer = filterOrganizer === 'all' || (filterOrganizer === 'rs' ? isRs : !isRs);
     return bySearch && byStatus && byOrganizer;

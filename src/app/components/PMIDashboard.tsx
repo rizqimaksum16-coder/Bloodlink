@@ -3,7 +3,7 @@ import { useSearchParams, useLocation } from 'react-router';
 import {
   Droplets, Users, Bell, Calendar, CheckCircle, Clock, AlertTriangle,
   MapPin, Phone, Plus, Search, Filter, Send, X, ChevronDown, TrendingUp,
-  Package, Truck, BarChart2, Megaphone, Trash2
+  Package, Truck, BarChart2, Megaphone, Trash2, Save, RefreshCw
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Progress } from './ui/progress';
@@ -97,6 +97,8 @@ const priorityConfig: Record<Priority, { label: string; bg: string; text: string
 const statusConfig: Record<RequestStatus, { label: string; bg: string; text: string }> = {
   pending: { label: 'Menunggu', bg: '#FEF9E7', text: '#E67E22' },
   diproses: { label: 'Diproses', bg: '#EAF7FB', text: '#2980B9' },
+  dikirim: { label: 'Dikirim', bg: '#E8DAEF', text: '#8E44AD' },
+  tiba: { label: 'Tiba di RS', bg: '#E8F8F5', text: '#117A65' },
   selesai: { label: 'Selesai', bg: '#EAFAF1', text: '#1E8449' },
   ditolak: { label: 'Ditolak', bg: '#FDEDEC', text: '#C0392B' },
 };
@@ -156,10 +158,16 @@ function RequestCard({ req, onApprove, onReject }: { req: BloodRequest; onApprov
           </div>
         )}
         {req.status === 'diproses' && (
-          <span className="text-xs text-[#2980B9] flex items-center gap-1 font-medium"><Truck className="w-3 h-3" /> Sedang dikirim</span>
+          <span className="text-xs text-[#2980B9] flex items-center gap-1 font-medium"><RefreshCw className="w-3 h-3 animate-spin" /> Disiapkan / Diproses</span>
+        )}
+        {req.status === 'dikirim' && (
+          <span className="text-xs text-[#8E44AD] flex items-center gap-1 font-medium"><Truck className="w-3 h-3 animate-bounce" /> Sedang dikirim</span>
+        )}
+        {req.status === 'tiba' && (
+          <span className="text-xs text-[#117A65] flex items-center gap-1 font-medium"><MapPin className="w-3 h-3" /> Tiba di RS (Menunggu Konfirmasi)</span>
         )}
         {req.status === 'selesai' && (
-          <span className="text-xs text-[#27AE60] flex items-center gap-1 font-medium"><CheckCircle className="w-3 h-3" /> Terkirim</span>
+          <span className="text-xs text-[#27AE60] flex items-center gap-1 font-medium"><CheckCircle className="w-3 h-3" /> Diterima RS</span>
         )}
       </div>
     </div>
@@ -214,6 +222,8 @@ export default function PMIDashboard() {
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(() => tabParam || 'requests');
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const currentTab = new URLSearchParams(location.search).get('tab') || tabParam;
@@ -235,10 +245,7 @@ export default function PMIDashboard() {
       return bloodRequests;
     }
   });
-  const [stocks, setStocks] = useState<BloodStock[]>(() => {
-    const saved = localStorage.getItem('shared_pmi_blood_stocks');
-    return saved ? JSON.parse(saved) : bloodStocks;
-  });
+  const [stocks, setStocks] = useState<BloodStock[]>(bloodStocks);
 
   const [donorList, setDonorList] = useState<Donor[]>([]);
   const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
@@ -305,10 +312,13 @@ export default function PMIDashboard() {
       if (!isSupabaseConfigured) return;
       try {
         // 1. Dapatkan ID unit PMI yang sedang login berdasarkan nama organisasi user
+        // Nama di pmi_units.name sudah konsisten dengan users.org (PMI A, PMI B, PMI C, dll.)
+        const orgName = user?.org || 'PMI A';
+
         const { data: pData } = await supabase
           .from('pmi_units')
           .select('id')
-          .eq('name', user?.org || 'PMI A')
+          .eq('name', orgName)
           .single();
         const currentPmiId = pData?.id;
 
@@ -458,21 +468,41 @@ export default function PMIDashboard() {
     loadPMIData();
   }, []);
 
-  // Sync to localStorage
+  // Load initial stocks cache scoped by user organization
   useEffect(() => {
+    if (!user?.org) return;
+    const cacheKey = `shared_pmi_blood_stocks_${user.org}`;
+    const saved = localStorage.getItem(cacheKey);
+    if (saved) {
+      try {
+        setStocks(JSON.parse(saved));
+      } catch (e) {
+        console.warn('Failed parsing cached stocks:', e);
+      }
+    }
+  }, [user]);
+
+  // Sync to scoped localStorage
+  useEffect(() => {
+    if (!user?.org) return;
+    const cacheKey = `shared_pmi_blood_stocks_${user.org}`;
+    localStorage.setItem(cacheKey, JSON.stringify(stocks));
+    // Keep standard shared key updated for fallback AI matching reading
     localStorage.setItem('shared_pmi_blood_stocks', JSON.stringify(stocks));
-  }, [stocks]);
+  }, [stocks, user]);
 
   // Real-time synchronization across views/tabs (localStorage)
   useEffect(() => {
+    if (!user?.org) return;
+    const cacheKey = `shared_pmi_blood_stocks_${user.org}`;
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'shared_pmi_blood_stocks' && e.newValue) {
+      if ((e.key === cacheKey || e.key === 'shared_pmi_blood_stocks') && e.newValue) {
         setStocks(JSON.parse(e.newValue));
       }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [user]);
 
   // Supabase Realtime — auto-refresh permintaan darah saat ada INSERT atau UPDATE
   useEffect(() => {
@@ -595,18 +625,45 @@ export default function PMIDashboard() {
     }));
 
     // 2. Buat objek pengiriman baru
+    // Kalkulasi jarak nyata menggunakan koordinat PMI dan RS dari database seed
+    const pmiCoordsMap: Record<string, [number, number]> = {
+      'PMI A': [-7.2657, 112.7445],
+      'PMI B': [-7.2709, 112.7505],
+      'PMI C': [-7.4475, 112.7025],
+    };
+    const hospitalCoordsMap: Record<string, [number, number]> = {
+      'Rumah Sakit A': [-7.2678, 112.7584],
+      'Rumah Sakit B': [-7.2435, 112.7538],
+      'Rumah Sakit C': [-7.3117, 112.7364],
+      'Rumah Sakit D': [-7.2847, 112.7845],
+      'Rumah Sakit E': [-7.2745, 112.7490],
+      'Rumah Sakit F': [-7.2890, 112.7378],
+      'Rumah Sakit G': [-7.3062, 112.7349],
+      'Rumah Sakit H': [-7.2668, 112.6913],
+    };
+    const fromName = user?.org || 'PMI A';
+    const toName = req.hospital;
+    const fromCoords = pmiCoordsMap[fromName] || [-7.2657, 112.7445];
+    const toCoords = hospitalCoordsMap[toName] || [-7.2678, 112.7584];
+    const dLat = toCoords[0] - fromCoords[0];
+    const dLng = toCoords[1] - fromCoords[1];
+    const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+    const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
+    const calculatedDistance = `${distanceKm.toFixed(1)} km`;
+    const calculatedEta = `${travelTimeMin} mnt`;
+
     const newDelivery = {
       id: `del_${Date.now()}`,
       orderId: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
       bloodType: req.bloodType,
       qty: req.qty,
-      from: user?.org || 'PMI Kota Surabaya',
-      to: req.hospital,
+      from: fromName,
+      to: toName,
       driver: selectedDriver.name,
       driverPhone: selectedDriver.phone || '081234567890',
       status: 'disiapkan',
-      eta: '15 Menit',
-      distance: '2.5 km',
+      eta: calculatedEta,
+      distance: calculatedDistance,
       pct: 0,
       urgent: req.priority === 'darurat' || req.priority === 'mendesak',
       updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
@@ -636,15 +693,27 @@ export default function PMIDashboard() {
             .update({ status: 'diproses', updated_at: new Date().toISOString() })
             .eq('id', approvingRequestId);
 
-          await supabase
-            .from('blood_orders')
-            .update({ status: 'diproses', updated_at: new Date().toISOString() })
-            .eq('id', approvingRequestId);
+          // Update blood_orders: cocokkan berdasarkan hospital_id + pmi_id + blood_type
+          // (bukan by UUID karena blood_orders dan blood_requests punya ID berbeda)
+          if (pId) {
+            const { data: hDataForOrder } = await supabase
+              .from('hospitals')
+              .select('id')
+              .eq('name', req.hospital)
+              .single();
+            if (hDataForOrder?.id) {
+              await supabase
+                .from('blood_orders')
+                .update({ status: 'diproses', updated_at: new Date().toISOString() })
+                .eq('hospital_id', hDataForOrder.id)
+                .eq('pmi_id', pId)
+                .eq('blood_type', req.bloodType)
+                .eq('status', 'pending');
+            }
+          }
 
-          let orgName = user?.org || 'PMI Kota Surabaya';
-          if (orgName === 'PMI A') orgName = 'UTD PMI A';
-          if (orgName === 'PMI B') orgName = 'Markas PMI A';
-          if (orgName === 'PMI C') orgName = 'PMI Kabupaten Sidoarjo';
+          // Nama pmi_units.name sudah konsisten dengan users.org
+          const orgName = user?.org || 'PMI A';
 
           const { data: pData } = await supabase
             .from('pmi_units')
@@ -829,6 +898,7 @@ export default function PMIDashboard() {
   };
 
   const updateSingleStock = (type: string, key: 'stock' | 'target' | 'expiringSoon', val: number) => {
+    setIsDirty(true);
     setStocks(prev => prev.map(s => {
       if (s.type === type) {
         const newStock = key === 'stock' ? Math.max(0, val) : s.stock;
@@ -838,50 +908,6 @@ export default function PMIDashboard() {
         // Recalculate status
         const pct = Math.round((newStock / newTarget) * 100);
         const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
-        
-        if (isSupabaseConfigured) {
-          (async () => {
-            try {
-              const { data: pData } = await supabase
-                .from('pmi_units')
-                .select('id')
-                .eq('name', user?.org || 'PMI A')
-                .single();
-              const pId = pData?.id;
-
-              if (pId) {
-                const { data: stockRow } = await supabase
-                  .from('blood_stock')
-                  .select('*')
-                  .eq('owner_pmi_id', pId)
-                  .eq('blood_type', type)
-                  .single();
-
-                if (stockRow) {
-                  await supabase
-                    .from('blood_stock')
-                    .update({
-                      stock_qty: newStock,
-                      status: newStatus,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', stockRow.id);
-                } else {
-                  await supabase
-                    .from('blood_stock')
-                    .insert({
-                      owner_pmi_id: pId,
-                      blood_type: type,
-                      stock_qty: newStock,
-                      status: newStatus
-                    });
-                }
-              }
-            } catch (e) {
-              console.warn('Gagal sync stock ke Supabase:', e);
-            }
-          })();
-        }
 
         return {
           ...s,
@@ -895,6 +921,76 @@ export default function PMIDashboard() {
       return s;
     }));
   };
+
+  const saveStocksToDatabase = async () => {
+    if (!isSupabaseConfigured) {
+      toast.info('Perubahan disimpan lokal (Supabase belum terhubung)');
+      setIsDirty(false);
+      return;
+    }
+    setIsSaving(true);
+    const toastId = toast.loading('Menyimpan perubahan stok ke database...');
+    try {
+      const orgName = user?.org || 'PMI A';
+      const { data: pData } = await supabase
+        .from('pmi_units')
+        .select('id')
+        .eq('name', orgName)
+        .single();
+      
+      const pId = pData?.id;
+      if (!pId) throw new Error('PMI unit tidak ditemukan di database.');
+
+      const promises = stocks.map(async (s) => {
+        const { data: stockRow } = await supabase
+          .from('blood_stock')
+          .select('id')
+          .eq('owner_pmi_id', pId)
+          .eq('blood_type', s.type)
+          .single();
+
+        if (stockRow) {
+          return supabase
+            .from('blood_stock')
+            .update({
+              stock_qty: s.stock,
+              status: s.status === 'good' ? 'available' : s.status,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', stockRow.id);
+        } else {
+          return supabase
+            .from('blood_stock')
+            .insert({
+              owner_pmi_id: pId,
+              blood_type: s.type,
+              stock_qty: s.stock,
+              status: s.status === 'good' ? 'available' : s.status
+            });
+        }
+      });
+
+      await Promise.all(promises);
+      setIsDirty(false);
+      toast.success('Semua perubahan stok berhasil disimpan ke database!', { id: toastId });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Gagal menyimpan stok: ${e.message || e}`, { id: toastId });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Expose isStockDirty and saveStockToDb on the window object for auto-save during logout
+  // Must be placed AFTER saveStocksToDatabase declaration to avoid TDZ error
+  useEffect(() => {
+    (window as any).isStockDirty = isDirty;
+    (window as any).saveStockToDb = saveStocksToDatabase;
+    return () => {
+      (window as any).isStockDirty = false;
+      (window as any).saveStockToDb = null;
+    };
+  }, [isDirty, saveStocksToDatabase]);
 
   const preventNegativeInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === 'E') {
@@ -1025,6 +1121,23 @@ export default function PMIDashboard() {
                     Berdasarkan tren permintaan: {stocks.filter(s => s.predictedShortfall).map(s => s.type).join(', ')} diprediksi habis dalam 3–5 hari. Segera rencanakan event donor darurat.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Tombol Simpan Perubahan ke Database */}
+            {isDirty && (
+              <div className="bg-[#EAFAF1] border border-[#27AE60]/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 animate-fade-in shadow-sm">
+                <div>
+                  <p className="text-sm font-bold text-[#27AE60]">Perubahan Stok Belum Disimpan</p>
+                  <p className="text-xs text-[#2E7D32] mt-0.5">Ada data stok darah yang Anda ubah namun belum disinkronkan ke database.</p>
+                </div>
+                <button
+                  onClick={saveStocksToDatabase}
+                  disabled={isSaving}
+                  className="bg-[#27AE60] hover:bg-[#219653] disabled:opacity-50 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow transition-all transform active:scale-95 text-xs uppercase tracking-wider"
+                >
+                  <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan ke Database'}
+                </button>
               </div>
             )}
 

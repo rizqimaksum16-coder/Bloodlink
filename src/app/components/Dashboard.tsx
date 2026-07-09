@@ -110,7 +110,7 @@ export default function Dashboard() {
               <LayoutDashboard className="w-6 h-6" />
               Dashboard
             </h1>
-            <p className="text-sm text-[#4A4A6A] mt-1">RSUD Dr. Soetomo — Surabaya</p>
+            <p className="text-sm text-[#4A4A6A] mt-1">{user?.org || 'Rumah Sakit A'} — Surabaya</p>
           </div>
           <div className="hidden sm:flex items-center gap-2 bg-[#EAFAF1] text-[#1E8449] px-3 py-1.5 rounded-xl text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#27AE60] animate-pulse" />

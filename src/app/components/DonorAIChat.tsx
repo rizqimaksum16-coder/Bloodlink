@@ -45,7 +45,7 @@ export default function DonorAIChat() {
     
     // Lokasi & Event
     if (query.includes('lokasi') || query.includes('event') || query.includes('pmi') || query.includes('tempat') || query.includes('surabaya')) {
-      return 'Anda dapat melihat daftar event donor darah aktif di Kota Surabaya melalui menu "Event" di navbar atas. Selain itu, Anda bisa mengunjungi Markas UTD PMI Kota Surabaya secara langsung di Jl. Embong Ploso No. 7-15.';
+      return 'Anda dapat melihat daftar event donor darah aktif di Kota Surabaya melalui menu "Event" di navbar atas. Selain itu, Anda bisa mengunjungi PMI A secara langsung di Jl. Embong Ploso No. 7-15.';
     }
     
     // Manfaat Donor

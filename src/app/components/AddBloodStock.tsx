@@ -10,9 +10,9 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const initialSubmissions = [
-  { hospital: 'RSUD Dr. Soetomo', bloodType: 'O+', quantity: 15, time: '10 menit lalu' },
-  { hospital: 'RS Siloam Surabaya', bloodType: 'A+', quantity: 8, time: '25 menit lalu' },
-  { hospital: 'RS Premier Surabaya', bloodType: 'B+', quantity: 12, time: '1 jam lalu' },
+  { hospital: 'Rumah Sakit A', bloodType: 'O+', quantity: 15, time: '10 menit lalu' },
+  { hospital: 'Rumah Sakit B', bloodType: 'A+', quantity: 8, time: '25 menit lalu' },
+  { hospital: 'Rumah Sakit C', bloodType: 'B+', quantity: 12, time: '1 jam lalu' },
 ];
 
 const btColor: Record<string, string> = {
@@ -39,7 +39,7 @@ export default function AddBloodStock() {
       if (error) throw error;
       if (data && data.length > 0) {
         const mapped = data.map((item: any) => ({
-          hospital: item.user_name || 'RSUD Dr. Soetomo',
+          hospital: item.user_name || 'Rumah Sakit A',
           bloodType: item.blood_type,
           quantity: item.quantity,
           time: item.time_ago || 'Baru saja'
@@ -194,7 +194,7 @@ export default function AddBloodStock() {
                   </Label>
                   <Input
                     id="hospitalName"
-                    placeholder="Contoh: RSUD Dr. Soetomo"
+                    placeholder="Contoh: Rumah Sakit A"
                     value={formData.hospitalName}
                     onChange={(e) => handleChange('hospitalName', e.target.value)}
                     className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-11"

@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AppFooter from './components/AppFooter';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy loading untuk seluruh komponen halaman demi optimasi performa FCP/LCP
 const LandingPage = lazy(() => import('./components/LandingPage'));
@@ -33,12 +34,13 @@ export default function App() {
         <div className="min-h-screen bg-background flex flex-col">
           <Navigation />
           <main className="flex-1">
-            <Suspense fallback={
-              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-                <div className="w-9 h-9 rounded-full border-4 border-[#C0392B]/20 border-t-[#C0392B] animate-spin" />
-                <span className="text-xs font-semibold text-[#9B9BB5] uppercase tracking-wider">Memuat Halaman...</span>
-              </div>
-            }>
+            <ErrorBoundary>
+              <Suspense fallback={
+                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+                  <div className="w-9 h-9 rounded-full border-4 border-[#C0392B]/20 border-t-[#C0392B] animate-spin" />
+                  <span className="text-xs font-semibold text-[#9B9BB5] uppercase tracking-wider">Memuat Halaman...</span>
+                </div>
+              }>
               <Routes>
                 {/* Public */}
                 <Route path="/" element={<LandingPage />} />
@@ -98,6 +100,7 @@ export default function App() {
                 </Route>
               </Routes>
             </Suspense>
+            </ErrorBoundary>
           </main>
           <AppFooter />
           <Toaster />

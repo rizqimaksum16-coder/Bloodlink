@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import {
   Truck, MapPin, Phone, Clock, CheckCircle, Package,
   Navigation, Droplets, User, Flame, ArrowRight, ShieldAlert,
-  Calendar, CheckSquare, ListFilter, Play, Check, Trophy
+  Calendar, CheckSquare, ListFilter, Play, Check, Trophy, RefreshCw
 } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
-type DeliveryStatus = 'disiapkan' | 'dijemput' | 'perjalanan' | 'tiba';
+type DeliveryStatus = 'disiapkan' | 'dijemput' | 'perjalanan' | 'tiba' | 'selesai';
 
 interface Delivery {
   id: string;
@@ -30,13 +30,15 @@ interface Delivery {
 
 const initialDeliveries: Delivery[] = [];
 
+// Hanya 4 langkah yang dikendalikan driver — 'selesai' dikonfirmasi oleh RS
 const statusSteps: DeliveryStatus[] = ['disiapkan', 'dijemput', 'perjalanan', 'tiba'];
 
 const statusCfg: Record<DeliveryStatus, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  disiapkan: { label: 'Disiapkan', color: '#9B9BB5', bg: '#F4F4F8', icon: Package },
-  dijemput: { label: 'Dijemput', color: '#E67E22', bg: '#FEF9E7', icon: Truck },
-  perjalanan: { label: 'Di Jalan', color: '#8E44AD', bg: '#F4EFFE', icon: Navigation },
+  disiapkan: { label: 'Disiapkan', color: '#E67E22', bg: '#FEF9E7', icon: Clock },
+  dijemput: { label: 'Dijemput', color: '#2980B9', bg: '#EAF7FB', icon: RefreshCw },
+  perjalanan: { label: 'Perjalanan', color: '#8E44AD', bg: '#E8DAEF', icon: Truck },
   tiba: { label: 'Tiba', color: '#27AE60', bg: '#EAFAF1', icon: CheckCircle },
+  selesai: { label: 'Selesai', color: '#27AE60', bg: '#EAFAF1', icon: CheckCircle },
 };
 
 const btColor: Record<string, string> = {
@@ -103,12 +105,14 @@ export default function DriverDashboard() {
   }, []);
 
   // Mapping status delivery driver → status pesanan di RS/PMI
+  // PENTING: 'tiba' → 'tiba' (bukan 'selesai') agar RS bisa melakukan konfirmasi penerimaan!
+  // 'selesai' hanya diset saat RS menekan tombol "Konfirmasi Penerimaan Darah"
   const mapDeliveryStatusToOrderStatus = (deliveryStatus: DeliveryStatus): string => {
     switch (deliveryStatus) {
       case 'disiapkan': return 'pending';
       case 'dijemput':  return 'diproses';
       case 'perjalanan': return 'dikirim';
-      case 'tiba':      return 'selesai';
+      case 'tiba':      return 'tiba';   // RS harus konfirmasi penerimaan terlebih dahulu
       default:          return 'diproses';
     }
   };
@@ -204,8 +208,8 @@ export default function DriverDashboard() {
     ? deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase())
     : deliveryList;
 
-  const myActiveCount = deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase() && d.status !== 'tiba').length;
-  const totalCompletedCount = deliveryList.filter(d => d.status === 'tiba').length;
+  const myActiveCount = deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase() && d.status !== 'tiba' && d.status !== 'selesai').length;
+  const totalCompletedCount = deliveryList.filter(d => d.status === 'tiba' || d.status === 'selesai').length;
 
   return (
     <div className="min-h-screen py-8 bg-[#F7F7FB]">
@@ -336,7 +340,8 @@ export default function DriverDashboard() {
                     {statusSteps.map((step, idx) => {
                       const cfg = statusCfg[step];
                       const stepIcon = cfg.icon;
-                      const isCompleted = statusSteps.indexOf(d.status) >= idx;
+                      // 'selesai' tidak ada di statusSteps, tapi semua step harus tanda selesai
+                      const isCompleted = d.status === 'selesai' || statusSteps.indexOf(d.status) >= idx;
                       const isCurrent = d.status === step;
                       return (
                         <div key={step} className="flex flex-col items-center">
@@ -357,7 +362,7 @@ export default function DriverDashboard() {
                   {/* Progress Line */}
                   <div className="relative mb-5 bg-[#F4F4F8] h-2 rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${d.pct}%`, background: d.status === 'tiba' ? '#27AE60' : '#16A085' }} />
+                      style={{ width: `${d.pct}%`, background: (d.status === 'tiba' || d.status === 'selesai') ? '#27AE60' : '#16A085' }} />
                   </div>
 
                   {/* Route Summary */}
@@ -373,7 +378,7 @@ export default function DriverDashboard() {
                   </div>
 
                   {/* Driver Controls */}
-                  {isMyJob && d.status !== 'tiba' && (
+                  {isMyJob && d.status !== 'tiba' && d.status !== 'selesai' && (
                     <div className="flex flex-col sm:flex-row items-stretch gap-2">
                       <button onClick={() => handleNextStatus(d)}
                         className="flex-1 py-2.5 rounded-xl bg-[#16A085] text-white hover:bg-[#117A65] text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
@@ -385,13 +390,17 @@ export default function DriverDashboard() {
                     </div>
                   )}
 
-                  {d.status === 'tiba' && (
-                    <div className="bg-[#EAFAF1] rounded-xl p-3 flex items-center justify-center gap-2 text-xs text-[#27AE60] font-bold">
-                      <CheckCircle className="w-4 h-4" /> Pengiriman selesai dan tiba di tujuan. Terima kasih!
+                  {(d.status === 'tiba' || d.status === 'selesai') && (
+                    <div className="bg-[#EAFAF1] rounded-xl p-3 flex flex-col items-center justify-center gap-1 text-xs text-[#27AE60] font-bold">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" /> 
+                        {d.status === 'selesai' ? 'Darah Telah Diterima oleh RS Mitra' : 'Pengiriman selesai dan tiba di tujuan.'}
+                      </div>
+                      {d.status === 'tiba' && <p className="text-[10px] text-[#27AE60]/80 font-normal">Menunggu konfirmasi penerimaan dari pihak Rumah Sakit</p>}
                     </div>
                   )}
 
-                  {!isMyJob && d.status !== 'tiba' && (
+                  {!isMyJob && d.status !== 'tiba' && d.status !== 'selesai' && (
                     <div className="text-center py-2 bg-[#F4F4F8] rounded-xl text-[10px] text-[#9B9BB5] font-semibold">
                       Hanya dapat dioperasikan oleh driver yang bersangkutan ({d.driver}).
                     </div>

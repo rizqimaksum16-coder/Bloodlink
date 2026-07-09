@@ -14,16 +14,16 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 // ─── Role nav config (dashboard link per role) ────────────────────────────────
 
 const roleNavExtra: Record<UserRole, { to: string; label: string; icon: React.ElementType }> = {
-  pmi:   { to: '/dashboard/pmi',   label: 'Dashboard PMI',      icon: HeartPulse },
-  rs:    { to: '/dashboard/rs',    label: 'Dashboard RS',        icon: Building2 },
-  donor: { to: '/dashboard/donor', label: 'Dashboard Saya',      icon: Heart },
-  driver: { to: '/dashboard/driver', label: 'Dashboard Driver',   icon: Truck },
+  pmi: { to: '/dashboard/pmi', label: 'Dashboard PMI', icon: HeartPulse },
+  rs: { to: '/dashboard/rs', label: 'Dashboard RS', icon: Building2 },
+  donor: { to: '/dashboard/donor', label: 'Dashboard Saya', icon: Heart },
+  driver: { to: '/dashboard/driver', label: 'Dashboard Driver', icon: Truck },
   superadmin: { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
 };
 
 const roleColors: Record<UserRole, { color: string; bg: string; label: string }> = {
-  pmi:   { color: '#C0392B', bg: '#FDEDEC', label: 'PMI' },
-  rs:    { color: '#2980B9', bg: '#EAF7FB', label: 'RS' },
+  pmi: { color: '#C0392B', bg: '#FDEDEC', label: 'PMI' },
+  rs: { color: '#2980B9', bg: '#EAF7FB', label: 'RS' },
   donor: { color: '#8E44AD', bg: '#F4EFFE', label: 'Donor' },
   driver: { color: '#16A085', bg: '#E8F8F5', label: 'Driver' },
   superadmin: { color: '#1A1A2E', bg: '#EAEAF4', label: 'Super Admin' },
@@ -267,7 +267,14 @@ export default function Navigation() {
     setDrawerOpen(false);
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
+    if ((window as any).isStockDirty && typeof (window as any).saveStockToDb === 'function') {
+      try {
+        await (window as any).saveStockToDb();
+      } catch (e) {
+        console.warn('Gagal auto-save sebelum logout:', e);
+      }
+    }
     logout();
     setShowLogoutDialog(false);
     navigate('/login');
@@ -322,11 +329,10 @@ export default function Navigation() {
                 <Link
                   key={to}
                   to={to}
-                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive(to)
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive(to)
                       ? 'text-[#C0392B] bg-[#FDEDEC]'
                       : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#1A1A2E]'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-3.5 h-3.5" />{label}
                   {isActive(to) && (
@@ -339,11 +345,10 @@ export default function Navigation() {
               {isAuthenticated && user && roleNavExtra[user.role] && (
                 <Link
                   to={roleNavExtra[user.role].to}
-                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive(roleNavExtra[user.role].to)
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive(roleNavExtra[user.role].to)
                       ? 'bg-[#FDEDEC] text-[#C0392B]'
                       : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#1A1A2E]'
-                  }`}
+                    }`}
                 >
                   <LayoutDashboard className="w-3.5 h-3.5" />
                   Dashboard
@@ -811,7 +816,7 @@ const getRoleDefaultNotifications = (role: string) => {
     case 'pmi':
       return [
         { id: 'N_PMI_01', type: 'darurat', title: '🚨 Permintaan Darah Baru!', message: 'Rumah Sakit A mengajukan permintaan 5 kantong O+ (Urgency: Darurat).', time: '1 menit lalu', read: false },
-        { id: 'N_PMI_02', type: 'info', title: '⚠️ Stok Darah Kritis!', message: 'Stok darah B- di gudang UTD PMI A kurang dari batas aman (tersisa 3 kantong).', time: '2 jam lalu', read: false },
+        { id: 'N_PMI_02', type: 'info', title: '⚠️ Stok Darah Kritis!', message: 'Stok darah B- di gudang PMI A kurang dari batas aman (tersisa 3 kantong).', time: '2 jam lalu', read: false },
         { id: 'N_PMI_03', type: 'info', title: '📅 Rapat Koordinasi PMI', message: 'Rapat koordinasi distribusi darah wilayah PMI A besok pukul 09:00 WIB.', time: '1 hari lalu', read: true }
       ];
     case 'rs':
@@ -822,8 +827,8 @@ const getRoleDefaultNotifications = (role: string) => {
       ];
     case 'driver':
       return [
-        { id: 'N_DRV_01', type: 'darurat', title: '🚨 Tugas Pengantaran Baru!', message: 'Kirim 5 kantong O+ dari UTD PMI A ke Rumah Sakit A. Segera ambil muatan.', time: '2 menit lalu', read: false },
-        { id: 'N_DRV_02', type: 'reward', title: '✅ Pengiriman Selesai', message: 'Serah terima darah O- di RS Premier Surabaya telah berhasil dikonfirmasi.', time: '3 jam lalu', read: false },
+        { id: 'N_DRV_01', type: 'darurat', title: '🚨 Tugas Pengantaran Baru!', message: 'Kirim 5 kantong O+ dari PMI A ke Rumah Sakit A. Segera ambil muatan.', time: '2 menit lalu', read: false },
+        { id: 'N_DRV_02', type: 'reward', title: '✅ Pengiriman Selesai', message: 'Serah terima darah O- di Rumah Sakit C telah berhasil dikonfirmasi.', time: '3 jam lalu', read: false },
         { id: 'N_DRV_03', type: 'info', title: '⚠️ Kendala Rute', message: 'Rute Jl. Nginden terpantau padat. Gunakan rute alternatif untuk efisiensi pengiriman.', time: '1 hari lalu', read: true }
       ];
     case 'donor':

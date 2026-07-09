@@ -350,7 +350,9 @@ export default function SuperAdminDashboard() {
 
           if (uErr) throw uErr;
 
-          // 2. Insert pmi_units or hospitals details
+          // 2. Insert pmi_units or hospitals details + seed blood_stock untuk semua 8 golongan darah
+          const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
           if (orgForm.type === 'pmi') {
             const { data: newPmi, error: pErr } = await supabase
               .from('pmi_units')
@@ -359,16 +361,17 @@ export default function SuperAdminDashboard() {
                 address: orgForm.address,
                 phone: orgForm.phone,
                 latitude: orgForm.coords[0],
-                longitude: orgForm.coords[1]
+                longitude: orgForm.coords[1],
+                response_rate: 90,
+                avg_delivery_mins: 20
               })
               .select('*')
               .single();
 
             if (pErr) throw pErr;
 
-            // Seed default stocks for the new PMI
-            const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-            await supabase.from('blood_stock').insert(
+            // Seed blood_stock dengan 0 kantong untuk semua golongan darah (status: critical)
+            const { error: bsErr } = await supabase.from('blood_stock').insert(
               bloodTypes.map(bt => ({
                 owner_pmi_id: newPmi.id,
                 blood_type: bt,
@@ -376,13 +379,25 @@ export default function SuperAdminDashboard() {
                 status: 'critical'
               }))
             );
+            if (bsErr) console.warn('Gagal seed blood_stock untuk PMI baru:', bsErr);
+
+            // Update state dengan ID dari Supabase agar konsisten
+            const newOrgWithId: OrgAccount = {
+              ...orgForm,
+              id: newUser.id,  // pakai ID dari users table
+              createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+            };
+            setOrgs(prev => [...prev, newOrgWithId]);
+            toast.success(`Akun ${newOrgWithId.name} berhasil ditambahkan dengan database stok darah!`);
+            setShowOrgModal(false);
+            return; // sudah selesai
           } else {
             const { data: newRs, error: hErr } = await supabase
               .from('hospitals')
               .insert({
                 name: orgForm.name,
                 address: orgForm.address,
-                district: 'Surabaya',
+                district: orgForm.address.toLowerCase().includes('surabaya') ? 'Surabaya' : 'Surabaya',
                 phone: orgForm.phone,
                 latitude: orgForm.coords[0],
                 longitude: orgForm.coords[1]
@@ -392,9 +407,8 @@ export default function SuperAdminDashboard() {
 
             if (hErr) throw hErr;
 
-            // Seed default stocks for the new hospital
-            const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-            await supabase.from('blood_stock').insert(
+            // Seed blood_stock untuk semua golongan darah (status: critical, stok 0)
+            const { error: bsErr } = await supabase.from('blood_stock').insert(
               bloodTypes.map(bt => ({
                 owner_hospital_id: newRs.id,
                 blood_type: bt,
@@ -402,13 +416,28 @@ export default function SuperAdminDashboard() {
                 status: 'critical'
               }))
             );
+            if (bsErr) console.warn('Gagal seed blood_stock untuk RS baru:', bsErr);
+
+            // Update state dengan ID dari Supabase
+            const newOrgWithId: OrgAccount = {
+              ...orgForm,
+              id: newUser.id,
+              createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+            };
+            setOrgs(prev => [...prev, newOrgWithId]);
+            toast.success(`Akun ${newOrgWithId.name} berhasil ditambahkan dengan database stok darah!`);
+            setShowOrgModal(false);
+            return; // sudah selesai
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Gagal menyimpan ke database Supabase:', err);
+        toast.error(`Gagal menyimpan: ${err?.message || 'Cek koneksi database'}`);
+        return; // jangan lanjut jika Supabase gagal
       }
     }
 
+    // Mode non-Supabase (localStorage only)
     if (editingOrg) {
       setOrgs(prev => prev.map(o => o.id === editingOrg.id ? { ...o, ...orgForm } : o));
       toast.success(`Lokasi & Akun ${orgForm.name} berhasil diperbarui!`);

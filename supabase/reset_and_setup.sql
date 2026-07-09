@@ -248,40 +248,86 @@ INSERT INTO users (id, email, name, role, org, avatar) VALUES
 ('aa000000-0000-0000-0000-000000000004', 'driver@suroboyoblood.id',   'Budi Santoso',         'driver', 'Logistik PMI A',      'BS');
 
 INSERT INTO pmi_units (id, name, address, latitude, longitude, phone, response_rate, avg_delivery_mins) VALUES
-('a0000000-0000-0000-0000-000000000001', 'UTD PMI A',    'Jl. Embong Ploso No. 7-15', -7.2657, 112.7445, '(031) 5313289', 98, 12),
-('a0000000-0000-0000-0000-000000000002', 'Markas PMI A', 'Jl. Sumatera No. 71',       -7.2709, 112.7505, '(031) 5013542', 92, 18),
-('a0000000-0000-0000-0000-000000000003', 'PMI Kabupaten Sidoarjo',   'Jl. Raya Jati No. 1',       -7.4475, 112.7025, '(031) 8961625', 89, 25);
+('a0000000-0000-0000-0000-000000000001', 'PMI A', 'Jl. Embong Ploso No. 7-15', -7.2657, 112.7445, '(031) 5313289', 98, 12),
+('a0000000-0000-0000-0000-000000000002', 'PMI B', 'Jl. Sumatera No. 71',       -7.2709, 112.7505, '(031) 5013542', 92, 18),
+('a0000000-0000-0000-0000-000000000003', 'PMI C', 'Jl. Raya Jati No. 1',       -7.4475, 112.7025, '(031) 8961625', 89, 25);
 
 INSERT INTO hospitals (id, name, address, district, phone, latitude, longitude) VALUES
-('b0000000-0000-0000-0000-000000000001', 'RSUD Dr. Soetomo',            'Jl. Mayjend Prof. Dr. Moestopo No. 6-8', 'Gubeng',          '(031) 5501001',  -7.2678, 112.7584),
-('b0000000-0000-0000-0000-000000000002', 'RSUD dr. Mohamad Soewandhie', 'Jl. Tambakrejo No. 45-47',               'Simokerto',       '(031) 3717141',  -7.2435, 112.7538),
-('b0000000-0000-0000-0000-000000000003', 'RSAL Dr. Ramelan',            'Jl. Gadung No. 1',                       'Wonokromo',       '(031) 8438153',  -7.3117, 112.7364),
-('b0000000-0000-0000-0000-000000000004', 'RSUD Haji Provinsi Jatim',    'Jl. Manyar Kertoadi No. 1',              'Mulyorejo',       '(031) 5924000',  -7.2847, 112.7845),
-('b0000000-0000-0000-0000-000000000005', 'RS Siloam Surabaya',          'Jl. Raya Gubeng No. 70',                 'Gubeng',          '(031) 99206900', -7.2745, 112.7490),
-('b0000000-0000-0000-0000-000000000006', 'RS Darmo',                    'Jl. Raya Darmo No. 90',                  'Tegalsari',       '(031) 5676253',  -7.2890, 112.7378),
-('b0000000-0000-0000-0000-000000000007', 'RS Islam Surabaya (A. Yani)', 'Jl. Jend. A. Yani No. 2-4',              'Wonokromo',       '(031) 8284506',  -7.3062, 112.7349),
-('b0000000-0000-0000-0000-000000000008', 'RS Mitra Keluarga Surabaya',  'Jl. Satelit Indah II (Darmo Satelit)',   'Sukomanunggal',   '(031) 7345333',  -7.2668, 112.6913);
+('b0000000-0000-0000-0000-000000000001', 'Rumah Sakit A', 'Jl. Prof. Dr. Moestopo No. 6-8',         'Gubeng',          '(031) 5501001',  -7.2678, 112.7584),
+('b0000000-0000-0000-0000-000000000002', 'Rumah Sakit B', 'Jl. Tambakrejo No. 45-47',               'Simokerto',       '(031) 3717141',  -7.2435, 112.7538),
+('b0000000-0000-0000-0000-000000000003', 'Rumah Sakit C', 'Jl. Gadung No. 1',                       'Wonokromo',       '(031) 8438153',  -7.3117, 112.7364),
+('b0000000-0000-0000-0000-000000000004', 'Rumah Sakit D', 'Jl. Manyar Kertoadi No. 1',              'Mulyorejo',       '(031) 5924000',  -7.2847, 112.7845),
+('b0000000-0000-0000-0000-000000000005', 'Rumah Sakit E', 'Jl. Raya Gubeng No. 70',                 'Gubeng',          '(031) 99206900', -7.2745, 112.7490),
+('b0000000-0000-0000-0000-000000000006', 'Rumah Sakit F', 'Jl. Raya Darmo No. 90',                  'Tegalsari',       '(031) 5676253',  -7.2890, 112.7378),
+('b0000000-0000-0000-0000-000000000007', 'Rumah Sakit G', 'Jl. Jend. A. Yani No. 2-4',              'Wonokromo',       '(031) 8284506',  -7.3062, 112.7349),
+('b0000000-0000-0000-0000-000000000008', 'Rumah Sakit H', 'Jl. Satelit Indah II (Darmo Satelit)',   'Sukomanunggal',   '(031) 7345333',  -7.2668, 112.6913);
 
 INSERT INTO blood_stock (owner_pmi_id, blood_type, stock_qty, status) VALUES
-('a0000000-0000-0000-0000-000000000001','O+',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','A+',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','B+',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','AB+',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','O-',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','A-',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','B-',0,'critical'),
-('a0000000-0000-0000-0000-000000000001','AB-',0,'critical');
+-- PMI A
+('a0000000-0000-0000-0000-000000000001','O+',15,'available'),
+('a0000000-0000-0000-0000-000000000001','A+',12,'available'),
+('a0000000-0000-0000-0000-000000000001','B+',18,'available'),
+('a0000000-0000-0000-0000-000000000001','AB+',9,'available'),
+('a0000000-0000-0000-0000-000000000001','O-',4,'low'),
+('a0000000-0000-0000-0000-000000000001','A-',3,'low'),
+('a0000000-0000-0000-0000-000000000001','B-',5,'low'),
+('a0000000-0000-0000-0000-000000000001','AB-',2,'critical'),
+
+-- PMI B
+('a0000000-0000-0000-0000-000000000002','O+',8,'low'),
+('a0000000-0000-0000-0000-000000000002','A+',15,'available'),
+('a0000000-0000-0000-0000-000000000002','B+',10,'available'),
+('a0000000-0000-0000-0000-000000000002','AB+',6,'low'),
+('a0000000-0000-0000-0000-000000000002','O-',2,'critical'),
+('a0000000-0000-0000-0000-000000000002','A-',5,'low'),
+('a0000000-0000-0000-0000-000000000002','B-',1,'critical'),
+('a0000000-0000-0000-0000-000000000002','AB-',1,'critical'),
+
+-- PMI C
+('a0000000-0000-0000-0000-000000000003','O+',25,'available'),
+('a0000000-0000-0000-0000-000000000003','A+',8,'low'),
+('a0000000-0000-0000-0000-000000000003','B+',12,'available'),
+('a0000000-0000-0000-0000-000000000003','AB+',14,'available'),
+('a0000000-0000-0000-0000-000000000003','O-',6,'low'),
+('a0000000-0000-0000-0000-000000000003','A-',2,'critical'),
+('a0000000-0000-0000-0000-000000000003','B-',4,'low'),
+('a0000000-0000-0000-0000-000000000003','AB-',3,'critical');
 
 INSERT INTO blood_stock (owner_hospital_id, blood_type, stock_qty, status) VALUES
-('b0000000-0000-0000-0000-000000000001','A+',0,'critical'),
-('b0000000-0000-0000-0000-000000000001','B+',0,'critical'),
-('b0000000-0000-0000-0000-000000000001','O+',0,'critical'),
-('b0000000-0000-0000-0000-000000000001','AB+',0,'critical');
+-- Rumah Sakit A
+('b0000000-0000-0000-0000-000000000001','O+',4,'low'),
+('b0000000-0000-0000-0000-000000000001','A+',3,'low'),
+('b0000000-0000-0000-0000-000000000001','B+',5,'available'),
+('b0000000-0000-0000-0000-000000000001','AB+',2,'critical'),
+('b0000000-0000-0000-0000-000000000001','O-',1,'critical'),
+('b0000000-0000-0000-0000-000000000001','A-',2,'critical'),
+('b0000000-0000-0000-0000-000000000001','B-',0,'critical'),
+('b0000000-0000-0000-0000-000000000001','AB-',0,'critical'),
+
+-- Rumah Sakit B
+('b0000000-0000-0000-0000-000000000002','O+',6,'available'),
+('b0000000-0000-0000-0000-000000000002','A+',5,'available'),
+('b0000000-0000-0000-0000-000000000002','B+',2,'critical'),
+('b0000000-0000-0000-0000-000000000002','AB+',1,'critical'),
+('b0000000-0000-0000-0000-000000000002','O-',0,'critical'),
+('b0000000-0000-0000-0000-000000000002','A-',1,'critical'),
+('b0000000-0000-0000-0000-000000000002','B-',0,'critical'),
+('b0000000-0000-0000-0000-000000000002','AB-',0,'critical'),
+
+-- Rumah Sakit C
+('b0000000-0000-0000-0000-000000000003','O+',3,'low'),
+('b0000000-0000-0000-0000-000000000003','A+',2,'critical'),
+('b0000000-0000-0000-0000-000000000003','B+',4,'low'),
+('b0000000-0000-0000-0000-000000000003','AB+',5,'available'),
+('b0000000-0000-0000-0000-000000000003','O-',0,'critical'),
+('b0000000-0000-0000-0000-000000000003','A-',0,'critical'),
+('b0000000-0000-0000-0000-000000000003','B-',1,'critical'),
+('b0000000-0000-0000-0000-000000000003','AB-',0,'critical');
 
 INSERT INTO activity_logs (action, blood_type, quantity, user_name, time_ago, positive) VALUES
 ('Pengisian Stok',       'O+', 15, 'Admin Rumah Sakit A', '10 menit lalu', true),
-('Pengeluaran Transfusi','A+', 3,  'Dr. Ahmad', '25 menit lalu', false),
-('Penerimaan dari PMI',  'B+', 8,  'Admin Rumah Sakit A', '1 jam lalu',    true);
+('Pengeluaran Transfusi','A+', 3,  'Dr. Ahmad',           '25 menit lalu', false),
+('Penerimaan dari PMI A','B+', 8,  'Admin Rumah Sakit A', '1 jam lalu',    true);
 
 -- No default seed events (cleared by user request)
 
@@ -299,8 +345,8 @@ INSERT INTO donor_profiles (id, user_id, blood_type, dob, phone, address, weight
 INSERT INTO donation_records (donor_id, date, location, blood_type, volume_ml, points_earned, certificate) VALUES
 ('dd000000-0000-0000-0000-000000000001', '2025-10-22', 'PMI A',     'O-', 450, 250, true),
 ('dd000000-0000-0000-0000-000000000001', '2025-07-10', 'Event Donor Unair',     'O-', 450, 250, true),
-('dd000000-0000-0000-0000-000000000001', '2025-04-05', 'PMI Surabaya Selatan',  'O-', 450, 350, false),
-('dd000000-0000-0000-0000-000000000001', '2025-01-18', 'RS Siloam Surabaya',    'O-', 450, 250, true),
+('dd000000-0000-0000-0000-000000000001', '2025-04-05', 'PMI C',  'O-', 450, 350, false),
+('dd000000-0000-0000-0000-000000000001', '2025-01-18', 'Rumah Sakit E',    'O-', 450, 250, true),
 ('dd000000-0000-0000-0000-000000000001', '2024-10-30', 'PMI A',     'O-', 450, 250, false);
 
 INSERT INTO event_bookings (donor_id, event_id, event_name, event_date, location, status, qr_code, checked_in) VALUES
@@ -315,10 +361,10 @@ INSERT INTO donor_notifications (donor_id, type, title, message, read) VALUES
 ('dd000000-0000-0000-0000-000000000001', 'info',     'Event Donor Juli 2026',      'Event di Mall Galaxy Surabaya tinggal 9 hari lagi. Jangan lupa hadir!',             true);
 
 INSERT INTO deliveries (id, order_id, blood_type, qty, from_name, to_name, driver_name, driver_phone, status, eta, distance_km, pct, urgent) VALUES
-('de100001-0000-0000-0000-000000000001', 'ORD-2847', 'O+',  5, 'PMI A',     'RSUD Dr. Soetomo',  'Budi Santoso',     '081234567890', 'perjalanan', '6 mnt',      '2.1 km', 72,  true),
-('de100001-0000-0000-0000-000000000002', 'ORD-2851', 'A-',  3, 'PMI Surabaya Timur',    'RS Siloam Surabaya','Agus Prasetyo',    '082198765432', 'dijemput',   '18 mnt',     '5.4 km', 25,  false),
-('de100001-0000-0000-0000-000000000003', 'ORD-2838', 'B+',  8, 'PMI A',     'RS Premier Surabaya','Hendra Wijaya',   '083147852369', 'tiba',       'Sudah tiba', '3.8 km', 100, false),
-('de100001-0000-0000-0000-000000000004', 'ORD-2855', 'AB-', 2, 'PMI Surabaya Selatan',  'RS Husada Utama',   'Rizal Firmansyah', '085236987410', 'disiapkan',  '30 mnt',     '8.2 km', 5,   true);
+('de100001-0000-0000-0000-000000000001', 'ORD-2847', 'O+',  5, 'PMI A', 'Rumah Sakit A', 'Budi Santoso',     '081234567890', 'perjalanan', '6 mnt',      '2.1 km', 72,  true),
+('de100001-0000-0000-0000-000000000002', 'ORD-2851', 'A-',  3, 'PMI B', 'Rumah Sakit E', 'Agus Prasetyo',    '082198765432', 'dijemput',   '18 mnt',     '5.4 km', 25,  false),
+('de100001-0000-0000-0000-000000000003', 'ORD-2838', 'B+',  8, 'PMI A', 'Rumah Sakit D', 'Hendra Wijaya',    '083147852369', 'tiba',       'Sudah tiba', '3.8 km', 100, false),
+('de100001-0000-0000-0000-000000000004', 'ORD-2855', 'AB-', 2, 'PMI C', 'Rumah Sakit F', 'Rizal Firmansyah', '085236987410', 'disiapkan',  '30 mnt',     '8.2 km', 5,   true);
 
 -- =============================================================================
 -- 5. DATABASE FUNCTION: CLOSEST PMI MATCHING

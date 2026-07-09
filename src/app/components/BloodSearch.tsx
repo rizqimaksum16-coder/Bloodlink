@@ -33,32 +33,32 @@ interface BloodStock {
 
 const mockHospitals: BloodStock[] = [
   {
-    id: 1, hospitalName: 'RSUD Dr. Soetomo', address: 'Jl. Mayjen Prof. Dr. Moestopo 6-8', district: 'Gubeng',
-    distance: 1.2, phone: '(031) 501-0000',
+    id: 1, hospitalName: 'Rumah Sakit A', address: 'Jl. Prof. Dr. Moestopo No. 6-8', district: 'Gubeng',
+    distance: 1.2, phone: '(031) 5501001',
     bloodTypes: [
       { type: 'A+', stock: 0, status: 'critical' }, { type: 'B+', stock: 0, status: 'critical' },
       { type: 'O+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
     ],
   },
   {
-    id: 2, hospitalName: 'RS Siloam Surabaya', address: 'Jl. Raya Gubeng 70', district: 'Gubeng',
-    distance: 2.1, phone: '(031) 505-7777',
+    id: 2, hospitalName: 'Rumah Sakit B', address: 'Jl. Tambakrejo No. 45-47', district: 'Simokerto',
+    distance: 2.1, phone: '(031) 3717141',
     bloodTypes: [
       { type: 'A+', stock: 0, status: 'critical' }, { type: 'B-', stock: 0, status: 'critical' },
       { type: 'O-', stock: 0, status: 'critical' }, { type: 'AB-', stock: 0, status: 'critical' },
     ],
   },
   {
-    id: 3, hospitalName: 'RS Premier Surabaya', address: 'Jl. Nginden Intan Barat 10', district: 'Sukolilo',
-    distance: 3.8, phone: '(031) 5999-999',
+    id: 3, hospitalName: 'Rumah Sakit C', address: 'Jl. Gadung No. 1', district: 'Wonokromo',
+    distance: 3.8, phone: '(031) 8438153',
     bloodTypes: [
       { type: 'A-', stock: 0, status: 'critical' }, { type: 'B+', stock: 0, status: 'critical' },
       { type: 'O+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
     ],
   },
   {
-    id: 4, hospitalName: 'RS Husada Utama', address: 'Jl. Prof. Dr. Mustopo 31', district: 'Kenjeran',
-    distance: 5.4, phone: '(031) 501-3232',
+    id: 4, hospitalName: 'Rumah Sakit D', address: 'Jl. Manyar Kertoadi No. 1', district: 'Mulyorejo',
+    distance: 5.4, phone: '(031) 5924000',
     bloodTypes: [
       { type: 'A+', stock: 0, status: 'critical' }, { type: 'O+', stock: 0, status: 'critical' },
       { type: 'B+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
@@ -312,13 +312,16 @@ export default function BloodSearch() {
   });
 
   // Load active hospital coordinates dynamically based on logged in user session
+  // hospitals.name sudah konsisten dengan users.org, query langsung tanpa mapping
   useEffect(() => {
     async function loadActiveHospital() {
-      if (!isSupabaseConfigured || !user || user.role !== 'rs') return;
+      if (!isSupabaseConfigured || !user) return;
       try {
+        const tableName = user.role === 'rs' ? 'hospitals' : null;
+        if (!tableName) return;
         const { data: hData } = await supabase
           .from('hospitals')
-          .select('*')
+          .select('name, latitude, longitude, address')
           .eq('name', user.org)
           .single();
         if (hData) {
@@ -336,73 +339,104 @@ export default function BloodSearch() {
     loadActiveHospital();
   }, [user]);
 
-  // Dynamically compute PMI search recommendations from local storage (Super Admin locations)
-  const getDynamicPMIResults = (bloodType: BloodType, requiredQty: number): PMIResult[] => {
+  // Dynamically compute PMI search recommendations from Supabase (dengan stok nyata)
+  // Fallback ke localStorage shared_orgs_v1 jika Supabase tidak tersedia
+  const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
+    if (isSupabaseConfigured) {
+      try {
+        // Query pmi_units + blood_stock sekaligus dari Supabase
+        const { data: pmiData, error } = await supabase
+          .from('pmi_units')
+          .select(`
+            id, name, address, latitude, longitude, response_rate, avg_delivery_mins,
+            blood_stock!blood_stock_owner_pmi_id_fkey(blood_type, stock_qty)
+          `);
+
+        if (!error && pmiData && pmiData.length > 0) {
+          const mapped: PMIResult[] = pmiData.map((p: any) => {
+            const dLat = p.latitude - rsLat;
+            const dLng = p.longitude - rsLng;
+            const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+            const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
+
+            // Ambil stok nyata untuk blood type yang dicari
+            const stockEntry = (p.blood_stock || []).find((bs: any) => bs.blood_type === bloodType);
+            const stockQty = stockEntry ? (stockEntry.stock_qty ?? 0) : 0;
+
+            const score = Math.max(50, Math.min(99, Math.round(
+              (100 - distanceKm * 4) +
+              (stockQty >= requiredQty ? 30 : stockQty > 0 ? 10 : 0) +
+              (p.response_rate * 0.3)
+            )));
+
+            return {
+              id: p.id,
+              name: p.name,
+              address: p.address,
+              lat: p.latitude,
+              lng: p.longitude,
+              distance: `${distanceKm.toFixed(1)} km`,
+              travelTime: `${travelTimeMin} mnt`,
+              stock: stockQty,
+              capacity: stockQty + 30,
+              responseRate: p.response_rate,
+              avgDelivery: `${p.avg_delivery_mins} mnt`,
+              score,
+              reasons: [
+                stockQty >= requiredQty
+                  ? `Stok sangat mencukupi (${stockQty} kantong)`
+                  : stockQty > 0
+                  ? `Stok terbatas (${stockQty} kantong)`
+                  : 'Stok kosong',
+                `Respons rate ${p.response_rate}%`,
+                `Jarak ${distanceKm.toFixed(1)} km dari lokasi Anda`
+              ]
+            };
+          });
+
+          const sorted = mapped.sort((a, b) => b.score - a.score);
+          if (sorted.length > 0) { sorted[0].tag = 'Rekomendasi AI'; sorted[0].tagColor = '#C0392B'; }
+          if (sorted.length > 1) { sorted[1].tag = 'Cadangan'; sorted[1].tagColor = '#E67E22'; }
+          return sorted;
+        }
+      } catch (e) {
+        console.warn('Gagal fetch PMI dari Supabase, coba localStorage:', e);
+      }
+    }
+
+    // Fallback: baca dari localStorage shared_orgs_v1 (data Super Admin)
     const saved = localStorage.getItem('shared_orgs_v1');
-    if (!saved) {
-      return pmiDatabase[bloodType] || [];
+    if (saved) {
+      try {
+        const orgs: any[] = JSON.parse(saved);
+        const activePMIs = orgs.filter(o => o.type === 'pmi' && o.status === 'active');
+        if (activePMIs.length > 0) {
+          const mapped: PMIResult[] = activePMIs.map((p) => {
+            const dLat = p.coords[0] - rsLat;
+            const dLng = p.coords[1] - rsLng;
+            const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+            const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
+            const responseRate = 90;
+            const score = Math.max(50, Math.min(99, Math.round(100 - distanceKm * 2.5)));
+            return {
+              id: p.id, name: p.name, address: p.address,
+              lat: p.coords[0], lng: p.coords[1],
+              distance: `${distanceKm.toFixed(1)} km`,
+              travelTime: `${travelTimeMin} mnt`,
+              stock: 0, capacity: 100, responseRate,
+              avgDelivery: '20 mnt', score,
+              reasons: [`Unit ${p.name} terdaftar aktif`, `Jarak ${distanceKm.toFixed(1)} km`, `Estimasi ${travelTimeMin} menit`]
+            };
+          });
+          const sorted = mapped.sort((a, b) => b.score - a.score);
+          if (sorted.length > 0) { sorted[0].tag = 'Rekomendasi AI'; sorted[0].tagColor = '#C0392B'; }
+          if (sorted.length > 1) { sorted[1].tag = 'Cadangan'; sorted[1].tagColor = '#E67E22'; }
+          return sorted;
+        }
+      } catch (e) { console.error('Error parsing shared orgs:', e); }
     }
 
-    try {
-      const orgs: any[] = JSON.parse(saved);
-      const activePMIs = orgs.filter(o => o.type === 'pmi' && o.status === 'active');
-      if (activePMIs.length === 0) {
-        return [];
-      }
-
-      // Default RS coordinates to calculate distance from: RSUD Dr. Soetomo [-7.2678, 112.7584]
-      const defaultRSCoords: [number, number] = [-7.2678, 112.7584];
-      
-      const mapped: PMIResult[] = activePMIs.map((p, index) => {
-        const dLat = p.coords[0] - defaultRSCoords[0];
-        const dLng = p.coords[1] - defaultRSCoords[1];
-        const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
-        const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
-        
-        // Mock matching parameters
-        const responseRate = p.name.includes('A') ? 98 : p.name.includes('B') ? 92 : p.name.includes('C') ? 89 : 85;
-        const avgDelivery = p.name.includes('A') ? '12 mnt' : p.name.includes('B') ? '18 mnt' : '25 mnt';
-        
-        // AI Matching Score: decreases with distance, ranges from 50 to 99
-        const score = Math.max(50, Math.min(99, Math.round(100 - (distanceKm * 2.5))));
-
-        return {
-          id: p.id,
-          name: p.name,
-          address: p.address,
-          distance: `${distanceKm.toFixed(1)} km`,
-          travelTime: `${travelTimeMin} mnt`,
-          stock: 0,
-          capacity: 100,
-          responseRate,
-          avgDelivery,
-          score,
-          reasons: [
-            `Unit ${p.name} terdaftar aktif di sistem Suroboyo Bloods.`,
-            `Jarak geografis terdekat (${distanceKm.toFixed(1)} km) berdasarkan koordinat peta.`,
-            `Waktu tempuh diestimasi sekitar ${travelTimeMin} menit.`
-          ]
-        };
-      });
-
-      // Sort by score descending
-      const sorted = mapped.sort((a, b) => b.score - a.score);
-
-      // Add tag labels
-      if (sorted.length > 0) {
-        sorted[0].tag = 'Rekomendasi AI';
-        sorted[0].tagColor = '#C0392B';
-      }
-      if (sorted.length > 1) {
-        sorted[1].tag = 'Cadangan';
-        sorted[1].tagColor = '#E67E22';
-      }
-
-      return sorted;
-    } catch (e) {
-      console.error('Error parsing shared orgs:', e);
-      return pmiDatabase[bloodType] || [];
-    }
+    return pmiDatabase[bloodType] || [];
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
@@ -429,6 +463,7 @@ export default function BloodSearch() {
   };
 
   // Load real hospitals and stock from Supabase
+  // Bergantung pada activeHospital agar jarak dikalkulasi dengan koordinat yang benar
   useEffect(() => {
     async function loadHospitals() {
       try {
@@ -438,21 +473,35 @@ export default function BloodSearch() {
         
         if (error) throw error;
         if (data && data.length > 0) {
-          const mapped = data.map((h: any) => ({
-            id: h.id,
-            hospitalName: h.name,
-            address: h.address,
-            district: h.district,
-            distance: parseFloat((Math.random() * 4 + 1).toFixed(1)),
-            phone: h.phone,
-            bloodTypes: h.blood_stock
-              ? h.blood_stock.map((bs: any) => ({
-                  type: bs.blood_type,
-                  stock: bs.stock_qty,
-                  status: bs.status
-                }))
-              : []
-          }));
+          const rsLat = activeHospital.lat;
+          const rsLng = activeHospital.lng;
+          const mapped = data.map((h: any) => {
+            // Kalkulasi jarak nyata antara RS yang login dan RS lainnya
+            let dist = 0;
+            if (h.latitude != null && h.longitude != null) {
+              const dLat = h.latitude - rsLat;
+              const dLng = h.longitude - rsLng;
+              dist = parseFloat((Math.sqrt(dLat * dLat + dLng * dLng) * 111.12).toFixed(1));
+            } else {
+              // Fallback jika koordinat RS tidak tersedia di database
+              dist = parseFloat((Math.random() * 4 + 1).toFixed(1));
+            }
+            return {
+              id: h.id,
+              hospitalName: h.name,
+              address: h.address,
+              district: h.district,
+              distance: dist,
+              phone: h.phone,
+              bloodTypes: h.blood_stock
+                ? h.blood_stock.map((bs: any) => ({
+                    type: bs.blood_type,
+                    stock: bs.stock_qty,
+                    status: bs.status
+                  }))
+                : []
+            };
+          });
           setHospitalsList(mapped);
         }
       } catch (err) {
@@ -460,7 +509,7 @@ export default function BloodSearch() {
       }
     }
     loadHospitals();
-  }, []);
+  }, [activeHospital]);
 
   // Create blood order and request dynamically in Supabase
   const handleCreateOrder = async (pmiId: string, pmiName: string) => {
@@ -539,7 +588,7 @@ export default function BloodSearch() {
     }
   };
 
-  // Trigger search and AI analysis via Supabase RPC or mock fallback
+  // Trigger search and AI analysis via Supabase RPC atau fallback dengan stok nyata
   const handleSearchAndMatch = async () => {
     setIsMatching(true);
     setPmiResults(null);
@@ -547,13 +596,17 @@ export default function BloodSearch() {
     setConfirmedPMIId(null);
 
     const searchBt = (bloodTypesList.includes(selectedBloodType as BloodType) ? selectedBloodType : 'O+') as BloodType;
+    const reqQty = Number(qty) || 1;
+    const rsLat = activeHospital.lat;
+    const rsLng = activeHospital.lng;
 
     try {
+      // Coba Supabase RPC match_closest_pmi terlebih dahulu
       const { data, error } = await supabase.rpc('match_closest_pmi', {
-        p_hospital_lat: activeHospital.lat,
-        p_hospital_lng: activeHospital.lng,
+        p_hospital_lat: rsLat,
+        p_hospital_lng: rsLng,
         p_blood_type: searchBt,
-        p_required_qty: Number(qty) || 1
+        p_required_qty: reqQty
       });
 
       if (error) throw error;
@@ -567,7 +620,7 @@ export default function BloodSearch() {
           lng: item.pmi_longitude,
           distance: `${item.distance_km.toFixed(1)} km`,
           travelTime: item.travel_time_est,
-          stock: item.stock_count,
+          stock: item.stock_count,           // stok nyata dari RPC
           capacity: item.stock_count + 30,
           responseRate: item.response_rate,
           avgDelivery: item.avg_delivery,
@@ -578,17 +631,15 @@ export default function BloodSearch() {
         }));
         setPmiResults(mappedResults);
       } else {
-        toast.info('Hasil kueri AI database kosong, memuat cadangan.');
-        setPmiResults(getDynamicPMIResults(searchBt, Number(qty) || 5));
+        toast.info('Hasil RPC kosong, memuat data PMI dari database...');
+        const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
+        setPmiResults(fallback);
       }
     } catch (err: any) {
-      console.warn('Menggunakan data fallback AI Matching karena Supabase belum dikonfigurasi:', err);
-      toast.error(`Koneksi AI Gagal: ${err?.message || JSON.stringify(err)}`);
-      setTimeout(() => {
-        setPmiResults(getDynamicPMIResults(searchBt, Number(qty) || 5));
-        setIsMatching(false);
-      }, 800);
-      return;
+      console.warn('RPC match_closest_pmi gagal, menggunakan fallback dengan stok dari DB:', err);
+      // Jangan tampilkan error ke user, langsung coba fallback dengan stok nyata
+      const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
+      setPmiResults(fallback);
     }
     setIsMatching(false);
   };

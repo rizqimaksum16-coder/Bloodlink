@@ -33,7 +33,7 @@ interface Delivery {
 const initialDeliveries: Delivery[] = [
   {
     id: 'DEL001', orderId: 'ORD-2847', bloodType: 'O+', qty: 5,
-    from: 'PMI A', to: 'RSUD Dr. Soetomo',
+    from: 'PMI A', to: 'Rumah Sakit A',
     driver: 'Budi Santoso', driverPhone: '081234567890',
     status: 'perjalanan', eta: '6 mnt', distance: '2.1 km',
     pct: 72, urgent: true, updatedAt: '2 mnt lalu',
@@ -41,27 +41,27 @@ const initialDeliveries: Delivery[] = [
   },
   {
     id: 'DEL002', orderId: 'ORD-2851', bloodType: 'A-', qty: 3,
-    from: 'PMI Surabaya Timur', to: 'RS Siloam Surabaya',
+    from: 'PMI B', to: 'Rumah Sakit E',
     driver: 'Agus Prasetyo', driverPhone: '082198765432',
     status: 'dijemput', eta: '18 mnt', distance: '5.4 km',
     pct: 25, urgent: false, updatedAt: '5 mnt lalu',
-    fromCoords: [-7.3150, 112.7812], toCoords: [-7.2745, 112.7490],
+    fromCoords: [-7.2709, 112.7505], toCoords: [-7.2745, 112.7490],
   },
   {
     id: 'DEL003', orderId: 'ORD-2838', bloodType: 'B+', qty: 8,
-    from: 'PMI A', to: 'RS Premier Surabaya',
+    from: 'PMI A', to: 'Rumah Sakit D',
     driver: 'Hendra Wijaya', driverPhone: '083147852369',
     status: 'tiba', eta: 'Sudah tiba', distance: '3.8 km',
     pct: 100, urgent: false, updatedAt: '12 mnt lalu',
-    fromCoords: [-7.2657, 112.7445], toCoords: [-7.3051, 112.7690],
+    fromCoords: [-7.2657, 112.7445], toCoords: [-7.2847, 112.7845],
   },
   {
     id: 'DEL004', orderId: 'ORD-2855', bloodType: 'AB-', qty: 2,
-    from: 'PMI Surabaya Selatan', to: 'RS Husada Utama',
+    from: 'PMI C', to: 'Rumah Sakit F',
     driver: 'Rizal Firmansyah', driverPhone: '085236987410',
     status: 'disiapkan', eta: '30 mnt', distance: '8.2 km',
     pct: 5, urgent: true, updatedAt: 'Baru saja',
-    fromCoords: [-7.3005, 112.7351], toCoords: [-7.2625, 112.7595],
+    fromCoords: [-7.4475, 112.7025], toCoords: [-7.2890, 112.7378],
   },
 ];
 
@@ -198,12 +198,16 @@ export default function GPSTracking() {
         if (data && data.length > 0) {
           const locationCoords: Record<string, [number, number]> = {
             'PMI A': [-7.2657, 112.7445],
-            'PMI Surabaya Timur': [-7.3150, 112.7812],
-            'PMI Surabaya Selatan': [-7.3005, 112.7351],
-            'RSUD Dr. Soetomo': [-7.2678, 112.7584],
-            'RS Siloam Surabaya': [-7.2745, 112.7490],
-            'RS Premier Surabaya': [-7.3051, 112.7690],
-            'RS Husada Utama': [-7.2625, 112.7595],
+            'PMI B': [-7.2709, 112.7505],
+            'PMI C': [-7.4475, 112.7025],
+            'Rumah Sakit A': [-7.2678, 112.7584],
+            'Rumah Sakit B': [-7.2435, 112.7538],
+            'Rumah Sakit C': [-7.3117, 112.7364],
+            'Rumah Sakit D': [-7.2847, 112.7845],
+            'Rumah Sakit E': [-7.2745, 112.7490],
+            'Rumah Sakit F': [-7.2890, 112.7378],
+            'Rumah Sakit G': [-7.3062, 112.7349],
+            'Rumah Sakit H': [-7.2668, 112.6913],
           };
           const mapped: Delivery[] = data.map(d => ({
             id: d.id,
@@ -254,12 +258,16 @@ export default function GPSTracking() {
         if (data && data.length > 0) {
           const locationCoords: Record<string, [number, number]> = {
             'PMI A': [-7.2657, 112.7445],
-            'PMI Surabaya Timur': [-7.3150, 112.7812],
-            'PMI Surabaya Selatan': [-7.3005, 112.7351],
-            'RSUD Dr. Soetomo': [-7.2678, 112.7584],
-            'RS Siloam Surabaya': [-7.2745, 112.7490],
-            'RS Premier Surabaya': [-7.3051, 112.7690],
-            'RS Husada Utama': [-7.2625, 112.7595],
+            'PMI B': [-7.2709, 112.7505],
+            'PMI C': [-7.4475, 112.7025],
+            'Rumah Sakit A': [-7.2678, 112.7584],
+            'Rumah Sakit B': [-7.2435, 112.7538],
+            'Rumah Sakit C': [-7.3117, 112.7364],
+            'Rumah Sakit D': [-7.2847, 112.7845],
+            'Rumah Sakit E': [-7.2745, 112.7490],
+            'Rumah Sakit F': [-7.2890, 112.7378],
+            'Rumah Sakit G': [-7.3062, 112.7349],
+            'Rumah Sakit H': [-7.2668, 112.6913],
           };
           const mapped: Delivery[] = data.map(d => ({
             id: d.id,

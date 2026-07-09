@@ -14,6 +14,7 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  isLoading: boolean;
   login: (role: UserRole, email: string, name?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (name: string, email: string) => Promise<void>;
@@ -111,6 +112,7 @@ const knownDemoUsers: Record<string, { name: string; org: string; avatar: string
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Baca sesi dari cookie saat app pertama kali load
   const [user, setUser] = useState<AuthUser | null>(() => readUserFromCookie());
+  const [isLoading, setIsLoading] = useState(true);
 
   // Sinkronisasi profil dengan Supabase saat startup jika session cookie tersedia
   useEffect(() => {
@@ -141,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('Gagal men-sync profil saat startup dari Supabase:', err);
         }
       }
+      setIsLoading(false);
     }
     syncProfileOnStart();
   }, []);
@@ -283,7 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateProfile, registerDonor, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateProfile, registerDonor, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
