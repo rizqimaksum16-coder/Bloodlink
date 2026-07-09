@@ -92,7 +92,7 @@ const roleDefaults: Record<UserRole, Omit<AuthUser, 'email'>> = {
   superadmin: {
     name: 'Super Admin',
     role: 'superadmin',
-    org: 'Suroboyo Bloods Pusat',
+    org: 'Blood Link Pusat',
     avatar: 'SA',
   },
 };
@@ -106,7 +106,7 @@ const knownDemoUsers: Record<string, { name: string; org: string; avatar: string
   'admin@rumahsakita.com': { name: 'Admin Rumah Sakit A', org: 'Rumah Sakit A', avatar: 'RA' },
   'admin@rumahsakitb.com': { name: 'Admin Rumah Sakit B', org: 'Rumah Sakit B', avatar: 'RB' },
   'admin@rumahsakitc.com': { name: 'Admin Rumah Sakit C', org: 'Rumah Sakit C', avatar: 'RC' },
-  'superadmin@suroboyo.id': { name: 'Super Admin', org: 'Suroboyo Bloods Pusat', avatar: 'SA' },
+  'superadmin@suroboyo.id': { name: 'Super Admin', org: 'Blood Link Pusat', avatar: 'SA' },
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {

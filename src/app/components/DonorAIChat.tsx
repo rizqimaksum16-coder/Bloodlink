@@ -15,7 +15,7 @@ interface GeminiMessage {
 export default function DonorAIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: 'Halo! Saya Diana, asisten AI Suroboyo Blood. Ada yang bisa saya bantu seputar persyaratan, alur, atau manfaat donor darah hari ini?' }
+    { sender: 'ai', text: 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar persyaratan, alur, atau manfaat donor darah hari ini?' }
   ]);
   const [geminiHistory, setGeminiHistory] = useState<GeminiMessage[]>([]);
   const [input, setInput] = useState('');
@@ -35,7 +35,7 @@ export default function DonorAIChat() {
     
     // Syarat Donor
     if (query.includes('syarat') || query.includes('kriteria') || query.includes('kondisi') || query.includes('tensi') || query.includes('hemoglobin') || query.includes('hb')) {
-      return 'Syarat utama mendonorkan darah di Suroboyo Blood:\n1. Usia 17-60 tahun.\n2. Berat badan minimal 45 kg.\n3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).\n4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.\n5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.\n6. Istirahat/tidur minimal 5 jam sebelum donor.';
+      return 'Syarat utama mendonorkan darah di Blood Link:\n1. Usia 17-60 tahun.\n2. Berat badan minimal 45 kg.\n3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).\n4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.\n5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.\n6. Istirahat/tidur minimal 5 jam sebelum donor.';
     }
     
     // Alur Donor
@@ -55,11 +55,11 @@ export default function DonorAIChat() {
     
     // Salam & Greeting
     if (query.includes('halo') || query.includes('hai') || query.includes('pagi') || query.includes('siang') || query.includes('sore') || query.includes('malam') || query.includes('assalamualaikum')) {
-      return 'Halo! Saya Diana, asisten AI Suroboyo Blood. Ada yang bisa saya bantu seputar donor darah atau kesehatan pendonor hari ini?';
+      return 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah atau kesehatan pendonor hari ini?';
     }
     
     // Off-topic refusal (Guardrail)
-    return 'Maaf, saya Diana, asisten Suroboyo Blood, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor.';
+    return 'Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor.';
   };
 
   const handleSendMessage = async () => {
@@ -100,7 +100,7 @@ export default function DonorAIChat() {
       const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-      const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Suroboyo Blood di Kota Surabaya.
+      const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Blood Link di Kota Surabaya.
 Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar donor darah, seperti:
 1. Syarat donor darah (tensi darah >= 100/60, hemoglobin 12.5-17.0 g/dL, berat badan >= 45 kg, rentang usia 17-60 tahun, interval waktu minimal 2 bundle/bulan).
 2. Panduan/tips sebelum dan sesudah melakukan donor darah.
@@ -109,8 +109,8 @@ Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar 
 
 ATURAN KETAT:
 - Jawablah semua pertanyaan dengan ramah, informatif, dan ringkas menggunakan Bahasa Indonesia yang sopan.
-- Kamu HANYA boleh menjawab pertanyaan yang berkaitan dengan donor darah, kesehatan pendonor, atau cara kerja platform Suroboyo Blood.
-- Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan dengan kalimat: "Maaf, saya Diana, asisten Suroboyo Blood, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor."`;
+- Kamu HANYA boleh menjawab pertanyaan yang berkaitan dengan donor darah, kesehatan pendonor, atau cara kerja platform Blood Link.
+- Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan dengan kalimat: "Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor."`;
 
       const payload = {
         contents: updatedHistory,

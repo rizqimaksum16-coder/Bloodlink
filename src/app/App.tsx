@@ -18,7 +18,6 @@ const Events = lazy(() => import('./components/Events'));
 const Information = lazy(() => import('./components/Information'));
 const PMIDashboard = lazy(() => import('./components/PMIDashboard'));
 const HospitalDashboard = lazy(() => import('./components/HospitalDashboard'));
-const DonorDashboard = lazy(() => import('./components/DonorDashboard'));
 const GPSTracking = lazy(() => import('./components/GPSTracking'));
 const QRCheckIn = lazy(() => import('./components/QRCheckIn'));
 const RewardPage = lazy(() => import('./components/RewardPage'));
@@ -84,9 +83,6 @@ export default function App() {
                   } />
                   <Route path="/dashboard/rs" element={
                     <ProtectedRoute allowedRoles={['rs']}><HospitalDashboard /></ProtectedRoute>
-                  } />
-                  <Route path="/dashboard/donor" element={
-                    <ProtectedRoute allowedRoles={['donor']}><DonorDashboard /></ProtectedRoute>
                   } />
                   <Route path="/dashboard/driver" element={
                     <ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>

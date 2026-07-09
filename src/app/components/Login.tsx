@@ -54,7 +54,7 @@ const roleOptions: RoleOption[] = [
     bg: '#F4EFFE',
     demoEmail: 'rizky@donor.id',
     demoPwd: 'demo123',
-    redirectTo: '/dashboard/donor',
+    redirectTo: '/home',
     description: 'Booking event, QR check-in, dan reward poin',
   },
   {
@@ -72,7 +72,7 @@ const roleOptions: RoleOption[] = [
   {
     role: 'superadmin',
     label: 'Super Admin',
-    org: 'Suroboyo Bloods Pusat',
+    org: 'Blood Link Pusat',
     icon: Shield,
     color: '#1A1A2E',
     bg: '#EAEAF4',
@@ -174,8 +174,8 @@ export default function Login() {
     setLoading(true);
     try {
       await registerDonor(regName, regEmail, regBlood, regPhone, regAddress || 'Surabaya');
-      toast.success('Pendaftaran Pendonor Berhasil! Selamat datang di Suroboyo Bloods.');
-      setTimeout(() => navigate('/dashboard/donor'), 600);
+      toast.success('Pendaftaran Pendonor Berhasil! Selamat datang di Blood Link.');
+      setTimeout(() => navigate('/home'), 600);
     } catch (err) {
       toast.error('Gagal mendaftar, silakan coba lagi.');
     } finally {
@@ -194,7 +194,7 @@ export default function Login() {
             <Droplets className="w-8 h-8 text-white fill-white" />
           </div>
           <h1 className="text-2xl font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Portal Suroboyo Bloods
+            Portal Blood Link
           </h1>
           <p className="text-sm text-[#4A4A6A] mt-1">Masuk ke akun atau daftar sebagai Pendonor Baru</p>
         </div>
@@ -399,7 +399,7 @@ export default function Login() {
                   <Heart className="w-5 h-5 fill-[#8E44AD]" />
                 </div>
                 <h3 className="text-lg font-bold text-[#1A1A2E]">Form Pendaftaran Pendonor</h3>
-                <p className="text-xs text-[#9B9BB5] mt-0.5">Daftarkan diri Anda sebagai Pendonor Aktif Suroboyo Bloods</p>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Daftarkan diri Anda sebagai Pendonor Aktif Blood Link</p>
               </div>
 
               <form onSubmit={handleRegisterSubmit} className="space-y-4">

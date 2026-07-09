@@ -56,7 +56,7 @@ const heroConfigs = {
     title: 'Terima Kasih, Pahlawan Darah!',
     desc: 'Setiap tetes darah Anda menyelamatkan nyawa sesama warga Surabaya. Daftarkan diri Anda pada event donor, check-in instan, dan klaim poin rewards Anda.',
     primaryBtn: { label: 'Cari Event Donor', to: '/events', icon: Calendar },
-    secondaryBtn: { label: 'Dashboard Saya', to: '/dashboard/donor', icon: Heart },
+    secondaryBtn: { label: 'Reward Poin', to: '/rewards', icon: Heart },
     stats: [
       { value: '3.580+', label: 'Pendonor Aktif' },
       { value: '6 Event', label: 'Aktif Bulan Ini' },
@@ -74,7 +74,7 @@ const heroConfigs = {
     ]
   },
   superadmin: {
-    title: 'Super Admin Pusat — Suroboyo Bloods',
+    title: 'Super Admin Pusat — Blood Link',
     desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di Kota Surabaya, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
     primaryBtn: { label: 'Super Admin Dashboard', to: '/dashboard/superadmin', icon: Shield },
     secondaryBtn: { label: 'Peta Lokasi Unit', to: '/dashboard/superadmin', icon: MapPin },
@@ -284,7 +284,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3 text-xs md:text-sm">
           <div className="flex items-center gap-2 text-[#4A4A6A]">
             <Building2 className="w-4 h-4 text-[#C0392B]" />
-            <span>Instansi: <span className="font-semibold text-[#1A1A2E]">{user?.org || 'Suroboyo Bloods'}</span></span>
+            <span>Instansi: <span className="font-semibold text-[#1A1A2E]">{user?.org || 'Blood Link'}</span></span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />

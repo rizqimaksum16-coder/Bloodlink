@@ -73,8 +73,13 @@ export default function Events() {
           if (error) throw error;
           if (bookings) {
             const bookedIds = bookings.map((b: any) => b.event_id);
-            setRegisteredEvents(bookedIds);
-            localStorage.setItem('donor_registered_events', JSON.stringify(bookedIds));
+            setRegisteredEvents(prev => {
+              // Gabungkan data dari localStorage (prev) dengan data dari Supabase (bookedIds)
+              // agar pendaftaran lokal tidak hilang jika Supabase mengembalikan array kosong.
+              const mergedIds = Array.from(new Set([...prev, ...bookedIds]));
+              localStorage.setItem('donor_registered_events', JSON.stringify(mergedIds));
+              return mergedIds;
+            });
           }
         }
       } catch (err) {
@@ -297,18 +302,22 @@ export default function Events() {
           .single();
 
         if (userData) {
-          await supabase
+          const { error: deleteError } = await supabase
             .from('event_bookings')
             .delete()
             .eq('event_id', eventId)
             .eq('donor_id', userData.id);
 
-          const currentEvt = eventList.find(e => e.id === eventId);
-          if (currentEvt) {
-            await supabase
-              .from('events')
-              .update({ registered: Math.max(0, currentEvt.registered - 1) })
-              .eq('id', eventId);
+          if (deleteError) {
+             console.warn('Gagal delete event_bookings dari Supabase:', deleteError);
+          } else {
+            const currentEvt = eventList.find(e => e.id === eventId);
+            if (currentEvt) {
+              await supabase
+                .from('events')
+                .update({ registered: Math.max(0, currentEvt.registered - 1) })
+                .eq('id', eventId);
+            }
           }
         }
       } catch (err) {
@@ -390,7 +399,7 @@ export default function Events() {
           .single();
 
         if (userData) {
-          await supabase
+          const { error: insertError } = await supabase
             .from('event_bookings')
             .insert({
               event_id: eventId,
@@ -399,10 +408,14 @@ export default function Events() {
               ticket_id: ticketId
             });
 
-          await supabase
-            .from('events')
-            .update({ registered: selectedEventForReg.registered + 1 })
-            .eq('id', eventId);
+          if (insertError) {
+            console.warn('Gagal insert event_bookings ke Supabase, menggunakan local storage:', insertError);
+          } else {
+            await supabase
+              .from('events')
+              .update({ registered: selectedEventForReg.registered + 1 })
+              .eq('id', eventId);
+          }
         }
       } catch (err) {
         console.error('Gagal menyimpan booking event ke Supabase:', err);
@@ -663,6 +676,158 @@ export default function Events() {
     }
   };
 
+  const pmiEvents = filtered.filter((e) => {
+    const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
+    return !isRs;
+  });
+
+  const rsEvents = filtered.filter((e) => {
+    const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
+    return isRs;
+  });
+
+  const renderEventCard = (event: Event) => {
+    const s = statusConfig[event.status];
+    const pct = Math.round((event.registered / event.capacity) * 100);
+    const isFull = event.registered >= event.capacity;
+
+    return (
+      <div key={event.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${event.status === 'ongoing' ? 'border-[#27AE60]' : 'border-border'}`}>
+        <div className="p-5 md:p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${event.organizerType === 'rs' || event.organizer.toLowerCase().includes('rs') || event.organizer.toLowerCase().includes('siloam') || event.organizer.toLowerCase().includes('soetomo') ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-[#C0392B] border border-red-200'}`}>
+                  {event.organizerType === 'rs' || event.organizer.toLowerCase().includes('rs') || event.organizer.toLowerCase().includes('siloam') || event.organizer.toLowerCase().includes('soetomo') ? '🏥 Event RS' : '🔴 Event PMI'}
+                </span>
+                <h2 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {event.name}
+                </h2>
+              </div>
+              <p className="text-xs text-[#9B9BB5]">Diselenggarakan oleh <span className="font-semibold text-[#4A4A6A]">{event.organizer}</span></p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span
+                className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
+                style={{ background: s.bg, color: s.text }}
+              >
+                {s.label}
+              </span>
+              {isCreator && event.organizer === user?.org && (
+                <button
+                  onClick={() => handleDeleteEvent(event.id, event.name)}
+                  className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#9B9BB5] hover:text-[#C0392B] transition-colors border border-transparent hover:border-red-100"
+                  title="Hapus Event"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-2">Informasi Event</p>
+                <div className="space-y-2">
+                  {[
+                    { icon: Calendar, text: new Date(event.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) },
+                    { icon: Clock, text: event.time },
+                    { icon: MapPin, text: `${event.location} — ${event.address}` },
+                    { icon: Users, text: `Kapasitas ${event.capacity} orang` },
+                  ].map(({ icon: Icon, text }) => (
+                    <div key={text} className="flex items-start gap-2 text-sm text-[#4A4A6A]">
+                      <Icon className="w-3.5 h-3.5 mt-0.5 text-[#9B9BB5] flex-shrink-0" />
+                      <span>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-sm text-[#4A4A6A] leading-relaxed">{event.description}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-2">Progress Pendaftaran</p>
+                <div className="flex items-center justify-between text-xs text-[#4A4A6A] mb-1.5">
+                  <span>Terdaftar</span>
+                  <span className="font-bold text-[#1A1A2E]">{event.registered}/{event.capacity} ({pct}%)</span>
+                </div>
+                <Progress value={pct} className="h-2" />
+                <p className="text-[10px] text-[#9B9BB5] mt-1">
+                  {isFull ? 'Kuota penuh' : `${event.capacity - event.registered} slot tersisa`}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-2">Persyaratan</p>
+                <ul className="space-y-1">
+                  {event.requirements.map((req) => (
+                    <li key={req} className="flex items-start gap-1.5 text-xs text-[#4A4A6A]">
+                      <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-[#27AE60] flex-shrink-0" />
+                      {req}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                {user?.role === 'donor' && event.status !== 'completed' && (
+                  registeredEvents.includes(event.id) ? (
+                    <div className="flex-1 flex gap-2">
+                      <button
+                        onClick={() => handleOpenExistingTicket(event)}
+                        className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#EAFAF1] text-[#1E8449] border border-[#27AE60]/30 hover:bg-[#D5F5E3] transition-all text-center flex items-center justify-center gap-1 shadow-sm"
+                        title="Klik untuk melihat Tiket QR Event"
+                      >
+                        ✓ Anda Terdaftar <span className="text-[10px] opacity-80">(Lihat Tiket)</span>
+                      </button>
+                      <button
+                        onClick={() => handleCancelRegistration(event.id)}
+                        className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+                        title="Klik untuk membatalkan pendaftaran & menguji daftar dari awal"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Batal
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleOpenRegistrationWizard(event)}
+                      disabled={isFull}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[#C0392B] text-white hover:bg-[#922B21] flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      {isFull ? 'Kuota Penuh' : 'Daftar Donor Darah'}
+                    </button>
+                  )
+                )}
+
+                {user?.role !== 'donor' && (
+                  <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-[#F4F4F8] border border-border/80 text-[#4A4A6A] flex items-center justify-center shadow-inner">
+                      {event.organizer === user?.org ? '★ Event Milik Anda' : 'Mode Preview'}
+                    </div>
+                    <Link
+                      to={`/qr-checkin?eventId=${event.id}`}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#C0392B] hover:bg-[#922B21] transition-all text-center flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <QrCode className="w-3.5 h-3.5" /> Scan QR Check-In
+                    </Link>
+                  </div>
+                )}
+
+                <button className="flex items-center gap-1.5 border border-border px-3 py-2.5 rounded-xl text-sm text-[#4A4A6A] hover:border-[#C0392B] hover:text-[#C0392B] transition-colors bg-white">
+                  <MapPin className="w-3.5 h-3.5" />
+                  Lokasi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen py-8 bg-[#F7F7FB]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -762,148 +927,40 @@ export default function Events() {
         </div>
 
         {/* Event Cards */}
-        <div className="space-y-5">
-          {filtered.map((event) => {
-            const s = statusConfig[event.status];
-            const pct = Math.round((event.registered / event.capacity) * 100);
-            const isFull = event.registered >= event.capacity;
-
-            return (
-              <div key={event.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${event.status === 'ongoing' ? 'border-[#27AE60]' : 'border-border'}`}>
-                <div className="p-5 md:p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${event.organizerType === 'rs' || event.organizer.toLowerCase().includes('rs') || event.organizer.toLowerCase().includes('siloam') || event.organizer.toLowerCase().includes('soetomo') ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-[#C0392B] border border-red-200'}`}>
-                          {event.organizerType === 'rs' || event.organizer.toLowerCase().includes('rs') || event.organizer.toLowerCase().includes('siloam') || event.organizer.toLowerCase().includes('soetomo') ? '🏥 Event RS' : '🔴 Event PMI'}
-                        </span>
-                        <h2 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                          {event.name}
-                        </h2>
-                      </div>
-                      <p className="text-xs text-[#9B9BB5]">Diselenggarakan oleh <span className="font-semibold text-[#4A4A6A]">{event.organizer}</span></p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span
-                        className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-                        style={{ background: s.bg, color: s.text }}
-                      >
-                        {s.label}
-                      </span>
-                      {isCreator && event.organizer === user?.org && (
-                        <button
-                          onClick={() => handleDeleteEvent(event.id, event.name)}
-                          className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#9B9BB5] hover:text-[#C0392B] transition-colors border border-transparent hover:border-red-100"
-                          title="Hapus Event"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-2">Informasi Event</p>
-                        <div className="space-y-2">
-                          {[
-                            { icon: Calendar, text: new Date(event.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) },
-                            { icon: Clock, text: event.time },
-                            { icon: MapPin, text: `${event.location} — ${event.address}` },
-                            { icon: Users, text: `Kapasitas ${event.capacity} orang` },
-                          ].map(({ icon: Icon, text }) => (
-                            <div key={text} className="flex items-start gap-2 text-sm text-[#4A4A6A]">
-                              <Icon className="w-3.5 h-3.5 mt-0.5 text-[#9B9BB5] flex-shrink-0" />
-                              <span>{text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-sm text-[#4A4A6A] leading-relaxed">{event.description}</p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-2">Progress Pendaftaran</p>
-                        <div className="flex items-center justify-between text-xs text-[#4A4A6A] mb-1.5">
-                          <span>Terdaftar</span>
-                          <span className="font-bold text-[#1A1A2E]">{event.registered}/{event.capacity} ({pct}%)</span>
-                        </div>
-                        <Progress value={pct} className="h-2" />
-                        <p className="text-[10px] text-[#9B9BB5] mt-1">
-                          {isFull ? 'Kuota penuh' : `${event.capacity - event.registered} slot tersisa`}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide mb-2">Persyaratan</p>
-                        <ul className="space-y-1">
-                          {event.requirements.map((req) => (
-                            <li key={req} className="flex items-start gap-1.5 text-xs text-[#4A4A6A]">
-                              <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-[#27AE60] flex-shrink-0" />
-                              {req}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="flex gap-2 pt-1">
-                        {user?.role === 'donor' && event.status !== 'completed' && (
-                          registeredEvents.includes(event.id) ? (
-                            <div className="flex-1 flex gap-2">
-                              <button
-                                onClick={() => handleOpenExistingTicket(event)}
-                                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#EAFAF1] text-[#1E8449] border border-[#27AE60]/30 hover:bg-[#D5F5E3] transition-all text-center flex items-center justify-center gap-1 shadow-sm"
-                                title="Klik untuk melihat Tiket QR Event"
-                              >
-                                ✓ Anda Terdaftar <span className="text-[10px] opacity-80">(Lihat Tiket)</span>
-                              </button>
-                              <button
-                                onClick={() => handleCancelRegistration(event.id)}
-                                className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-all flex items-center justify-center gap-1 whitespace-nowrap"
-                                title="Klik untuk membatalkan pendaftaran & menguji daftar dari awal"
-                              >
-                                <RefreshCw className="w-3.5 h-3.5" /> Batal
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenRegistrationWizard(event)}
-                              disabled={isFull}
-                              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[#C0392B] text-white hover:bg-[#922B21] flex items-center justify-center gap-2 shadow-sm"
-                            >
-                              <QrCode className="w-4 h-4" />
-                              {isFull ? 'Kuota Penuh' : 'Daftar Donor Darah'}
-                            </button>
-                          )
-                        )}
-
-                        {user?.role !== 'donor' && (
-                          <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                            <div className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-[#F4F4F8] border border-border/80 text-[#4A4A6A] flex items-center justify-center shadow-inner">
-                              {event.organizer === user?.org ? '★ Event Milik Anda' : 'Mode Preview'}
-                            </div>
-                            <Link
-                              to={`/qr-checkin?eventId=${event.id}`}
-                              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#C0392B] hover:bg-[#922B21] transition-all text-center flex items-center justify-center gap-1.5 shadow-sm"
-                            >
-                              <QrCode className="w-3.5 h-3.5" /> Scan QR Check-In
-                            </Link>
-                          </div>
-                        )}
-
-                        <button className="flex items-center gap-1.5 border border-border px-3 py-2.5 rounded-xl text-sm text-[#4A4A6A] hover:border-[#C0392B] hover:text-[#C0392B] transition-colors bg-white">
-                          <MapPin className="w-3.5 h-3.5" />
-                          Lokasi
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+        <div className="space-y-8">
+          {pmiEvents.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-[#C0392B] border border-red-100 shadow-sm">
+                  <span className="text-lg">🔴</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Event Palang Merah Indonesia (PMI)</h2>
+                  <p className="text-xs text-[#4A4A6A]">Daftar kegiatan donor darah resmi dari PMI</p>
                 </div>
               </div>
-            );
-          })}
+              <div className="space-y-5">
+                {pmiEvents.map(renderEventCard)}
+              </div>
+            </div>
+          )}
+
+          {rsEvents.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4 mt-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-700 border border-blue-100 shadow-sm">
+                  <span className="text-lg">🏥</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Event Rumah Sakit (RS)</h2>
+                  <p className="text-xs text-[#4A4A6A]">Daftar kegiatan donor darah pengganti di Rumah Sakit</p>
+                </div>
+              </div>
+              <div className="space-y-5">
+                {rsEvents.map(renderEventCard)}
+              </div>
+            </div>
+          )}
         </div>
 
         {filtered.length === 0 && (

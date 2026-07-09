@@ -209,13 +209,13 @@ function RouteMap({ hospitalCoords, hospitalName, pmiCoords, pmiName }: RouteMap
     // 1. Hospital Marker (Blue)
     const hospitalIcon = L.divIcon({
       className: '',
-      html: `<div style="background:#2980B9;color:white;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)">RS</div>`,
+      html: `<div style="background:#2980B9;color:white;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${hospitalName.includes('Lokasi Anda') ? 'ME' : 'RS'}</div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
     });
     L.marker(hospitalCoords, { icon: hospitalIcon })
       .addTo(markers)
-      .bindPopup(`<b>${hospitalName}</b><br/>RS Pemohon`);
+      .bindPopup(`<b>${hospitalName}</b><br/>${hospitalName.includes('Lokasi Anda') ? 'Lokasi Anda Saat Ini' : 'RS Pemohon'}`);
 
     // 2. PMI Marker (Red)
     const pmiIcon = L.divIcon({
@@ -287,7 +287,7 @@ export default function BloodSearch() {
   const [selectedBloodType, setSelectedBloodType] = useState<string>('O+');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [qty, setQty] = useState<number | ''>(5);
+  const [qty, setQty] = useState<number | string>(5);
   const [urgency, setUrgency] = useState<'darurat' | 'mendesak' | 'normal'>('normal');
 
   // AI Matching animation & results state
@@ -314,11 +314,42 @@ export default function BloodSearch() {
   // Load active hospital coordinates dynamically based on logged in user session
   // hospitals.name sudah konsisten dengan users.org, query langsung tanpa mapping
   useEffect(() => {
-    async function loadActiveHospital() {
+    async function loadActiveLocation() {
       if (!isSupabaseConfigured || !user) return;
+      
+      // Jika user adalah donor, gunakan Geolocation API untuk mendapatkan lokasi terkini perangkat
+      if (user.role === 'donor') {
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setActiveHospital({
+                name: 'Lokasi Anda Saat Ini',
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                address: 'Lokasi GPS Perangkat'
+              });
+            },
+            (error) => {
+              console.warn('Gagal mendapatkan lokasi GPS:', error);
+              // Fallback jika GPS ditolak/gagal
+              setActiveHospital({
+                name: 'Lokasi Anda (Default Surabaya)',
+                lat: -7.2678,
+                lng: 112.7584,
+                address: 'Surabaya Pusat'
+              });
+              toast.info('Gagal mengakses GPS, menggunakan lokasi default Surabaya.');
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        } else {
+          toast.info('Browser Anda tidak mendukung fitur GPS.');
+        }
+        return; // Selesai untuk donor
+      }
+
+      // Jika user adalah RS, fetch koordinat RS dari Supabase
       try {
-        const tableName = user.role === 'rs' ? 'hospitals' : null;
-        if (!tableName) return;
         const { data: hData } = await supabase
           .from('hospitals')
           .select('name, latitude, longitude, address')
@@ -336,7 +367,7 @@ export default function BloodSearch() {
         console.warn('Gagal memuat koordinat RS dari Supabase:', e);
       }
     }
-    loadActiveHospital();
+    loadActiveLocation();
   }, [user]);
 
   // Dynamically compute PMI search recommendations from Supabase (dengan stok nyata)
@@ -363,11 +394,25 @@ export default function BloodSearch() {
             const stockEntry = (p.blood_stock || []).find((bs: any) => bs.blood_type === bloodType);
             const stockQty = stockEntry ? (stockEntry.stock_qty ?? 0) : 0;
 
-            const score = Math.max(50, Math.min(99, Math.round(
-              (100 - distanceKm * 4) +
-              (stockQty >= requiredQty ? 30 : stockQty > 0 ? 10 : 0) +
-              (p.response_rate * 0.3)
-            )));
+            // Skor dengan bobot stok yang lebih besar (paling penting!)
+            let baseScore = 0;
+            // Jika stok < jumlah yang dibutuhkan (bahkan jika ada 5 kantong tapi butuh 7), beri penalti berat!
+            if (stockQty === 0) {
+              baseScore -= 30; // Stok kosong sama sekali
+            } else if (stockQty < requiredQty) {
+              baseScore -= 15; // Stok ada tapi tidak mencukupi (misal butuh 7, cuma ada 5)
+            } else {
+              baseScore += 50; // Stok mencukupi
+            }
+            
+            // Tambahkan skor jarak (semakin dekat semakin bagus)
+            baseScore += (60 - distanceKm * 3);
+            
+            // Tambahkan skor response rate
+            baseScore += (p.response_rate * 0.2);
+            
+            // Batasi skor antara 10 dan 95 agar tidak 100 dan tidak terlalu rendah
+            const score = Math.max(10, Math.min(95, Math.round(baseScore)));
 
             return {
               id: p.id,
@@ -417,15 +462,39 @@ export default function BloodSearch() {
             const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
             const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
             const responseRate = 90;
-            const score = Math.max(50, Math.min(99, Math.round(100 - distanceKm * 2.5)));
+            
+            // Untuk fallback, kita buat stok acak tapi logis (untuk demo)
+            const stockQty = Math.floor(Math.random() * 20); // 0-19 kantong
+
+            // Skor dengan bobot stok yang sama dengan Supabase!
+            let baseScore = 0;
+            if (stockQty === 0) {
+              baseScore -= 30;
+            } else if (stockQty < requiredQty) {
+              baseScore -= 15;
+            } else {
+              baseScore += 50;
+            }
+            baseScore += (60 - distanceKm * 3);
+            baseScore += (responseRate * 0.2);
+            const score = Math.max(10, Math.min(95, Math.round(baseScore)));
+            
             return {
               id: p.id, name: p.name, address: p.address,
               lat: p.coords[0], lng: p.coords[1],
               distance: `${distanceKm.toFixed(1)} km`,
               travelTime: `${travelTimeMin} mnt`,
-              stock: 0, capacity: 100, responseRate,
+              stock: stockQty, capacity: 100, responseRate,
               avgDelivery: '20 mnt', score,
-              reasons: [`Unit ${p.name} terdaftar aktif`, `Jarak ${distanceKm.toFixed(1)} km`, `Estimasi ${travelTimeMin} menit`]
+              reasons: [
+                stockQty >= requiredQty
+                  ? `Stok sangat mencukupi (${stockQty} kantong)`
+                  : stockQty > 0
+                  ? `Stok terbatas (${stockQty} kantong)`
+                  : 'Stok kosong',
+                `Jarak ${distanceKm.toFixed(1)} km`,
+                `Estimasi ${travelTimeMin} menit`
+              ]
             };
           });
           const sorted = mapped.sort((a, b) => b.score - a.score);
@@ -612,23 +681,46 @@ export default function BloodSearch() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const mappedResults: PMIResult[] = data.map((item: any, index: number) => ({
-          id: item.pmi_id,
-          name: item.pmi_name,
-          address: item.pmi_address,
-          lat: item.pmi_latitude,
-          lng: item.pmi_longitude,
-          distance: `${item.distance_km.toFixed(1)} km`,
-          travelTime: item.travel_time_est,
-          stock: item.stock_count,           // stok nyata dari RPC
-          capacity: item.stock_count + 30,
-          responseRate: item.response_rate,
-          avgDelivery: item.avg_delivery,
-          score: item.match_score,
-          reasons: item.reasons,
-          tag: index === 0 ? 'Rekomendasi AI' : index === 1 ? 'Cadangan' : undefined,
-          tagColor: index === 0 ? '#C0392B' : index === 1 ? '#E67E22' : undefined
-        }));
+        let mappedResults: PMIResult[] = data.map((item: any) => {
+          // Rekalkulasi skor di frontend karena RPC backend masih pakai logika lama
+          let baseScore = 0;
+          if (item.stock_count === 0) {
+            baseScore -= 30;
+          } else if (item.stock_count < reqQty) {
+            baseScore -= 15;
+          } else {
+            baseScore += 50;
+          }
+          
+          baseScore += (60 - item.distance_km * 3);
+          baseScore += (item.response_rate * 0.2);
+          
+          const newScore = Math.max(10, Math.min(95, Math.round(baseScore)));
+
+          return {
+            id: item.pmi_id,
+            name: item.pmi_name,
+            address: item.pmi_address,
+            lat: item.pmi_latitude,
+            lng: item.pmi_longitude,
+            distance: `${item.distance_km.toFixed(1)} km`,
+            travelTime: item.travel_time_est,
+            stock: item.stock_count,
+            capacity: item.stock_count + 30,
+            responseRate: item.response_rate,
+            avgDelivery: item.avg_delivery,
+            score: newScore, // Gunakan skor baru!
+            reasons: item.reasons
+          };
+        });
+        
+        // Urutkan ulang berdasarkan skor baru yang sudah diperbaiki
+        mappedResults = mappedResults.sort((a, b) => b.score - a.score);
+        
+        // Tambahkan tag setelah diurutkan
+        if (mappedResults.length > 0) { mappedResults[0].tag = 'Rekomendasi AI'; mappedResults[0].tagColor = '#C0392B'; }
+        if (mappedResults.length > 1) { mappedResults[1].tag = 'Cadangan'; mappedResults[1].tagColor = '#E67E22'; }
+
         setPmiResults(mappedResults);
       } else {
         toast.info('Hasil RPC kosong, memuat data PMI dari database...');
@@ -715,7 +807,7 @@ export default function BloodSearch() {
               {/* Blood type selection */}
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide block mb-2">Golongan Darah</label>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-4 sm:grid-cols-8 lg:grid-cols-4 gap-1.5">
                   {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bt => (
                     <button key={bt} onClick={() => { setSelectedBloodType(bt); setPmiResults(null); }}
                       className={`py-2 rounded-xl text-xs font-bold transition-all ${selectedBloodType === bt ? 'text-white shadow-sm font-extrabold' : 'border border-border text-[#4A4A6A] hover:border-current bg-[#F9F9FC]'}`}
@@ -751,7 +843,7 @@ export default function BloodSearch() {
                   <button
                     type="button"
                     onClick={() => {
-                      const current = typeof qty === 'number' ? qty : 1;
+                      const current = parseInt(qty.toString(), 10) || 1;
                       setQty(Math.max(1, current - 1));
                     }}
                     className="w-10 h-10 rounded-xl border border-border bg-[#F8F9FA] hover:bg-gray-200 text-[#1A1A2E] font-extrabold text-base flex items-center justify-center transition-colors active:scale-95"
@@ -761,24 +853,21 @@ export default function BloodSearch() {
                   </button>
                   <div className="relative flex-1">
                     <input
-                      type="number"
-                      min={1}
-                      max={100}
+                      type="text"
+                      inputMode="numeric"
                       value={qty}
                       onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '') {
-                          setQty('');
-                        } else {
-                          const num = parseInt(val, 10);
-                          setQty(isNaN(num) ? '' : num);
-                        }
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setQty(val);
                       }}
                       onBlur={() => {
-                        if (qty === '' || typeof qty !== 'number' || qty < 1) {
+                        const num = parseInt(qty.toString(), 10);
+                        if (isNaN(num) || num < 1) {
                           setQty(1);
-                        } else if (qty > 100) {
+                        } else if (num > 100) {
                           setQty(100);
+                        } else {
+                          setQty(num);
                         }
                       }}
                       className="w-full text-center bg-[#F8F9FA] border border-border rounded-xl px-3 py-2 text-sm font-black text-[#C0392B] outline-none focus:border-[#C0392B] focus:bg-white transition-all"
@@ -790,8 +879,8 @@ export default function BloodSearch() {
                   <button
                     type="button"
                     onClick={() => {
-                      const current = typeof qty === 'number' ? qty : 1;
-                      setQty(current + 1);
+                      const current = parseInt(qty.toString(), 10) || 1;
+                      setQty(Math.min(100, current + 1));
                     }}
                     className="w-10 h-10 rounded-xl border border-border bg-[#F8F9FA] hover:bg-gray-200 text-[#1A1A2E] font-extrabold text-base flex items-center justify-center transition-colors active:scale-95"
                     title="Tambah kantong"
@@ -878,9 +967,9 @@ export default function BloodSearch() {
                     Tidak ada data PMI yang cocok untuk golongan darah {selectedBloodType}.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left: PMI recommendations list */}
-                    <div className="lg:col-span-2 space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-col-reverse lg:flex-row">
+                      {/* Left: PMI recommendations list */}
+                      <div className="lg:col-span-2 space-y-4 order-2 lg:order-1">
                       {pmiResults.map((pmi, i) => (
                         <div key={pmi.id}
                           className={`border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:scale-[1.01] hover:shadow-md ${
@@ -891,7 +980,7 @@ export default function BloodSearch() {
                           <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <h3 className="font-bold text-[#1A1A2E] text-base">{pmi.name}</h3>
+                                <h3 className="font-bold text-[#1A1A2E] text-base truncate w-full sm:w-auto">{pmi.name}</h3>
                                 {pmi.tag && (
                                   <span className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
                                     style={{ background: pmi.tagColor || '#C0392B' }}>
@@ -902,7 +991,7 @@ export default function BloodSearch() {
                               <p className="text-xs text-[#4A4A6A] flex items-center gap-1">
                                 <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> {pmi.address}
                               </p>
-                              <div className="flex items-center gap-4 mt-2 text-xs text-[#9B9BB5]">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs text-[#9B9BB5]">
                                 <span className="flex items-center gap-1 font-semibold text-[#1A1A2E]">
                                   <Navigation className="w-3.5 h-3.5 text-[#C0392B]" /> {pmi.distance} ({pmi.travelTime})
                                 </span>
@@ -942,10 +1031,10 @@ export default function BloodSearch() {
                                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                                             <span>⚠️ Stok darah habis di unit ini. Pemesanan dinonaktifkan sementara. Silakan lakukan broadcast darurat untuk memanggil pendonor.</span>
                                           </div>
-                                          <div className="flex gap-2">
+                                          <div className="flex flex-col sm:flex-row gap-2">
                                             <button disabled
-                                              className="flex-1 py-2 rounded-lg bg-[#BDC3C7] text-white text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm">
-                                              <X className="w-3.5 h-3.5" /> Stok Darah Habis (Tidak Dapat Dipesan)
+                                              className="flex-1 py-2 rounded-lg bg-[#BDC3C7] text-white text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm text-center px-2">
+                                              <X className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Stok Darah Habis</span>
                                             </button>
                                             <button onClick={e => { 
                                               e.stopPropagation(); 
@@ -980,14 +1069,14 @@ export default function BloodSearch() {
                     </div>
 
                     {/* Right: Route map visualization */}
-                    <div className="lg:col-span-1">
+                    <div className="lg:col-span-1 order-1 lg:order-2 mb-4 lg:mb-0">
                       <div className="sticky top-6 bg-white rounded-2xl border border-border p-4 shadow-sm space-y-3">
                         <h4 className="font-bold text-xs text-[#1A1A2E] flex items-center gap-1.5 uppercase tracking-wider text-[#4A4A6A] flex items-center">
                           <Map className="w-4 h-4 text-[#8E44AD]" /> Peta Rute Distribusi AI
                         </h4>
                         <div className="text-[11px] text-[#9B9BB5] leading-relaxed">
                           {user?.role === 'donor'
-                            ? 'Menampilkan estimasi rute distribusi ambulans dari unit PMI menuju lokasi Rumah Sakit.'
+                            ? 'Menampilkan estimasi rute dari lokasi Anda saat ini menuju unit PMI terdekat.'
                             : `Menampilkan estimasi rute tercepat dari unit PMI terpilih menuju ${activeHospital.name} (RS Pengaju).`
                           }
                         </div>

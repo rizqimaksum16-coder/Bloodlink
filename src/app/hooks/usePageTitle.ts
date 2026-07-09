@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const BASE_TITLE = 'Suroboyo Bloods';
+const BASE_TITLE = 'Blood Link';
 
 export function usePageTitle(pageTitle?: string) {
   useEffect(() => {

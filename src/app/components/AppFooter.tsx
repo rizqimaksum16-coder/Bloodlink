@@ -62,7 +62,7 @@ export default function AppFooter() {
                 className="text-lg font-bold"
                 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
               >
-                Suroboyo Bloods
+                Blood Link
               </span>
             </div>
             <p className="text-xs text-[#9B9BB5] leading-relaxed mb-4">
@@ -109,7 +109,7 @@ export default function AppFooter() {
 
         <div className="border-t border-white/10 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-[#9B9BB5]">
-            © 2026 Suroboyo Bloods. Dibuat dengan{' '}
+            © 2026 Blood Link. Dibuat dengan{' '}
             <Heart className="w-3 h-3 inline fill-[#C0392B] text-[#C0392B]" /> untuk Surabaya.
           </p>
           <div className="flex items-center gap-4 text-xs text-[#9B9BB5]">

@@ -13,7 +13,7 @@ export const isSupabaseConfigured =
 
 if (!isSupabaseConfigured) {
   console.warn(
-    '⚠️ [Suroboyo Blood] Supabase belum dikonfigurasi dengan API Key nyata. ' +
+    '⚠️ [Blood Link] Supabase belum dikonfigurasi dengan API Key nyata. ' +
     'Sistem saat ini menggunakan Fallback Mode (Mock Data lokal).'
   );
 }

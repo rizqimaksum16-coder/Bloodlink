@@ -13,10 +13,9 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 // ─── Role nav config (dashboard link per role) ────────────────────────────────
 
-const roleNavExtra: Record<UserRole, { to: string; label: string; icon: React.ElementType }> = {
+const roleNavExtra: Partial<Record<UserRole, { to: string; label: string; icon: React.ElementType }>> = {
   pmi: { to: '/dashboard/pmi', label: 'Dashboard PMI', icon: HeartPulse },
   rs: { to: '/dashboard/rs', label: 'Dashboard RS', icon: Building2 },
-  donor: { to: '/dashboard/donor', label: 'Dashboard Saya', icon: Heart },
   driver: { to: '/dashboard/driver', label: 'Dashboard Driver', icon: Truck },
   superadmin: { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
 };
@@ -312,7 +311,7 @@ export default function Navigation() {
                 <Droplets className="w-5 h-5 text-white fill-white" />
               </div>
               <span className="font-bold text-[17px] text-[#1A1A2E] hidden sm:block tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                Suroboyo Bloods
+                Blood Link
               </span>
             </Link>
 
@@ -344,15 +343,15 @@ export default function Navigation() {
               {/* Role-based dashboard link */}
               {isAuthenticated && user && roleNavExtra[user.role] && (
                 <Link
-                  to={roleNavExtra[user.role].to}
-                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive(roleNavExtra[user.role].to)
+                  to={roleNavExtra[user.role]!.to}
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive(roleNavExtra[user.role]!.to)
                       ? 'bg-[#FDEDEC] text-[#C0392B]'
                       : 'text-[#4A4A6A] hover:bg-[#F4F4F8] hover:text-[#1A1A2E]'
                     }`}
                 >
                   <LayoutDashboard className="w-3.5 h-3.5" />
                   Dashboard
-                  {isActive(roleNavExtra[user.role].to) && (
+                  {isActive(roleNavExtra[user.role]!.to) && (
                     <span className="absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-0.5 bg-[#C0392B] rounded-full" />
                   )}
                 </Link>
@@ -678,7 +677,7 @@ export default function Navigation() {
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#C0392B,#7B241C)' }}>
               <Droplets className="w-4 h-4 text-white fill-white" />
             </div>
-            <span className="font-bold text-[15px] text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Suroboyo Bloods</span>
+            <span className="font-bold text-[15px] text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Blood Link</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -737,13 +736,13 @@ export default function Navigation() {
                 <div className="h-4" />
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[#9B9BB5] px-3 pb-2">Dashboard</p>
                 <div className="space-y-0.5">
-                  <Link to={roleNavExtra[user.role].to} onClick={() => setDrawerOpen(false)}>
-                    <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(roleNavExtra[user.role].to) ? 'bg-[#FDEDEC] text-[#C0392B]' : 'text-[#4A4A6A] hover:bg-[#F4F4F8]'}`}>
+                  <Link to={roleNavExtra[user.role]!.to} onClick={() => setDrawerOpen(false)}>
+                    <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(roleNavExtra[user.role]!.to) ? 'bg-[#FDEDEC] text-[#C0392B]' : 'text-[#4A4A6A] hover:bg-[#F4F4F8]'}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive(roleNavExtra[user.role].to) ? 'bg-[#C0392B]/10' : 'bg-[#F4F4F8]'}`}>
-                          <LayoutDashboard className={`w-4 h-4 ${isActive(roleNavExtra[user.role].to) ? 'text-[#C0392B]' : 'text-[#9B9BB5]'}`} />
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive(roleNavExtra[user.role]!.to) ? 'bg-[#C0392B]/10' : 'bg-[#F4F4F8]'}`}>
+                          <LayoutDashboard className={`w-4 h-4 ${isActive(roleNavExtra[user.role]!.to) ? 'text-[#C0392B]' : 'text-[#9B9BB5]'}`} />
                         </div>
-                        {roleNavExtra[user.role].label}
+                        {roleNavExtra[user.role]!.label}
                       </div>
                       <ChevronRight className="w-4 h-4 text-[#C0392B] opacity-60" />
                     </div>

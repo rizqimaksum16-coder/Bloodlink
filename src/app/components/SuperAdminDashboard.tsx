@@ -169,7 +169,7 @@ function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType }: {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SuperAdminDashboard() {
-  usePageTitle('Super Admin — Suroboyo Bloods');
+  usePageTitle('Super Admin — Blood Link');
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [orgs, setOrgs] = useState<OrgAccount[]>(() => {
@@ -555,7 +555,7 @@ export default function SuperAdminDashboard() {
               <h1 className="font-bold text-[#1A1A2E] text-lg leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Super Admin Dashboard
               </h1>
-              <p className="text-xs text-[#9B9BB5]">Suroboyo Bloods — Pengaturan Instansi & Lokasi Peta</p>
+              <p className="text-xs text-[#9B9BB5]">Blood Link — Pengaturan Instansi & Lokasi Peta</p>
             </div>
           </div>
           <div className="relative w-64">

@@ -506,7 +506,7 @@ export default function AlurDonor() {
                   <div className="flex items-center justify-between pb-3 border-b border-white/15">
                     <div className="flex items-center gap-2">
                       <Droplets className="w-4 h-4 text-red-500 fill-red-500" />
-                      <span className="font-extrabold text-xs text-white">Suroboyo Blood Ticket</span>
+                      <span className="font-extrabold text-xs text-white">Blood Link Ticket</span>
                     </div>
                     <span className="text-[9px] font-bold text-green-400 bg-green-950/60 border border-green-500/30 px-2.5 py-0.5 rounded-full">
                       ● SIAP CHECK-IN

@@ -182,7 +182,7 @@ export default function HospitalDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedBlood, setSelectedBlood] = useState('O+');
-  const [selectedQty, setSelectedQty] = useState<number | ''>(3);
+  const [selectedQty, setSelectedQty] = useState<number | string>(5);
   const [selectedUrgency, setSelectedUrgency] = useState<Urgency>('normal');
   const [selectedPMI, setSelectedPMI] = useState('');
   const [orderStep, setOrderStep] = useState<'form' | 'ai' | 'confirm' | 'done'>('form');
@@ -493,7 +493,7 @@ export default function HospitalDashboard() {
   const handleSubmitOrder = () => {
     if (orderStep === 'form') {
       // Fetch PMI list dinamis dengan stok nyata sebelum masuk ke AI step
-      fetchDynamicPMIList(selectedBlood, typeof selectedQty === 'number' ? selectedQty : 1);
+      fetchDynamicPMIList(selectedBlood, Number(selectedQty) || 1);
       setOrderStep('ai');
       return;
     }
@@ -502,7 +502,7 @@ export default function HospitalDashboard() {
       const newOrder: BloodOrder = {
         id: `ORD00${orders.length + 1}`,
         bloodType: selectedBlood,
-        qty: typeof selectedQty === 'number' ? selectedQty : 0,
+        qty: Number(selectedQty) || 0,
         urgency: selectedUrgency,
         status: 'menunggu',
         pmi: selectedPMI || pmiList[0]?.name || 'PMI A',
@@ -1326,30 +1326,27 @@ export default function HospitalDashboard() {
                   <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Jumlah Kantong Dibutuhkan</label>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => {
-                      const current = typeof selectedQty === 'number' ? selectedQty : 1;
+                      const current = parseInt(selectedQty.toString(), 10) || 1;
                       setSelectedQty(Math.max(1, current - 1));
                     }}
                       className="w-10 h-10 rounded-xl border border-border flex items-center justify-center font-bold hover:bg-[#F4F4F8] transition-colors text-lg text-[#4A4A6A] bg-[#F9F9FC]">-</button>
                     <div className="relative flex-1">
                       <input
-                        type="number"
-                        min={1}
-                        max={100}
+                        type="text"
+                        inputMode="numeric"
                         value={selectedQty}
                         onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '') {
-                            setSelectedQty('');
-                          } else {
-                            const num = parseInt(val, 10);
-                            setSelectedQty(isNaN(num) ? '' : num);
-                          }
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          setSelectedQty(val);
                         }}
                         onBlur={() => {
-                          if (selectedQty === '' || typeof selectedQty !== 'number' || selectedQty < 1) {
+                          const num = parseInt(selectedQty.toString(), 10);
+                          if (isNaN(num) || num < 1) {
                             setSelectedQty(1);
-                          } else if (selectedQty > 100) {
+                          } else if (num > 100) {
                             setSelectedQty(100);
+                          } else {
+                            setSelectedQty(num);
                           }
                         }}
                         className="w-full text-center bg-[#F8F9FA] border border-border rounded-xl px-3 py-2 text-sm font-black text-[#C0392B] outline-none focus:border-[#C0392B] focus:bg-white transition-all"
@@ -1359,8 +1356,8 @@ export default function HospitalDashboard() {
                       </span>
                     </div>
                     <button type="button" onClick={() => {
-                      const current = typeof selectedQty === 'number' ? selectedQty : 1;
-                      setSelectedQty(current + 1);
+                      const current = parseInt(selectedQty.toString(), 10) || 1;
+                      setSelectedQty(Math.min(100, current + 1));
                     }}
                       className="w-10 h-10 rounded-xl border border-border flex items-center justify-center font-bold hover:bg-[#F4F4F8] transition-colors text-lg text-[#4A4A6A] bg-[#F9F9FC]">+</button>
                   </div>

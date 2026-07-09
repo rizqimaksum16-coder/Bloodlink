@@ -38,7 +38,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     const dashboardLink: Record<UserRole, string> = {
       pmi: '/dashboard/pmi',
       rs: '/dashboard/rs',
-      donor: '/dashboard/donor',
+      donor: '/home',
       driver: '/dashboard/driver',
       superadmin: '/dashboard/superadmin',
     };
