@@ -7,9 +7,9 @@ interface ChatMessage {
   text: string;
 }
 
-interface GeminiMessage {
-  role: 'user' | 'model';
-  parts: { text: string }[];
+interface GrokMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 export default function DonorAIChat() {
@@ -17,11 +17,11 @@ export default function DonorAIChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { sender: 'ai', text: 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar persyaratan, alur, atau manfaat donor darah hari ini?' }
   ]);
-  const [geminiHistory, setGeminiHistory] = useState<GeminiMessage[]>([]);
+  const [grokHistory, setGrokHistory] = useState<GrokMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const hasApiKey = !!(import.meta as any).env?.VITE_GEMINI_API_KEY;
+  const hasApiKey = !!(import.meta as any).env?.VITE_GROK_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auto scroll to bottom
@@ -70,12 +70,12 @@ export default function DonorAIChat() {
     setMessages(prev => [...prev, { sender: 'user', text: userText }]);
     setLoading(true);
 
-    // Prepare Gemini History
-    const updatedHistory: GeminiMessage[] = [
-      ...geminiHistory,
+    // Prepare Grok History
+    const updatedHistory: GrokMessage[] = [
+      ...grokHistory,
       {
         role: 'user',
-        parts: [{ text: userText }]
+        content: userText
       }
     ];
 
@@ -84,11 +84,11 @@ export default function DonorAIChat() {
       setTimeout(() => {
         const reply = getMockResponse(userText);
         setMessages(prev => [...prev, { sender: 'ai', text: reply }]);
-        setGeminiHistory([
+        setGrokHistory([
           ...updatedHistory,
           {
-            role: 'model',
-            parts: [{ text: reply }]
+            role: 'assistant',
+            content: reply
           }
         ]);
         setLoading(false);
@@ -97,8 +97,8 @@ export default function DonorAIChat() {
     }
 
     try {
-      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const apiKey = (import.meta as any).env?.VITE_GROK_API_KEY;
+      const endpoint = 'https://api.grok.x.ai/v1/chat/completions';
 
       const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Blood Link di Kota Surabaya.
 Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar donor darah, seperti:
@@ -113,15 +113,19 @@ ATURAN KETAT:
 - Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan dengan kalimat: "Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor."`;
 
       const payload = {
-        contents: updatedHistory,
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        }
+        model: 'grok-1',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...updatedHistory
+        ]
       };
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -130,25 +134,25 @@ ATURAN KETAT:
       }
 
       const data = await response.json();
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
+      const reply = data?.choices?.[0]?.message?.content || '';
+
       if (!reply) {
         throw new Error('Empty response');
       }
 
       setMessages(prev => [...prev, { sender: 'ai', text: reply }]);
-      setGeminiHistory([
+      setGrokHistory([
         ...updatedHistory,
         {
-          role: 'model',
-          parts: [{ text: reply }]
+          role: 'assistant',
+          content: reply
         }
       ]);
     } catch (error) {
-      console.error('Gemini API call failed:', error);
+      console.error('Grok API call failed:', error);
       setMessages(prev => [
         ...prev,
-        { sender: 'ai', text: 'Maaf, asisten AI sedang sibuk atau ada kendala koneksi ke Gemini. Silakan coba kembali beberapa saat lagi.' }
+        { sender: 'ai', text: 'Maaf, asisten AI sedang sibuk atau ada kendala koneksi ke Grok. Silakan coba kembali beberapa saat lagi.' }
       ]);
     } finally {
       setLoading(false);
@@ -201,7 +205,7 @@ ATURAN KETAT:
             <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-[10px] text-amber-800">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
               <span>
-                <strong>Mode Simulasi:</strong> Masukkan <code>VITE_GEMINI_API_KEY</code> di file <code>.env</code> untuk mengaktifkan Gemini asli.
+                <strong>Mode Simulasi:</strong> Masukkan <code>VITE_GROK_API_KEY</code> di file <code>.env</code> untuk mengaktifkan Grok asli.
               </span>
             </div>
           )}
