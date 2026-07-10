@@ -147,18 +147,15 @@ export default function AlurDonor() {
               .eq('donor_id', donorProfile.id);
             
             // Also update event registration count
-            const { data: eventData } = await supabase
+            const { count } = await supabase
+              .from('event_bookings')
+              .select('*', { count: 'exact', head: true })
+              .eq('event_id', ticket.eventId);
+
+            await supabase
               .from('events')
-              .select('registered')
-              .eq('id', ticket.eventId)
-              .single();
-            
-            if (eventData) {
-              await supabase
-                .from('events')
-                .update({ registered: Math.max(0, eventData.registered - 1) })
-                .eq('id', ticket.eventId);
-            }
+              .update({ registered: count || 0 })
+              .eq('id', ticket.eventId);
           }
         }
       } catch (err) {

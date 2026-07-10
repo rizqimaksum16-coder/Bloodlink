@@ -332,13 +332,16 @@ export default function Events() {
             if (deleteError) {
                console.warn('Gagal delete event_bookings dari Supabase:', deleteError);
             } else {
-              const currentEvt = eventList.find(e => e.id === eventId);
-              if (currentEvt) {
-                await supabase
-                  .from('events')
-                  .update({ registered: Math.max(0, currentEvt.registered - 1) })
-                  .eq('id', eventId);
-              }
+              // Hitung jumlah pendaftar real-time setelah penghapusan
+              const { count } = await supabase
+                .from('event_bookings')
+                .select('*', { count: 'exact', head: true })
+                .eq('event_id', eventId);
+
+              await supabase
+                .from('events')
+                .update({ registered: count || 0 })
+                .eq('id', eventId);
             }
           }
         }
@@ -458,9 +461,15 @@ export default function Events() {
             if (insertError) {
               console.warn('Gagal insert event_bookings ke Supabase:', insertError);
             } else {
+              // Hitung jumlah pendaftar real-time dari database
+              const { count } = await supabase
+                .from('event_bookings')
+                .select('*', { count: 'exact', head: true })
+                .eq('event_id', eventId);
+
               await supabase
                 .from('events')
-                .update({ registered: selectedEventForReg.registered + 1 })
+                .update({ registered: count || 1 })
                 .eq('id', eventId);
             }
           }
