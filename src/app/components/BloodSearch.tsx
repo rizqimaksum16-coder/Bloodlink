@@ -102,6 +102,17 @@ interface PMIResult {
   tagColor?: string;
   lat?: number;
   lng?: number;
+  analysis?: string;
+}
+
+function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): string {
+  const stockText = pmi.stock >= requiredQty
+    ? `stok ${pmi.stock} kantong mencukupi kebutuhan`
+    : pmi.stock > 0
+    ? `stok ${pmi.stock} kantong terbatas`
+    : 'stok kosong';
+
+  return `AI Matching menghitung skor ${pmi.score} berdasarkan ${stockText}, jarak ${pmi.distance}, dan respons rate ${pmi.responseRate}%.`;
 }
 
 const bloodTypesList: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -414,7 +425,7 @@ export default function BloodSearch() {
             // Batasi skor antara 10 dan 95 agar tidak 100 dan tidak terlalu rendah
             const score = Math.max(10, Math.min(95, Math.round(baseScore)));
 
-            return {
+            const result: PMIResult = {
               id: p.id,
               name: p.name,
               address: p.address,
@@ -435,8 +446,12 @@ export default function BloodSearch() {
                   : 'Stok kosong',
                 `Respons rate ${p.response_rate}%`,
                 `Jarak ${distanceKm.toFixed(1)} km dari lokasi Anda`
-              ]
+              ],
+              analysis: ''
             };
+
+            result.analysis = createAIMatchingExplanation(result, requiredQty);
+            return result;
           });
 
           const sorted = mapped.sort((a, b) => b.score - a.score);
@@ -449,7 +464,10 @@ export default function BloodSearch() {
       }
     }
 
-    return pmiDatabase[bloodType] || [];
+    return (pmiDatabase[bloodType] || []).map((pmi) => ({
+      ...pmi,
+      analysis: createAIMatchingExplanation(pmi, requiredQty),
+    }));
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
@@ -630,7 +648,7 @@ export default function BloodSearch() {
           
           const newScore = Math.max(10, Math.min(95, Math.round(baseScore)));
 
-          return {
+          const result: PMIResult = {
             id: item.pmi_id,
             name: item.pmi_name,
             address: item.pmi_address,
@@ -643,8 +661,12 @@ export default function BloodSearch() {
             responseRate: item.response_rate,
             avgDelivery: item.avg_delivery,
             score: newScore, // Gunakan skor baru!
-            reasons: item.reasons
+            reasons: item.reasons,
+            analysis: ''
           };
+
+          result.analysis = createAIMatchingExplanation(result, reqQty);
+          return result;
         });
         
         // Urutkan ulang berdasarkan skor baru yang sudah diperbaiki
@@ -943,6 +965,12 @@ export default function BloodSearch() {
                                       <CheckCircle className="w-2.5 h-2.5 text-[#27AE60]" /> {r}
                                     </span>
                                   ))}
+                                </div>
+                              )}
+                              {pmi.analysis && (
+                                <div className="mt-3 rounded-xl bg-[#F9F8FF] border border-[#E8DEF8] p-3 text-[11px] text-[#4A4A6A]">
+                                  <span className="font-semibold text-[#1A1A2E]">AI Insight:</span>
+                                  <p className="mt-1 leading-relaxed">{pmi.analysis}</p>
                                 </div>
                               )}
 
