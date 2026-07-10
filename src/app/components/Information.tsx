@@ -207,7 +207,7 @@ export default function Information() {
                 <h3 className="font-bold text-[#1A1A2E] text-xs mb-2 uppercase tracking-wider">Lokasi Kantor Pusat</h3>
                 <div className="flex items-start gap-2 text-xs text-[#4A4A6A]">
                   <MapPin className="w-4 h-4 text-[#C0392B] flex-shrink-0 mt-0.5" />
-                  <span>Jl. Embong Ploso No. 7-15, Embong Kaliasin, Kec. Genteng, Kota Surabaya, Jawa Timur 60271</span>
+                  <span>Jl. Embong Ploso No. 7-15, Embong Kaliasin, Kec. Genteng, Kota Surabaya, Surabaya dan sekitarnya 60271</span>
                 </div>
               </div>
             </div>

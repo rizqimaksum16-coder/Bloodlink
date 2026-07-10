@@ -50,7 +50,7 @@ const responseTimeData = [
 const faqData = [
   {
     q: 'Apa itu Blood Link?',
-    a: 'Blood Link adalah Sistem Informasi Donor Darah Terpadu yang menghubungkan Palang Merah Indonesia (PMI), Rumah Sakit mitra, pendonor sukarela, dan kurir logistik di Jawa Timur dalam satu platform digital.'
+    a: 'Blood Link adalah Sistem Informasi Donor Darah Terpadu yang menghubungkan Palang Merah Indonesia (PMI), Rumah Sakit mitra, pendonor sukarela, dan kurir logistik di Surabaya dan sekitarnya dalam satu platform digital.'
   },
   {
     q: 'Siapa saja yang bisa menggunakan platform ini?',
@@ -113,7 +113,7 @@ export default function LandingPage() {
             Blood Link
           </h1>
           <p className="text-lg md:text-xl text-red-100 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Sistem Informasi Donor Darah Terpadu Jawa Timur. Menghubungkan Palang Merah Indonesia, Rumah Sakit Mitra, Pendonor, dan Kurir Logistik dalam satu platform pintar untuk menyelamatkan nyawa lebih cepat.
+            Sistem Informasi Donor Darah Terpadu Surabaya dan sekitarnya. Menghubungkan Palang Merah Indonesia, Rumah Sakit Mitra, Pendonor, dan Kurir Logistik dalam satu platform pintar untuk menyelamatkan nyawa lebih cepat.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             {isAuthenticated && user ? (
@@ -185,10 +185,10 @@ export default function LandingPage() {
                 <Globe className="w-4 h-4" /> Tentang Platform
               </div>
               <h2 className="text-3xl font-extrabold text-[#1A1A2E] mb-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Satu Platform, Seluruh Ekosistem Donor Darah Jawa Timur
+                Satu Platform, Seluruh Ekosistem Donor Darah Surabaya dan sekitarnya
               </h2>
               <p className="text-[#4A4A6A] leading-relaxed mb-6">
-                Blood Link lahir dari kebutuhan untuk mengatasi keterlambatan distribusi kantong darah di Jawa Timur.
+                Blood Link lahir dari kebutuhan untuk mengatasi keterlambatan distribusi kantong darah di Surabaya dan sekitarnya.
                 Dengan menghubungkan seluruh stakeholder — dari PMI, rumah sakit, pendonor sukarela, hingga kurir — dalam satu
                 sistem digital terintegrasi, kami mempercepat respons darurat dan mengurangi risiko kekurangan stok secara drastis.
               </p>
@@ -248,7 +248,7 @@ export default function LandingPage() {
               Fitur Unggulan Platform
             </h2>
             <p className="text-[#4A4A6A] max-w-2xl mx-auto">
-              Berbagai fitur cerdas yang didesain khusus untuk mempercepat respons penanganan dan mempermudah siklus rantai pasok kantong darah di Jawa Timur.
+              Berbagai fitur cerdas yang didesain khusus untuk mempercepat respons penanganan dan mempermudah siklus rantai pasok kantong darah di Surabaya dan sekitarnya.
             </p>
           </div>
 
@@ -279,10 +279,10 @@ export default function LandingPage() {
                 <BarChart2 className="w-4 h-4" /> Live Data Simulasi
               </div>
               <h2 className="text-3xl font-extrabold text-[#1A1A2E] mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Ketersediaan Darah di Jawa Timur
+                Ketersediaan Darah di Surabaya dan sekitarnya
               </h2>
               <p className="text-[#4A4A6A] leading-relaxed mb-6">
-                Sistem kami terus melacak dan memonitor stok kantong darah secara real-time dari seluruh unit Palang Merah Indonesia di Jawa Timur, memastikan kebutuhan darurat dapat terpenuhi dalam hitungan menit.
+                Sistem kami terus melacak dan memonitor stok kantong darah secara real-time dari seluruh unit Palang Merah Indonesia di Surabaya dan sekitarnya, memastikan kebutuhan darurat dapat terpenuhi dalam hitungan menit.
               </p>
               <ul className="space-y-3">
                 <li className="flex items-start gap-2">
@@ -328,7 +328,7 @@ export default function LandingPage() {
               Tren Donasi &amp; Permintaan Darah
             </h2>
             <p className="text-[#4A4A6A] max-w-2xl mx-auto">
-              Data historis menunjukkan pertumbuhan konsisten jumlah pendonor dan permintaan darah di Jawa Timur sepanjang tahun 2026.
+              Data historis menunjukkan pertumbuhan konsisten jumlah pendonor dan permintaan darah di Surabaya dan sekitarnya sepanjang tahun 2026.
             </p>
           </div>
 
@@ -581,7 +581,7 @@ export default function LandingPage() {
             Siap Bergabung Menyelamatkan Nyawa?
           </h2>
           <p className="text-gray-300 max-w-2xl mx-auto mb-8 leading-relaxed">
-            Setiap tetes darah berarti. Bergabunglah dengan ribuan relawan, tenaga medis, dan logistik yang telah menggunakan Blood Link untuk mempercepat penanganan darurat di Jawa Timur.
+            Setiap tetes darah berarti. Bergabunglah dengan ribuan relawan, tenaga medis, dan logistik yang telah menggunakan Blood Link untuk mempercepat penanganan darurat di Surabaya dan sekitarnya.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link

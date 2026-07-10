@@ -755,7 +755,7 @@ export default function Navigation() {
           )}
           <div className="bg-[#F7F7FB] rounded-xl px-4 py-2.5 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#27AE60] animate-pulse flex-shrink-0" />
-            <p className="text-xs text-[#4A4A6A]"><span className="font-semibold">Sistem Online</span> · PMI × RS Jawa Timur</p>
+            <p className="text-xs text-[#4A4A6A]"><span className="font-semibold">Sistem Online</span> · PMI × RS Surabaya dan sekitarnya</p>
           </div>
         </div>
       </div>
