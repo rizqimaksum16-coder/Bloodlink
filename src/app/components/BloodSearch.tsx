@@ -105,7 +105,7 @@ interface PMIResult {
   analysis?: string;
 }
 
-type XGBoostFeature = 'stockRatio' | 'stockAvailable' | 'distanceKm' | 'responseRate' | 'urgencyBonus';
+type XGBoostFeature = 'stockRatio' | 'stockAvailable' | 'distanceKm' | 'responseRate';
 
 interface XGBoostTreeNode {
   feature?: XGBoostFeature;
@@ -149,17 +149,6 @@ const xgboostTrees: XGBoostTreeNode[] = [
       no: { value: -0.2 }
     }
   },
-  {
-    feature: 'urgencyBonus',
-    threshold: 0.15,
-    yes: { value: 0.2 },
-    no: {
-      feature: 'urgencyBonus',
-      threshold: 0.05,
-      yes: { value: 0.1 },
-      no: { value: 0 }
-    }
-  }
 ];
 
 function traverseXGBoostNode(node: XGBoostTreeNode, features: Record<XGBoostFeature, number>): number {
@@ -528,8 +517,7 @@ export default function BloodSearch() {
               stockRatio: stockQty / Math.max(requiredQty, 1),
               stockAvailable: stockQty,
               distanceKm,
-              responseRate: p.response_rate,
-              urgencyBonus: urgency === 'darurat' ? 0.15 : urgency === 'mendesak' ? 0.07 : 0
+              responseRate: p.response_rate
             };
 
             const score = scoreWithXGBoost(features);
@@ -579,8 +567,7 @@ export default function BloodSearch() {
         stockRatio: pmi.stock / Math.max(requiredQty, 1),
         stockAvailable: pmi.stock,
         distanceKm,
-        responseRate: pmi.responseRate,
-        urgencyBonus: urgency === 'darurat' ? 0.15 : urgency === 'mendesak' ? 0.07 : 0
+        responseRate: pmi.responseRate
       };
       return {
         ...pmi,
@@ -753,29 +740,37 @@ export default function BloodSearch() {
 
       if (data && data.length > 0) {
         let mappedResults: PMIResult[] = data.map((item: any) => {
+          const distanceKm = Number(item.distance_km ?? 0);
+          const stockCount = Number(item.stock_count ?? 0);
+          const responseRate = Number(item.response_rate ?? 0);
+
           const features = {
-            stockRatio: item.stock_count / Math.max(reqQty, 1),
-            stockAvailable: item.stock_count,
-            distanceKm: item.distance_km,
-            responseRate: item.response_rate,
-            urgencyBonus: urgency === 'darurat' ? 0.15 : urgency === 'mendesak' ? 0.07 : 0
+            stockRatio: stockCount / Math.max(reqQty, 1),
+            stockAvailable: stockCount,
+            distanceKm,
+            responseRate
           };
 
-          const newScore = scoreWithXGBoost(features);
+          const score = scoreWithXGBoost(features);
+
           const result: PMIResult = {
             id: item.pmi_id,
             name: item.pmi_name,
             address: item.pmi_address,
             lat: item.pmi_latitude,
             lng: item.pmi_longitude,
-            distance: `${item.distance_km.toFixed(1)} km`,
+            distance: `${distanceKm.toFixed(1)} km`,
             travelTime: item.travel_time_est,
-            stock: item.stock_count,
-            capacity: item.stock_count + 30,
-            responseRate: item.response_rate,
+            stock: stockCount,
+            capacity: stockCount + 30,
+            responseRate,
             avgDelivery: item.avg_delivery,
-            score: newScore, // Gunakan skor baru!
-            reasons: item.reasons,
+            score,
+            reasons: Array.isArray(item.reasons) ? item.reasons : [
+              stockCount >= reqQty ? `Stok mencukupi (${stockCount})` : stockCount > 0 ? `Stok terbatas (${stockCount})` : 'Stok kosong',
+              `Respons ${responseRate}%`,
+              `Jarak ${distanceKm.toFixed(1)} km`
+            ],
             analysis: ''
           };
 
