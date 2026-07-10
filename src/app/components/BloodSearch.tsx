@@ -115,6 +115,52 @@ function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): strin
   return `AI Matching menghitung skor ${pmi.score} berdasarkan ${stockText}, jarak ${pmi.distance}, dan respons rate ${pmi.responseRate}%.`;
 }
 
+async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requiredQty: number): Promise<string> {
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (!apiKey) return '';
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const prompt = `Kamu adalah asisten AI untuk aplikasi Blood Link, tugasmu adalah memberi penjelasan singkat dalam bahasa Indonesia mengapa PMI ${pmi.name} direkomendasikan untuk kebutuhan ${bloodType} sebanyak ${requiredQty} kantong darah. Jelaskan dengan singkat berdasarkan stok, jarak, respons rate, dan estimasi pengiriman.`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: 'Kamu adalah asisten yang membantu menjelaskan rekomendasi AI matching stok darah.' }] },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return typeof text === 'string' && text.trim().length > 0 ? text.trim() : '';
+  } catch (error) {
+    console.warn('Gemini explanation gagal:', error);
+    return '';
+  }
+}
+
+async function attachGeminiAnalysis(results: PMIResult[], bloodType: BloodType, requiredQty: number): Promise<PMIResult[]> {
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (!apiKey) return results;
+
+  return Promise.all(results.map(async (pmi, index) => {
+    if (index > 1) {
+      return pmi;
+    }
+    const explanation = await fetchGeminiExplanation(pmi, bloodType, requiredQty);
+    return {
+      ...pmi,
+      analysis: explanation || pmi.analysis || createAIMatchingExplanation(pmi, requiredQty)
+    };
+  }));
+}
+
 const bloodTypesList: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const btColor: Record<string, string> = {
@@ -676,7 +722,8 @@ export default function BloodSearch() {
         if (mappedResults.length > 0) { mappedResults[0].tag = 'Rekomendasi AI'; mappedResults[0].tagColor = '#C0392B'; }
         if (mappedResults.length > 1) { mappedResults[1].tag = 'Cadangan'; mappedResults[1].tagColor = '#E67E22'; }
 
-        setPmiResults(mappedResults);
+        const annotatedResults = await attachGeminiAnalysis(mappedResults, searchBt, reqQty);
+        setPmiResults(annotatedResults);
       } else {
         toast.info('Hasil RPC kosong, memuat data PMI dari database...');
         const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
