@@ -36,7 +36,7 @@ Proyek ini dikembangkan sebagai solusi digital untuk membantu pengguna memperole
 
 Sistem rekomendasi pada proyek ini belum menggunakan model AI terlatih penuh untuk pengambilan keputusan. Saat ini, proses rekomendasi dilakukan melalui logika skor berbasis aturan yang mempertimbangkan faktor utama seperti stok darah, jarak lokasi, dan tingkat respons.
 
-Secara konsep, pendekatan ini terinspirasi oleh cara kerja model tree-based seperti XGBoost dan LightGBM, namun implementasinya tetap disederhanakan dan dijalankan secara lokal tanpa pelatihan model dari data historis. Untuk bagian AI, proyek ini memanfaatkan Grok sebagai pendukung penjelasan, sehingga hasil rekomendasi dapat disajikan dengan bahasa yang lebih mudah dipahami pengguna.
+Secara konsep, pendekatan ini terinspirasi oleh cara kerja model tree-based seperti XGBoost dan LightGBM, namun implementasinya tetap disederhanakan dan dijalankan secara lokal tanpa pelatihan model dari data historis. Untuk bagian AI, proyek ini memanfaatkan Gemini (atau endpoint chat model yang setara) sebagai pendukung penjelasan, sehingga hasil rekomendasi dapat disajikan dengan bahasa yang lebih mudah dipahami pengguna.
 
 ## Cara Menjalankan
 
@@ -48,7 +48,7 @@ Secara konsep, pendekatan ini terinspirasi oleh cara kerja model tree-based sepe
    ```bash
    pnpm dev
    ```
-3. Siapkan variabel environment untuk Supabase dan, jika diperlukan, API Grok untuk dukungan penjelasan AI.
+3. Siapkan variabel environment untuk Supabase dan, jika diperlukan, API Gemini (`VITE_GEMINI_API_KEY`, `VITE_GEMINI_API_URL`) untuk dukungan penjelasan AI.
 
 ## Tujuan Proyek
 

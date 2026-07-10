@@ -187,11 +187,12 @@ function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): strin
   return `Skor ${pmi.score} berasal dari 3 hal yang paling penting: stok memberi ${breakdown.stock}% karena ${stockText}, jarak memberi ${breakdown.distance}% karena ${pmi.distance}, dan respons memberi ${breakdown.response}% karena respons ${pmi.responseRate}%.`;
 }
 
-async function fetchGrokExplanation(pmi: PMIResult, bloodType: BloodType, requiredQty: number): Promise<string> {
-  const apiKey = (import.meta as any).env?.VITE_GROK_API_KEY;
+async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requiredQty: number): Promise<string> {
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!apiKey) return '';
 
-  const endpoint = 'https://api.grok.x.ai/v1/chat/completions';
+  const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://api.gemini.google.com/v1/chat/completions';
+  const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-1.0';
   const prompt = `Jelaskan secara singkat dan mudah dipahami dalam 1 kalimat mengapa PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType}. Sertakan pembagian sederhana skor: stok, jarak, dan respons, misalnya 'stok memberi 40%, jarak 35%, respons 25%'.`;
 
   try {
@@ -202,7 +203,7 @@ async function fetchGrokExplanation(pmi: PMIResult, bloodType: BloodType, requir
         Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'grok-1',
+        model,
         messages: [
           { role: 'system', content: 'Kamu adalah asisten yang membantu menjelaskan rekomendasi AI matching stok darah.' },
           { role: 'user', content: prompt }
@@ -211,27 +212,27 @@ async function fetchGrokExplanation(pmi: PMIResult, bloodType: BloodType, requir
     });
 
     if (!response.ok) {
-      throw new Error(`Grok API error ${response.status}`);
+      throw new Error(`Gemini API error ${response.status}`);
     }
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content;
     return typeof text === 'string' && text.trim().length > 0 ? text.trim() : '';
   } catch (error) {
-    console.warn('Grok explanation gagal:', error);
+    console.warn('Gemini explanation gagal:', error);
     return '';
   }
 }
 
-async function attachGrokAnalysis(results: PMIResult[], bloodType: BloodType, requiredQty: number): Promise<PMIResult[]> {
-  const apiKey = (import.meta as any).env?.VITE_GROK_API_KEY;
+async function attachGeminiAnalysis(results: PMIResult[], bloodType: BloodType, requiredQty: number): Promise<PMIResult[]> {
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!apiKey) return results;
 
   return Promise.all(results.map(async (pmi, index) => {
     if (index > 1) {
       return pmi;
     }
-    const explanation = await fetchGrokExplanation(pmi, bloodType, requiredQty);
+    const explanation = await fetchGeminiExplanation(pmi, bloodType, requiredQty);
     return {
       ...pmi,
       analysis: explanation || pmi.analysis || createAIMatchingExplanation(pmi, requiredQty)
@@ -435,8 +436,8 @@ export default function BloodSearch() {
 
   const { user } = useAuth();
 
-  const triggerBackgroundGrokAnalysis = (results: PMIResult[], bloodType: BloodType, requiredQty: number) => {
-    const apiKey = (import.meta as any).env?.VITE_GROK_API_KEY;
+  const triggerBackgroundGeminiAnalysis = (results: PMIResult[], bloodType: BloodType, requiredQty: number) => {
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
     if (!apiKey || results.length === 0) return;
 
     results.forEach(async (pmi, index) => {
@@ -448,13 +449,13 @@ export default function BloodSearch() {
       });
 
       try {
-        const explanation = await fetchGrokExplanation(pmi, bloodType, requiredQty);
+        const explanation = await fetchGeminiExplanation(pmi, bloodType, requiredQty);
         setPmiResults(prev => {
           if (!prev) return prev;
           return prev.map(item => item.id === pmi.id ? { ...item, analysis: explanation || item.analysis } : item);
         });
       } catch (err) {
-        console.warn('Gagal memuat eksplanasi Grok:', err);
+        console.warn('Gagal memuat eksplanasi Gemini:', err);
       }
     });
   };
@@ -829,13 +830,13 @@ export default function BloodSearch() {
 
         setPmiResults(mappedResults);
         setIsMatching(false);
-        triggerBackgroundGrokAnalysis(mappedResults, searchBt, reqQty);
+        triggerBackgroundGeminiAnalysis(mappedResults, searchBt, reqQty);
       } else {
         toast.info('Hasil RPC kosong, memuat data PMI dari database...');
         const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
         setPmiResults(fallback);
         setIsMatching(false);
-        triggerBackgroundGrokAnalysis(fallback, searchBt, reqQty);
+        triggerBackgroundGeminiAnalysis(fallback, searchBt, reqQty);
       }
     } catch (err: any) {
       console.warn('RPC match_closest_pmi gagal, menggunakan fallback dengan stok dari DB:', err);
@@ -843,7 +844,7 @@ export default function BloodSearch() {
       const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
       setPmiResults(fallback);
       setIsMatching(false);
-      triggerBackgroundGrokAnalysis(fallback, searchBt, reqQty);
+      triggerBackgroundGeminiAnalysis(fallback, searchBt, reqQty);
     }
   };
 
