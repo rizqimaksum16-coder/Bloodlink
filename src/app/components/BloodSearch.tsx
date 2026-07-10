@@ -105,6 +105,79 @@ interface PMIResult {
   analysis?: string;
 }
 
+type XGBoostFeature = 'stockRatio' | 'stockAvailable' | 'distanceKm' | 'responseRate' | 'urgencyBonus';
+
+interface XGBoostTreeNode {
+  feature?: XGBoostFeature;
+  threshold?: number;
+  yes?: XGBoostTreeNode;
+  no?: XGBoostTreeNode;
+  value?: number;
+}
+
+const xgboostTrees: XGBoostTreeNode[] = [
+  {
+    feature: 'stockRatio',
+    threshold: 1,
+    yes: { value: 0.9 },
+    no: {
+      feature: 'stockAvailable',
+      threshold: 0,
+      yes: { value: 0.2 },
+      no: { value: -0.8 }
+    }
+  },
+  {
+    feature: 'distanceKm',
+    threshold: 2,
+    yes: { value: 0.7 },
+    no: {
+      feature: 'distanceKm',
+      threshold: 5,
+      yes: { value: 0.2 },
+      no: { value: -0.2 }
+    }
+  },
+  {
+    feature: 'responseRate',
+    threshold: 95,
+    yes: { value: 0.5 },
+    no: {
+      feature: 'responseRate',
+      threshold: 85,
+      yes: { value: 0.2 },
+      no: { value: -0.2 }
+    }
+  },
+  {
+    feature: 'urgencyBonus',
+    threshold: 0.15,
+    yes: { value: 0.2 },
+    no: {
+      feature: 'urgencyBonus',
+      threshold: 0.05,
+      yes: { value: 0.1 },
+      no: { value: 0 }
+    }
+  }
+];
+
+function traverseXGBoostNode(node: XGBoostTreeNode, features: Record<XGBoostFeature, number>): number {
+  if (node.value !== undefined) return node.value;
+  if (!node.feature || node.threshold === undefined || !node.yes || !node.no) {
+    return 0;
+  }
+  return features[node.feature] <= node.threshold
+    ? traverseXGBoostNode(node.yes, features)
+    : traverseXGBoostNode(node.no, features);
+}
+
+function scoreWithXGBoost(features: Record<XGBoostFeature, number>): number {
+  const raw = xgboostTrees.reduce((sum, tree) => sum + traverseXGBoostNode(tree, features), 0);
+  const score = 50 + raw * 25; // Skala 50..~95
+  return Math.max(10, Math.min(95, Math.round(score)));
+}
+
 function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): string {
   const stockText = pmi.stock >= requiredQty
     ? `stok ${pmi.stock} kantong mencukupi kebutuhan`
@@ -451,25 +524,15 @@ export default function BloodSearch() {
             const stockEntry = (p.blood_stock || []).find((bs: any) => bs.blood_type === bloodType);
             const stockQty = stockEntry ? (stockEntry.stock_qty ?? 0) : 0;
 
-            // Skor dengan bobot stok yang lebih besar (paling penting!)
-            let baseScore = 0;
-            // Jika stok < jumlah yang dibutuhkan (bahkan jika ada 5 kantong tapi butuh 7), beri penalti berat!
-            if (stockQty === 0) {
-              baseScore -= 30; // Stok kosong sama sekali
-            } else if (stockQty < requiredQty) {
-              baseScore -= 15; // Stok ada tapi tidak mencukupi (misal butuh 7, cuma ada 5)
-            } else {
-              baseScore += 50; // Stok mencukupi
-            }
-            
-            // Tambahkan skor jarak (semakin dekat semakin bagus)
-            baseScore += (60 - distanceKm * 3);
-            
-            // Tambahkan skor response rate
-            baseScore += (p.response_rate * 0.2);
-            
-            // Batasi skor antara 10 dan 95 agar tidak 100 dan tidak terlalu rendah
-            const score = Math.max(10, Math.min(95, Math.round(baseScore)));
+            const features = {
+              stockRatio: stockQty / Math.max(requiredQty, 1),
+              stockAvailable: stockQty,
+              distanceKm,
+              responseRate: p.response_rate,
+              urgencyBonus: urgency === 'darurat' ? 0.15 : urgency === 'mendesak' ? 0.07 : 0
+            };
+
+            const score = scoreWithXGBoost(features);
 
             const result: PMIResult = {
               id: p.id,
@@ -510,10 +573,21 @@ export default function BloodSearch() {
       }
     }
 
-    return (pmiDatabase[bloodType] || []).map((pmi) => ({
-      ...pmi,
-      analysis: createAIMatchingExplanation(pmi, requiredQty),
-    }));
+    return (pmiDatabase[bloodType] || []).map((pmi) => {
+      const distanceKm = Number(pmi.distance.replace(' km', '')) || 0;
+      const features = {
+        stockRatio: pmi.stock / Math.max(requiredQty, 1),
+        stockAvailable: pmi.stock,
+        distanceKm,
+        responseRate: pmi.responseRate,
+        urgencyBonus: urgency === 'darurat' ? 0.15 : urgency === 'mendesak' ? 0.07 : 0
+      };
+      return {
+        ...pmi,
+        score: scoreWithXGBoost(features),
+        analysis: createAIMatchingExplanation({ ...pmi, score: scoreWithXGBoost(features) }, requiredQty)
+      };
+    });
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
@@ -679,21 +753,15 @@ export default function BloodSearch() {
 
       if (data && data.length > 0) {
         let mappedResults: PMIResult[] = data.map((item: any) => {
-          // Rekalkulasi skor di frontend karena RPC backend masih pakai logika lama
-          let baseScore = 0;
-          if (item.stock_count === 0) {
-            baseScore -= 30;
-          } else if (item.stock_count < reqQty) {
-            baseScore -= 15;
-          } else {
-            baseScore += 50;
-          }
-          
-          baseScore += (60 - item.distance_km * 3);
-          baseScore += (item.response_rate * 0.2);
-          
-          const newScore = Math.max(10, Math.min(95, Math.round(baseScore)));
+          const features = {
+            stockRatio: item.stock_count / Math.max(reqQty, 1),
+            stockAvailable: item.stock_count,
+            distanceKm: item.distance_km,
+            responseRate: item.response_rate,
+            urgencyBonus: urgency === 'darurat' ? 0.15 : urgency === 'mendesak' ? 0.07 : 0
+          };
 
+          const newScore = scoreWithXGBoost(features);
           const result: PMIResult = {
             id: item.pmi_id,
             name: item.pmi_name,
