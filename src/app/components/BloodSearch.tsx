@@ -119,13 +119,13 @@ const xgboostTrees: XGBoostTreeNode[] = [
   {
     feature: 'stockRatio',
     threshold: 1,
-    yes: { value: 0.9 },
-    no: {
+    yes: {
       feature: 'stockAvailable',
       threshold: 0,
-      yes: { value: 0.2 },
-      no: { value: -0.8 }
-    }
+      yes: { value: -0.8 },
+      no: { value: 0.2 }
+    },
+    no: { value: 0.9 }
   },
   {
     feature: 'distanceKm',
@@ -140,14 +140,9 @@ const xgboostTrees: XGBoostTreeNode[] = [
   },
   {
     feature: 'responseRate',
-    threshold: 95,
-    yes: { value: 0.5 },
-    no: {
-      feature: 'responseRate',
-      threshold: 85,
-      yes: { value: 0.2 },
-      no: { value: -0.2 }
-    }
+    threshold: 90,
+    yes: { value: -0.2 },
+    no: { value: 0.5 }
   },
 ];
 
