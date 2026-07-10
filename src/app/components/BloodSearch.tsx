@@ -167,14 +167,29 @@ function scoreWithXGBoost(features: Record<XGBoostFeature, number>): number {
   return Math.max(10, Math.min(95, Math.round(score)));
 }
 
+function getSimpleScoreBreakdown(pmi: PMIResult, requiredQty: number) {
+  const stockWeight = pmi.stock >= requiredQty ? 42 : pmi.stock > 0 ? 32 : 18;
+  const distanceValue = Number.parseFloat(pmi.distance) || 0;
+  const distanceWeight = distanceValue <= 2 ? 30 : distanceValue <= 5 ? 24 : distanceValue <= 8 ? 18 : 12;
+  const responseWeight = pmi.responseRate >= 95 ? 24 : pmi.responseRate >= 85 ? 20 : 16;
+  const total = stockWeight + distanceWeight + responseWeight;
+
+  return {
+    stock: Math.round((stockWeight / total) * 100),
+    distance: Math.round((distanceWeight / total) * 100),
+    response: Math.round((responseWeight / total) * 100)
+  };
+}
+
 function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): string {
   const stockText = pmi.stock >= requiredQty
-    ? `stok mencukupi (${pmi.stock})`
+    ? `stok cukup (${pmi.stock} kantong)`
     : pmi.stock > 0
-    ? `stok terbatas (${pmi.stock})`
+    ? `stok terbatas (${pmi.stock} kantong)`
     : 'stok kosong';
 
-  return `Rekomendasi karena ${stockText}, jarak ${pmi.distance}, dan respons ${pmi.responseRate}%.`;
+  const breakdown = getSimpleScoreBreakdown(pmi, requiredQty);
+  return `Skor ${pmi.score} berasal dari 3 hal yang paling penting: stok memberi ${breakdown.stock}% karena ${stockText}, jarak memberi ${breakdown.distance}% karena ${pmi.distance}, dan respons memberi ${breakdown.response}% karena respons ${pmi.responseRate}%.`;
 }
 
 async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requiredQty: number): Promise<string> {
@@ -182,7 +197,7 @@ async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requ
   if (!apiKey) return '';
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const prompt = `Berikan alasan singkat dalam 1 kalimat mengapa PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType}. Gunakan hanya faktor utama: stok, jarak, dan respons.`;
+  const prompt = `Jelaskan secara singkat dan mudah dipahami dalam 1 kalimat mengapa PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType}. Sertakan pembagian sederhana skor: stok, jarak, dan respons, misalnya 'stok memberi 40%, jarak 35%, respons 25%'.`;
 
   try {
     const response = await fetch(endpoint, {
@@ -1077,6 +1092,23 @@ export default function BloodSearch() {
                                   ))}
                                 </div>
                               )}
+                              {(() => {
+                                const breakdown = getSimpleScoreBreakdown(pmi, Number(qty) || 1);
+                                return (
+                                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    <span className="text-[10px] font-semibold text-[#7A4A00] bg-[#FFF5E6] px-2.5 py-1 rounded-full">
+                                      Stok {breakdown.stock}%
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-[#215F8A] bg-[#EAF6FF] px-2.5 py-1 rounded-full">
+                                      Jarak {breakdown.distance}%
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-[#2E7D32] bg-[#EAF7EA] px-2.5 py-1 rounded-full">
+                                      Respons {breakdown.response}%
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+
                               {pmi.analysis && (
                                 <div className="mt-3 rounded-xl bg-[#F9F8FF] border border-[#E8DEF8] p-3 text-[11px] text-[#4A4A6A]">
                                   <span className="font-semibold text-[#1A1A2E]">AI Insight:</span>
