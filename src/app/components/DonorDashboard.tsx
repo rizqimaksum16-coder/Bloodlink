@@ -49,6 +49,11 @@ interface AchievementItem {
   total?: number;
 }
 
+// Import untuk icon yang belum ada
+const Flame = TrendingUp; // placeholder
+const Crown = Trophy; // placeholder
+const Shield = Award; // placeholder
+
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
 const achievements: AchievementItem[] = [
@@ -121,11 +126,6 @@ const badgeConfig: Record<string, { label: string; icon: string; color: string }
   gold: { label: '🥇 Gold Donor', icon: '🥇', color: '#FFD700' },
   none: { label: 'Memulai', icon: '🎗️', color: '#9B9BB5' },
 };
-
-// Import untuk icon yang belum ada
-const Flame = TrendingUp; // placeholder
-const Crown = Trophy; // placeholder
-const Shield = Award; // placeholder
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
