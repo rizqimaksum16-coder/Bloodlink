@@ -196,6 +196,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           loggedUser.id = inserted.id;
         }
       }
+
+      // Auto-create donor profile if it does not exist
+      if (loggedUser.role === 'donor' && loggedUser.id) {
+        const { data: dProfile } = await supabase
+          .from('donor_profiles')
+          .select('id')
+          .eq('user_id', loggedUser.id)
+          .maybeSingle();
+
+        if (!dProfile) {
+          await supabase.from('donor_profiles').insert({
+            user_id: loggedUser.id,
+            blood_type: 'O-',
+            dob: '1995-01-01',
+            phone: '081234567890',
+            address: 'Surabaya',
+            points: 200,
+            level: 'Pemula',
+            streak: 0,
+          });
+        }
+      }
     } catch (err) {
       console.warn('Gagal men-sync/menyimpan info login ke Supabase, menggunakan model local:', err);
     }

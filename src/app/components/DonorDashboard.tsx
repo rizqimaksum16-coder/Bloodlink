@@ -192,11 +192,29 @@ export default function DonorDashboard() {
 
         if (userData) {
           // Get donor profile
-          const { data: donorProfile } = await supabase
+          let { data: donorProfile } = await supabase
             .from('donor_profiles')
             .select('*')
             .eq('user_id', userData.id)
-            .single();
+            .maybeSingle();
+
+          if (!donorProfile) {
+            const { data: newProfile } = await supabase
+              .from('donor_profiles')
+              .insert({
+                user_id: userData.id,
+                blood_type: 'O-',
+                dob: '1995-01-01',
+                phone: '081234567890',
+                address: 'Surabaya',
+                points: 200,
+                level: 'Pemula',
+                streak: 0,
+              })
+              .select('*')
+              .single();
+            donorProfile = newProfile;
+          }
 
           if (donorProfile) {
             setDonorStats({
