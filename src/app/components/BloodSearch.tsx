@@ -180,12 +180,12 @@ function scoreWithXGBoost(features: Record<XGBoostFeature, number>): number {
 
 function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): string {
   const stockText = pmi.stock >= requiredQty
-    ? `stok ${pmi.stock} kantong mencukupi kebutuhan`
+    ? `stok mencukupi (${pmi.stock})`
     : pmi.stock > 0
-    ? `stok ${pmi.stock} kantong terbatas`
+    ? `stok terbatas (${pmi.stock})`
     : 'stok kosong';
 
-  return `AI Matching menghitung skor ${pmi.score} berdasarkan ${stockText}, jarak ${pmi.distance}, dan respons rate ${pmi.responseRate}%.`;
+  return `Rekomendasi karena ${stockText}, jarak ${pmi.distance}, dan respons ${pmi.responseRate}%.`;
 }
 
 async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requiredQty: number): Promise<string> {
@@ -193,7 +193,7 @@ async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requ
   if (!apiKey) return '';
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const prompt = `Kamu adalah asisten AI untuk aplikasi Blood Link, tugasmu adalah memberi penjelasan singkat dalam bahasa Indonesia mengapa PMI ${pmi.name} direkomendasikan untuk kebutuhan ${bloodType} sebanyak ${requiredQty} kantong darah. Jelaskan dengan singkat berdasarkan stok, jarak, respons rate, dan estimasi pengiriman.`;
+  const prompt = `Berikan alasan singkat dalam 1 kalimat mengapa PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType}. Gunakan hanya faktor utama: stok, jarak, dan respons.`;
 
   try {
     const response = await fetch(endpoint, {
