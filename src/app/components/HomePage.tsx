@@ -32,17 +32,17 @@ const globalStats = [
 const heroConfigs = {
   pmi: {
     title: 'Operasional Palang Merah Indonesia',
-    desc: 'Pantau persediaan stok darah Kota Surabaya, kelola permintaan darurat Rumah Sakit Mitra, dan kelola armada distribusi kurir secara real-time.',
+    desc: 'Pantau persediaan stok darah Jawa Timur, kelola permintaan darurat Rumah Sakit Mitra, dan kelola armada distribusi kurir secara real-time.',
     primaryBtn: { label: 'Dashboard PMI', to: '/dashboard/pmi', icon: HeartPulse },
     secondaryBtn: { label: 'Update Stok Darah', to: '/add-stock', icon: Plus },
     stats: [
-      { value: '3 PMI Hubs', label: 'Regional Surabaya' },
+      { value: 'Jawa Timur', label: 'Wilayah Layanan' },
       { value: '12 Kurir', label: 'Siaga Distribusi' },
       { value: '98%', label: 'Respons Rate Rata-rata' }
     ]
   },
   rs: {
-    title: 'Portal Rumah Sakit Surabaya',
+    title: 'Portal Rumah Sakit Jawa Timur',
     desc: 'Cek persediaan kantong darah Rumah Sakit Mitra lainnya, jalankan AI Matching untuk rekomendasi PMI terdekat, dan pantau pengiriman kurir secara langsung.',
     primaryBtn: { label: 'Cari & Matching Darah', to: '/search', icon: Search },
     secondaryBtn: { label: 'Dashboard RS', to: '/dashboard/rs', icon: Building2 },
@@ -54,7 +54,7 @@ const heroConfigs = {
   },
   donor: {
     title: 'Terima Kasih, Pahlawan Darah!',
-    desc: 'Setiap tetes darah Anda menyelamatkan nyawa sesama warga Surabaya. Daftarkan diri Anda pada event donor, check-in instan, dan klaim poin rewards Anda.',
+    desc: 'Setiap tetes darah Anda menyelamatkan nyawa sesama warga Jawa Timur. Daftarkan diri Anda pada event donor, check-in instan, dan klaim poin rewards Anda.',
     primaryBtn: { label: 'Cari Event Donor', to: '/events', icon: Calendar },
     secondaryBtn: { label: 'Reward Poin', to: '/rewards', icon: Heart },
     stats: [
@@ -70,12 +70,12 @@ const heroConfigs = {
     stats: [
       { value: '4 Tugas', label: 'Siaga Pengiriman' },
       { value: '98%', label: 'Kepatuhan Waktu' },
-      { value: 'Surabaya', label: 'Wilayah Layanan' }
+      { value: 'Jawa Timur', label: 'Wilayah Layanan' }
     ]
   },
   superadmin: {
     title: 'Super Admin Pusat — Blood Link',
-    desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di Kota Surabaya, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
+    desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di Jawa Timur, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
     primaryBtn: { label: 'Super Admin Dashboard', to: '/dashboard/superadmin', icon: Shield },
     secondaryBtn: { label: 'Peta Lokasi Unit', to: '/dashboard/superadmin', icon: MapPin },
     stats: [
@@ -143,7 +143,7 @@ const roleFeatures = {
     {
       icon: Calendar,
       title: 'Booking Event Donor',
-      desc: 'Temukan jadwal kegiatan donor darah terdekat di Surabaya dan lakukan pendaftaran secara online.',
+      desc: 'Temukan jadwal kegiatan donor darah terdekat di Jawa Timur dan lakukan pendaftaran secara online.',
       bg: 'bg-[#FDEDEC]',
       color: 'text-[#C0392B]',
       to: '/events',
@@ -293,16 +293,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Global Stock Stats (Always visible as it's the live core info of Surabaya) */}
+      {/* Global Stock Stats (Always visible as it's the live core info of Jawa Timur) */}
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-end justify-between mb-6 pb-2 border-b border-border">
             <div>
               <p className="text-xs font-semibold text-[#C0392B] uppercase tracking-wider mb-1">Live Data</p>
               <h2 className="text-lg md:text-xl font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Ketersediaan Stok Darah Surabaya
+                Ketersediaan Stok Darah Jawa Timur
               </h2>
-              <p className="text-[#9B9BB5] text-xs">Akumulasi stok darah siaga di seluruh Rumah Sakit dan PMI Mitra Surabaya</p>
+              <p className="text-[#9B9BB5] text-xs">Akumulasi stok darah siaga di seluruh Rumah Sakit dan PMI Mitra Jawa Timur</p>
             </div>
             <Link to="/search" className="flex items-center gap-1 text-xs font-bold text-[#C0392B] hover:gap-2 transition-all">
               Detail Stok & Lokasi <ArrowRight className="w-3.5 h-3.5" />
@@ -404,7 +404,7 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="font-bold text-[#1A1A2E] text-sm">⚡ Butuh darah darurat segera?</p>
-                <p className="text-xs text-[#4A4A6A]">Gunakan fitur pencarian terpadu atau hubungi PMI Surabaya</p>
+                <p className="text-xs text-[#4A4A6A]">Gunakan fitur pencarian terpadu atau hubungi PMI Jawa Timur</p>
               </div>
             </div>
             <Link to="/search">
@@ -429,7 +429,7 @@ export default function HomePage() {
             Setiap Tetes Darah Adalah Kehidupan
           </h2>
           <p className="text-red-100 mb-7 text-xs leading-relaxed">
-            Bergabunglah dengan ekosistem digital donor darah cerdas Kota Surabaya.
+            Bergabunglah dengan ekosistem digital donor darah cerdas Jawa Timur.
           </p>
           <Link to="/events">
             <button className="flex items-center gap-2 mx-auto bg-white text-[#C0392B] px-7 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-md text-sm">

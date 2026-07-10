@@ -754,7 +754,7 @@ export default function Navigation() {
           )}
           <div className="bg-[#F7F7FB] rounded-xl px-4 py-2.5 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#27AE60] animate-pulse flex-shrink-0" />
-            <p className="text-xs text-[#4A4A6A]"><span className="font-semibold">Sistem Online</span> · PMI × RS Surabaya</p>
+            <p className="text-xs text-[#4A4A6A]"><span className="font-semibold">Sistem Online</span> · PMI × RS Jawa Timur</p>
           </div>
         </div>
       </div>
@@ -812,7 +812,7 @@ const getRoleDefaultNotifications = (role: string) => {
         { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI A sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa. Kamu salah satu pendonor terdekat.', time: '5 menit lalu', read: false },
         { id: 'N002', type: 'reminder', title: 'Kamu Sudah Bisa Donor Lagi', message: 'Selamat! Masa tunggu 3 bulanmu sudah selesai per 22 Januari 2026. Jadwalkan donor sekarang.', time: '1 hari lalu', read: false },
         { id: 'N003', type: 'reward', title: 'Reward Baru Tersedia', message: 'Kamu sudah cukup poin untuk menukar voucher Indomaret Rp25.000. Segera tukarkan sebelum kedaluwarsa!', time: '3 hari lalu', read: true },
-        { id: 'N004', type: 'info', title: 'Event Donor Juli 2026', message: 'Event Kampanye Donor PMI Juli 2026 di Mall Galaxy Surabaya tinggal 9 hari lagi. Jangan lupa hadir!', time: '5 hari lalu', read: true }
+        { id: 'N004', type: 'info', title: 'Event Donor Juli 2026', message: 'Event Kampanye Donor PMI Juli 2026 di Mall Galaxy tinggal 9 hari lagi. Jangan lupa hadir!', time: '5 hari lalu', read: true }
       ];
   }
 };

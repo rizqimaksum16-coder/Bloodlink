@@ -39,7 +39,7 @@ export default function AppFooter() {
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 flex-shrink-0" />
             <span className="font-semibold">Darurat Darah?</span>
-            <span className="text-red-100">Hubungi PMI Surabaya 24/7</span>
+            <span className="text-red-100">Hubungi PMI Jawa Timur 24/7</span>
           </div>
           <a
             href="tel:119"
@@ -66,7 +66,7 @@ export default function AppFooter() {
               </span>
             </div>
             <p className="text-xs text-[#9B9BB5] leading-relaxed mb-4">
-              Platform kolaborasi PMI dan Rumah Sakit Surabaya untuk mempermudah akses donor darah.
+              Platform kolaborasi PMI dan Rumah Sakit Jawa Timur untuk mempermudah akses donor darah.
             </p>
             <div className="space-y-1.5">
               <div className="flex items-start gap-2 text-xs text-[#9B9BB5]">
@@ -110,7 +110,7 @@ export default function AppFooter() {
         <div className="border-t border-white/10 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-[#9B9BB5]">
             © 2026 Blood Link. Dibuat dengan{' '}
-            <Heart className="w-3 h-3 inline fill-[#C0392B] text-[#C0392B]" /> untuk Surabaya.
+            <Heart className="w-3 h-3 inline fill-[#C0392B] text-[#C0392B]" /> untuk Jawa Timur.
           </p>
           <div className="flex items-center gap-4 text-xs text-[#9B9BB5]">
             <button className="hover:text-white transition-colors">Kebijakan Privasi</button>
