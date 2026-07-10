@@ -8,11 +8,6 @@ Proyek ini dikembangkan sebagai solusi digital untuk membantu pengguna memperole
 
 ## Screenshot
 
-Berikut placeholder screenshot yang dapat Anda isi sesuai tampilan aplikasi:
-
-![Screenshot A](https://via.placeholder.com/1200x600?text=Screenshot+1)
-
-![Screenshot B](https://via.placeholder.com/1200x600?text=Screenshot+2)
 
 ## Fitur Utama
 
