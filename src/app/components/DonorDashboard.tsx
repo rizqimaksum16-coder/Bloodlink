@@ -144,9 +144,7 @@ export default function DonorDashboard() {
 
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>([]);
-  const [achievements as displayAchievements, setDisplayAchievements] = useState<AchievementItem[]>(
-    achievements
-  );
+  const [displayAchievements, setDisplayAchievements] = useState<AchievementItem[]>(achievements);
   const [loading, setLoading] = useState(true);
 
   // Load donor data from Supabase
