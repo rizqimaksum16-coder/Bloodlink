@@ -22,6 +22,7 @@ const GPSTracking = lazy(() => import('./components/GPSTracking'));
 const QRCheckIn = lazy(() => import('./components/QRCheckIn'));
 const RewardPage = lazy(() => import('./components/RewardPage'));
 const DriverDashboard = lazy(() => import('./components/DriverDashboard'));
+const DonorDashboard = lazy(() => import('./components/DonorDashboard'));
 const NotFound = lazy(() => import('./components/NotFound'));
 const AlurDonor = lazy(() => import('./components/AlurDonor'));
 const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
@@ -83,6 +84,9 @@ export default function App() {
                   } />
                   <Route path="/dashboard/rs" element={
                     <ProtectedRoute allowedRoles={['rs']}><HospitalDashboard /></ProtectedRoute>
+                  } />
+                  <Route path="/dashboard/donor" element={
+                    <ProtectedRoute allowedRoles={['donor']}><DonorDashboard /></ProtectedRoute>
                   } />
                   <Route path="/dashboard/driver" element={
                     <ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>

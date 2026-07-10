@@ -16,6 +16,7 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 const roleNavExtra: Partial<Record<UserRole, { to: string; label: string; icon: React.ElementType }>> = {
   pmi: { to: '/dashboard/pmi', label: 'Dashboard PMI', icon: HeartPulse },
   rs: { to: '/dashboard/rs', label: 'Dashboard RS', icon: Building2 },
+  donor: { to: '/dashboard/donor', label: 'Dashboard', icon: Activity },
   driver: { to: '/dashboard/driver', label: 'Dashboard Driver', icon: Truck },
   superadmin: { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
 };
