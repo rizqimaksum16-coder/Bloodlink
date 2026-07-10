@@ -142,7 +142,6 @@ export default function DonorDashboard() {
     badgeLevel: 'none',
   });
 
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>([]);
   const [displayAchievements, setDisplayAchievements] = useState<AchievementItem[]>(achievements);
   const [loading, setLoading] = useState(true);
@@ -161,29 +160,7 @@ export default function DonorDashboard() {
             ranking: 45,
             badgeLevel: 'bronze',
           });
-          setUpcomingEvents([
-            {
-              id: '1',
-              name: 'Donor Darah di Kampus UAI',
-              date: '15 Agustus 2025',
-              location: 'Jakarta',
-              registered: true,
-            },
-            {
-              id: '2',
-              name: 'Donor Darah PMI Surabaya',
-              date: '20 Agustus 2025',
-              location: 'Surabaya',
-              registered: false,
-            },
-            {
-              id: '3',
-              name: 'Donor Darah Rumah Sakit',
-              date: '25 Agustus 2025',
-              location: 'Bandung',
-              registered: false,
-            },
-          ]);
+
           setActiveTickets([
             {
               id: 'T001',
@@ -231,33 +208,7 @@ export default function DonorDashboard() {
             });
           }
 
-          // Get upcoming registered events
-          const { data: eventBookings } = await supabase
-            .from('event_bookings')
-            .select('*, events(*)')
-            .eq('donor_id', userData.id)
-            .neq('status', 'cancelled')
-            .limit(3);
 
-          if (eventBookings && eventBookings.length > 0) {
-            const upcoming = eventBookings
-              .filter((eb: any) => {
-                const eventDate = new Date(eb.events.date);
-                return eventDate > new Date();
-              })
-              .map((eb: any) => ({
-                id: eb.events.id,
-                name: eb.events.name,
-                date: new Date(eb.events.date).toLocaleDateString('id-ID', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                }),
-                location: eb.events.location,
-                registered: true,
-              }));
-            setUpcomingEvents(upcoming);
-          }
 
           // Get active tickets
           const { data: tickets } = await supabase
@@ -440,56 +391,6 @@ export default function DonorDashboard() {
             <h3 className="font-semibold text-gray-900 text-sm mb-1">Cek Stok Darah</h3>
             <p className="text-xs text-gray-600">Real-time availability</p>
           </button>
-        </div>
-
-        {/* ─── Upcoming Events Section ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Event Mendatang</h2>
-            <button
-              onClick={() => navigate('/events')}
-              className="text-sm font-semibold text-[#C0392B] hover:text-[#A93226] flex items-center gap-1"
-            >
-              Lihat Semua <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {upcomingEvents.length > 0 ? (
-            <div className="space-y-3">
-              {upcomingEvents.slice(0, 3).map((event) => (
-                <div
-                  key={event.id}
-                  className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <Calendar className="w-5 h-5 text-[#C0392B] flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 text-sm truncate">
-                      {event.name}
-                    </h3>
-                    <p className="text-xs text-gray-600">
-                      {event.date} • {event.location}
-                    </p>
-                  </div>
-                  {event.registered && (
-                    <Badge className="bg-green-100 text-green-700 text-xs flex-shrink-0">
-                      ✓ Terdaftar
-                    </Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-8 text-center">
-              <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-600 text-sm">Tidak ada event mendatang</p>
-              <button
-                onClick={() => navigate('/events')}
-                className="text-xs font-semibold text-[#C0392B] hover:text-[#A93226] mt-2"
-              >
-                Cari event sekarang
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ─── Achievement Progress Section ────────────────────────────────────────── */}

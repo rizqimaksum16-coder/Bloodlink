@@ -59,15 +59,24 @@ export default function Events() {
           .single();
 
         if (userData) {
-          const { data: bookings, error } = await supabase
-            .from('event_bookings')
-            .select('event_id')
-            .eq('donor_id', userData.id);
+          // Dapatkan ID donor_profile terlebih dahulu
+          const { data: donorProfile } = await supabase
+            .from('donor_profiles')
+            .select('id')
+            .eq('user_id', userData.id)
+            .single();
 
-          if (error) throw error;
-          if (bookings) {
-            const bookedIds = bookings.map((b: any) => b.event_id);
-            setRegisteredEvents(bookedIds);
+          if (donorProfile) {
+            const { data: bookings, error } = await supabase
+              .from('event_bookings')
+              .select('event_id')
+              .eq('donor_id', donorProfile.id);
+
+            if (error) throw error;
+            if (bookings) {
+              const bookedIds = bookings.map((b: any) => b.event_id);
+              setRegisteredEvents(bookedIds);
+            }
           }
         }
       } catch (err) {
@@ -271,26 +280,34 @@ export default function Events() {
           .single();
 
         if (userData) {
-          const { error: deleteError } = await supabase
-            .from('event_bookings')
-            .delete()
-            .eq('event_id', eventId)
-            .eq('donor_id', userData.id);
+          const { data: donorProfile } = await supabase
+            .from('donor_profiles')
+            .select('id')
+            .eq('user_id', userData.id)
+            .single();
 
-          if (deleteError) {
-             console.warn('Gagal delete event_bookings dari Supabase:', deleteError);
-          } else {
-            const currentEvt = eventList.find(e => e.id === eventId);
-            if (currentEvt) {
-              await supabase
-                .from('events')
-                .update({ registered: Math.max(0, currentEvt.registered - 1) })
-                .eq('id', eventId);
+          if (donorProfile) {
+            const { error: deleteError } = await supabase
+              .from('event_bookings')
+              .delete()
+              .eq('event_id', eventId)
+              .eq('donor_id', donorProfile.id);
+
+            if (deleteError) {
+               console.warn('Gagal delete event_bookings dari Supabase:', deleteError);
+            } else {
+              const currentEvt = eventList.find(e => e.id === eventId);
+              if (currentEvt) {
+                await supabase
+                  .from('events')
+                  .update({ registered: Math.max(0, currentEvt.registered - 1) })
+                  .eq('id', eventId);
+              }
             }
           }
         }
       } catch (err) {
-        console.error('Gagal membatalkan booking di Supabase:', err);
+        console.error('Gagal membatalkan registrasi di Supabase:', err);
       }
     }
 
@@ -364,22 +381,30 @@ export default function Events() {
           .single();
 
         if (userData) {
-          const { error: insertError } = await supabase
-            .from('event_bookings')
-            .insert({
-              event_id: eventId,
-              donor_id: userData.id,
-              session: regSession,
-              ticket_id: ticketId
-            });
+          const { data: donorProfile } = await supabase
+            .from('donor_profiles')
+            .select('id')
+            .eq('user_id', userData.id)
+            .single();
 
-          if (insertError) {
-            console.warn('Gagal insert event_bookings ke Supabase:', insertError);
-          } else {
-            await supabase
-              .from('events')
-              .update({ registered: selectedEventForReg.registered + 1 })
-              .eq('id', eventId);
+          if (donorProfile) {
+            const { error: insertError } = await supabase
+              .from('event_bookings')
+              .insert({
+                event_id: eventId,
+                donor_id: donorProfile.id,
+                session: regSession,
+                ticket_id: ticketId
+              });
+
+            if (insertError) {
+              console.warn('Gagal insert event_bookings ke Supabase:', insertError);
+            } else {
+              await supabase
+                .from('events')
+                .update({ registered: selectedEventForReg.registered + 1 })
+                .eq('id', eventId);
+            }
           }
         }
       } catch (err) {

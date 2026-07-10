@@ -55,56 +55,48 @@ export default function AlurDonor() {
           .single();
 
         if (userData) {
-          const { data: bookings, error } = await supabase
-            .from('event_bookings')
-            .select('*, events(*)')
-            .eq('donor_id', userData.id);
+          const { data: donorProfile } = await supabase
+            .from('donor_profiles')
+            .select('id')
+            .eq('user_id', userData.id)
+            .single();
 
-          if (error) throw error;
-          if (bookings && bookings.length > 0) {
-            const mapped: TicketItem[] = bookings.map((b: any) => {
-              const event = b.events;
-              return {
-                id: `EVT-TICKET-${b.event_id}`,
-                ticketId: b.ticket_id || `EVT-SUB-${b.event_id}-8841`,
-                eventId: b.event_id,
-                eventName: event ? event.name : 'Event Donor Darah Surabaya',
-                organizer: event ? event.organizer : 'PMI Kota Surabaya',
-                location: event ? event.location : 'Lokasi PMI Surabaya',
-                address: event ? event.address : 'Kota Surabaya',
-                date: event ? event.date : '2026-07-15',
-                time: b.session || (event ? event.time : '08:00 - 12:00 WIB'),
-                registeredAt: new Date(b.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-                donorName: user?.name || 'Rizky Pratama',
-                nik: '3578012409950003',
-                bloodType: 'O',
-                rhesus: '+',
-                status: b.status === 'checked_in' ? 'checked_in' : 'ready',
-                points: 100,
-              };
-            });
-            setTicketList(mapped);
-          } else {
-            // Default sample ticket if user has no registered events yet
-            setTicketList([{
-              id: 'SAMPLE-TICKET-01',
-              ticketId: 'SB-REG-2026-9481',
-              eventName: 'Donor Darah Peduli Surabaya 2026',
-              organizer: 'PMI A',
-              location: 'Markas PMI A',
-              address: 'Jl. Embong Ploso No. 7-15, Genteng, Surabaya',
-              date: '2026-07-10',
-              time: '08:00 - 11:00 WIB (Sesi Pagi)',
-              registeredAt: '2026-07-02 10:30',
-              donorName: user?.name || 'Rizky Pratama',
-              nik: '3578012409950003',
-              bloodType: 'O',
-              rhesus: '+',
-              status: 'ready',
-              points: 100,
-            }]);
+          if (donorProfile) {
+            const { data: bookings, error } = await supabase
+              .from('event_bookings')
+              .select('*, events(*)')
+              .eq('donor_id', donorProfile.id);
+
+            if (error) throw error;
+            if (bookings && bookings.length > 0) {
+              const mapped: TicketItem[] = bookings.map((b: any) => {
+                const event = b.events;
+                return {
+                  id: `EVT-TICKET-${b.event_id}`,
+                  ticketId: b.ticket_id || `EVT-SUB-${b.event_id}-8841`,
+                  eventId: b.event_id,
+                  eventName: event ? event.name : 'Event Donor Darah Surabaya',
+                  organizer: event ? event.organizer : 'PMI Kota Surabaya',
+                  location: event ? event.location : 'Lokasi PMI Surabaya',
+                  address: event ? event.address : 'Kota Surabaya',
+                  date: event ? event.date : '2026-07-15',
+                  time: b.session || (event ? event.time : '08:00 - 12:00 WIB'),
+                  registeredAt: new Date(b.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
+                  donorName: user?.name || 'Rizky Pratama',
+                  nik: '3578012409950003',
+                  bloodType: 'O',
+                  rhesus: '+',
+                  status: b.status === 'checked_in' ? 'checked_in' : 'ready',
+                  points: 200,
+                };
+              });
+              setTicketList(mapped);
+              return;
+            }
           }
         }
+        // Fallback to sample or empty if no active profile or bookings found
+        setTicketList([]);
       } catch (err) {
         console.warn('Gagal memuat tiket donor dari Supabase:', err);
       }
@@ -123,24 +115,32 @@ export default function AlurDonor() {
           .single();
 
         if (userData) {
-          await supabase
-            .from('event_bookings')
-            .delete()
-            .eq('event_id', ticket.eventId)
-            .eq('donor_id', userData.id);
-          
-          // Also update event registration count
-          const { data: eventData } = await supabase
-            .from('events')
-            .select('registered')
-            .eq('id', ticket.eventId)
+          const { data: donorProfile } = await supabase
+            .from('donor_profiles')
+            .select('id')
+            .eq('user_id', userData.id)
             .single();
-          
-          if (eventData) {
+
+          if (donorProfile) {
             await supabase
+              .from('event_bookings')
+              .delete()
+              .eq('event_id', ticket.eventId)
+              .eq('donor_id', donorProfile.id);
+            
+            // Also update event registration count
+            const { data: eventData } = await supabase
               .from('events')
-              .update({ registered: Math.max(0, eventData.registered - 1) })
-              .eq('id', ticket.eventId);
+              .select('registered')
+              .eq('id', ticket.eventId)
+              .single();
+            
+            if (eventData) {
+              await supabase
+                .from('events')
+                .update({ registered: Math.max(0, eventData.registered - 1) })
+                .eq('id', ticket.eventId);
+            }
           }
         }
       } catch (err) {
