@@ -374,8 +374,17 @@ export default function HomePage() {
       </section>
 
       {/* Global Stats Overview */}
-      <section className="py-8 bg-white border-t border-b border-border">
+      <section className="py-12 bg-white border-t border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <p className="text-xs font-semibold text-[#8E44AD] uppercase tracking-wider mb-2">Kilas Data</p>
+            <h2 className="text-xl font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Aktivitas Komunitas Kita
+            </h2>
+            <p className="text-[#9B9BB5] mt-1 text-xs">
+              Ringkasan data donasi dan keanggotaan aktif saat ini
+            </p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {globalStats.map(({ label, value, unit, icon: Icon, color, bg }) => (
               <div key={label} className="bg-[#F7F7FB] rounded-2xl p-4 flex items-center gap-3 border border-border">

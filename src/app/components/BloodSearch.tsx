@@ -428,6 +428,30 @@ export default function BloodSearch() {
   const [resultTab, setResultTab] = useState<'ai-matching' | 'hospital-stock'>('ai-matching');
 
   const { user } = useAuth();
+
+  const triggerBackgroundGeminiAnalysis = (results: PMIResult[], bloodType: BloodType, requiredQty: number) => {
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    if (!apiKey || results.length === 0) return;
+
+    results.forEach(async (pmi, index) => {
+      if (index > 1) return;
+
+      setPmiResults(prev => {
+        if (!prev) return prev;
+        return prev.map(item => item.id === pmi.id ? { ...item, analysis: 'AI sedang menganalisis...' } : item);
+      });
+
+      try {
+        const explanation = await fetchGeminiExplanation(pmi, bloodType, requiredQty);
+        setPmiResults(prev => {
+          if (!prev) return prev;
+          return prev.map(item => item.id === pmi.id ? { ...item, analysis: explanation || item.analysis } : item);
+        });
+      } catch (err) {
+        console.warn('Gagal memuat eksplanasi Gemini:', err);
+      }
+    });
+  };
   const [activeHospital, setActiveHospital] = useState<{
     name: string;
     lat: number;
@@ -543,7 +567,7 @@ export default function BloodSearch() {
               stock: stockQty,
               capacity: stockQty + 30,
               responseRate: p.response_rate,
-              avgDelivery: `${p.avg_delivery_mins} mnt`,
+              avgDelivery: `${travelTimeMin + 5} mnt`,
               score,
               reasons: [
                 stockQty >= requiredQty
@@ -753,6 +777,8 @@ export default function BloodSearch() {
           const distanceKm = Number(item.distance_km ?? 0);
           const stockCount = Number(item.stock_count ?? 0);
           const responseRate = Number(item.response_rate ?? 0);
+          const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
+          const avgDeliveryMin = travelTimeMin + 5;
 
           const features = {
             stockRatio: stockCount / Math.max(reqQty, 1),
@@ -770,11 +796,11 @@ export default function BloodSearch() {
             lat: item.pmi_latitude,
             lng: item.pmi_longitude,
             distance: `${distanceKm.toFixed(1)} km`,
-            travelTime: item.travel_time_est,
+            travelTime: `${travelTimeMin} mnt`,
             stock: stockCount,
             capacity: stockCount + 30,
             responseRate,
-            avgDelivery: item.avg_delivery,
+            avgDelivery: `${avgDeliveryMin} mnt`,
             score,
             reasons: Array.isArray(item.reasons) ? item.reasons : [
               stockCount >= reqQty ? `Stok mencukupi (${stockCount})` : stockCount > 0 ? `Stok terbatas (${stockCount})` : 'Stok kosong',
@@ -795,20 +821,24 @@ export default function BloodSearch() {
         if (mappedResults.length > 0) { mappedResults[0].tag = 'Rekomendasi AI'; mappedResults[0].tagColor = '#C0392B'; }
         if (mappedResults.length > 1) { mappedResults[1].tag = 'Cadangan'; mappedResults[1].tagColor = '#E67E22'; }
 
-        const annotatedResults = await attachGeminiAnalysis(mappedResults, searchBt, reqQty);
-        setPmiResults(annotatedResults);
+        setPmiResults(mappedResults);
+        setIsMatching(false);
+        triggerBackgroundGeminiAnalysis(mappedResults, searchBt, reqQty);
       } else {
         toast.info('Hasil RPC kosong, memuat data PMI dari database...');
         const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
         setPmiResults(fallback);
+        setIsMatching(false);
+        triggerBackgroundGeminiAnalysis(fallback, searchBt, reqQty);
       }
     } catch (err: any) {
       console.warn('RPC match_closest_pmi gagal, menggunakan fallback dengan stok dari DB:', err);
       // Jangan tampilkan error ke user, langsung coba fallback dengan stok nyata
       const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
       setPmiResults(fallback);
+      setIsMatching(false);
+      triggerBackgroundGeminiAnalysis(fallback, searchBt, reqQty);
     }
-    setIsMatching(false);
   };
 
   useEffect(() => {
@@ -1106,8 +1136,18 @@ export default function BloodSearch() {
 
                               {pmi.analysis && (
                                 <div className="mt-3 rounded-xl bg-[#F9F8FF] border border-[#E8DEF8] p-3 text-[11px] text-[#4A4A6A]">
-                                  <span className="font-semibold text-[#1A1A2E]">AI Insight:</span>
-                                  <p className="mt-1 leading-relaxed">{pmi.analysis}</p>
+                                  <span className="font-semibold text-[#1A1A2E] flex items-center gap-1.5">
+                                    AI Insight:
+                                    {pmi.analysis === 'AI sedang menganalisis...' && (
+                                      <span className="relative flex h-1.5 w-1.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
+                                      </span>
+                                    )}
+                                  </span>
+                                  <p className={`mt-1 leading-relaxed ${pmi.analysis === 'AI sedang menganalisis...' ? 'italic text-[#9B9BB5] animate-pulse' : ''}`}>
+                                    {pmi.analysis}
+                                  </p>
                                 </div>
                               )}
 
