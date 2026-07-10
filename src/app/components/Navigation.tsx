@@ -255,7 +255,7 @@ export default function Navigation() {
   const coreLinks = user?.role === 'superadmin' ? [
     { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
   ] : [
-    { to: '/', label: 'Beranda', icon: Droplets },
+    { to: isAuthenticated ? '/home' : '/', label: 'Beranda', icon: Droplets },
     ...(user?.role !== 'pmi' && user?.role !== 'driver' ? [{ to: '/search', label: 'Cari Stok', icon: Search }] : []),
     ...(user?.role !== 'driver' ? [{ to: '/events', label: 'Event', icon: Calendar }] : []),
     ...(user?.role === 'donor' ? [{ to: '/rewards', label: 'Reward', icon: Trophy }] : []),
@@ -279,7 +279,7 @@ export default function Navigation() {
             </button>
 
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2.5 flex-shrink-0 mr-2">
+            <Link to={isAuthenticated ? '/home' : '/'} className="flex items-center gap-2.5 flex-shrink-0 mr-2">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#C0392B,#7B241C)' }}>
                 <Droplets className="w-5 h-5 text-white fill-white" />
               </div>

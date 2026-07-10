@@ -1,10 +1,12 @@
 import { Link, useNavigate } from 'react-router';
 import { Home, Search, ArrowLeft, Droplets } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../context/AuthContext';
 
 export default function NotFound() {
   usePageTitle('Halaman Tidak Ditemukan');
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen flex items-center justify-center py-16 px-4" style={{ background: 'linear-gradient(135deg, #FDEDEC 0%, #F4F4F8 60%)' }}>
@@ -45,7 +47,7 @@ export default function NotFound() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link to="/">
+          <Link to={isAuthenticated ? '/home' : '/'}>
             <button className="flex items-center gap-2 bg-[#C0392B] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#922B21] transition-colors text-sm shadow-sm hover:shadow-md w-full sm:w-auto justify-center">
               <Home className="w-4 h-4" />
               Ke Beranda

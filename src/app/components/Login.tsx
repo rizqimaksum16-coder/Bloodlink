@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { LogIn, Building2, HeartPulse, Heart, Eye, EyeOff, Droplets, ChevronRight, Truck, Shield } from 'lucide-react';
 import { Input } from './ui/input';
@@ -99,7 +99,13 @@ const subAccountPresets: Record<string, { label: string; email: string; org: str
 export default function Login() {
   usePageTitle('Login');
   const navigate = useNavigate();
-  const { login, registerDonor } = useAuth();
+  const { login, registerDonor, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 

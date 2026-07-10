@@ -76,6 +76,13 @@ export default function LandingPage() {
   usePageTitle('Sistem Informasi Donor Darah');
   const { isAuthenticated, user } = useAuth();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const features = [
     { icon: Search, title: 'Pencarian Stok Real-time', desc: 'Sistem pencarian ketersediaan kantong darah di seluruh PMI dan Rumah Sakit mitra terintegrasi secara langsung.', color: 'text-[#C0392B]', bg: 'bg-[#FDEDEC]' },

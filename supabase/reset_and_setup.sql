@@ -1,6 +1,5 @@
 -- =============================================================================
--- SUROBOYO BLOOD — FULL RESET & SETUP (Jalankan file INI saja)
--- Hapus semua tabel lama → buat ulang → isi data
+-- BLOOD Link — FULL RESET & SETUP
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
