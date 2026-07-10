@@ -43,15 +43,9 @@ export default function Events() {
   const { user } = useAuth();
   const isCreator = user?.role === 'pmi' || user?.role === 'rs';
 
-  const [eventList, setEventList] = useState<Event[]>(() => {
-    const saved = localStorage.getItem('shared_donor_events_v5');
-    return saved ? JSON.parse(saved) : defaultEventsList;
-  });
+  const [eventList, setEventList] = useState<Event[]>(defaultEventsList);
 
-  const [registeredEvents, setRegisteredEvents] = useState<(string | number)[]>(() => {
-    const saved = localStorage.getItem('donor_registered_events');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [registeredEvents, setRegisteredEvents] = useState<(string | number)[]>([]);
 
   // Sync registered events from Supabase for the current donor
   useEffect(() => {
@@ -73,13 +67,7 @@ export default function Events() {
           if (error) throw error;
           if (bookings) {
             const bookedIds = bookings.map((b: any) => b.event_id);
-            setRegisteredEvents(prev => {
-              // Gabungkan data dari localStorage (prev) dengan data dari Supabase (bookedIds)
-              // agar pendaftaran lokal tidak hilang jika Supabase mengembalikan array kosong.
-              const mergedIds = Array.from(new Set([...prev, ...bookedIds]));
-              localStorage.setItem('donor_registered_events', JSON.stringify(mergedIds));
-              return mergedIds;
-            });
+            setRegisteredEvents(bookedIds);
           }
         }
       } catch (err) {
@@ -192,25 +180,6 @@ export default function Events() {
       }
     }
     fetchSupabaseEvents();
-  }, []);
-
-  // Sync to localStorage
-  useEffect(() => {
-    localStorage.setItem('shared_donor_events_v5', JSON.stringify(eventList));
-  }, [eventList]);
-
-  // Sync tab/view storage changes
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'shared_donor_events_v5' && e.newValue) {
-        setEventList(JSON.parse(e.newValue));
-      }
-      if (e.key === 'donor_registered_events' && e.newValue) {
-        setRegisteredEvents(JSON.parse(e.newValue));
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const filtered = eventList.filter((e) => {
@@ -332,13 +301,11 @@ export default function Events() {
         }
         return ev;
       });
-      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
     setRegisteredEvents(prev => {
       const updated = prev.filter(id => id !== eventId);
-      localStorage.setItem('donor_registered_events', JSON.stringify(updated));
       return updated;
     });
 
@@ -368,12 +335,10 @@ export default function Events() {
     }
 
     setRegisteredEvents([]);
-    localStorage.removeItem('donor_registered_events');
 
     // Reset registered counts in events list
     setEventList(prev => {
       const updated = prev.map(ev => ({ ...ev, registered: 0 }));
-      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
@@ -409,7 +374,7 @@ export default function Events() {
             });
 
           if (insertError) {
-            console.warn('Gagal insert event_bookings ke Supabase, menggunakan local storage:', insertError);
+            console.warn('Gagal insert event_bookings ke Supabase:', insertError);
           } else {
             await supabase
               .from('events')
@@ -431,13 +396,11 @@ export default function Events() {
         }
         return ev;
       });
-      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
       return updated;
     });
 
     setRegisteredEvents(prev => {
       const updated = [...prev, eventId];
-      localStorage.setItem('donor_registered_events', JSON.stringify(updated));
       return updated;
     });
 
@@ -532,7 +495,6 @@ export default function Events() {
     } else {
       setEventList(prev => {
         const updated = prev.filter(e => e.id !== eventId);
-        localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
         return updated;
       });
       toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus.` });
@@ -658,7 +620,6 @@ export default function Events() {
     } else {
       setEventList(prev => {
         const updated = [created, ...prev];
-        localStorage.setItem('shared_donor_events_v5', JSON.stringify(updated));
         return updated;
       });
       toast.success('Event berhasil dibuat!', { description: `Event "${newEvent.name}" telah aktif.` });

@@ -62,7 +62,8 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
 
           {/* Error detail (collapsed, hanya untuk dev) */}
-          {import.meta.env.DEV && this.state.error && (
+          {/* @ts-ignore */}
+          {import.meta.env?.DEV && this.state.error && (
             <details className="text-left bg-[#F7F7FB] rounded-xl p-3">
               <summary className="text-xs font-semibold text-[#9B9BB5] cursor-pointer">
                 Detail Error (Development)

@@ -75,14 +75,7 @@ const faqData = [
 export default function LandingPage() {
   usePageTitle('Sistem Informasi Donor Darah');
   const { isAuthenticated, user } = useAuth();
-  const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      navigate('/dashboard/' + (user.role === 'superadmin' ? 'superadmin' : user.role), { replace: true });
-    }
-  }, [isAuthenticated, user, navigate]);
 
   const features = [
     { icon: Search, title: 'Pencarian Stok Real-time', desc: 'Sistem pencarian ketersediaan kantong darah di seluruh PMI dan Rumah Sakit mitra terintegrasi secara langsung.', color: 'text-[#C0392B]', bg: 'bg-[#FDEDEC]' },
@@ -116,12 +109,34 @@ export default function LandingPage() {
             Sistem Informasi Donor Darah Terpadu Kota Surabaya. Menghubungkan Palang Merah Indonesia, Rumah Sakit Mitra, Pendonor, dan Kurir Logistik dalam satu platform pintar untuk menyelamatkan nyawa lebih cepat.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/login"
-              className="px-8 py-4 bg-white text-[#C0392B] rounded-2xl font-bold hover:bg-gray-50 hover:shadow-lg hover:-translate-y-0.5 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
-            >
-              Mulai Gunakan <ArrowRight className="w-5 h-5" />
-            </Link>
+            {isAuthenticated && user ? (
+              <Link
+                to={
+                  user.role === 'pmi' ? '/dashboard/pmi' :
+                  user.role === 'rs' ? '/search' :
+                  user.role === 'donor' ? '/events' :
+                  user.role === 'driver' ? '/dashboard/driver' :
+                  user.role === 'superadmin' ? '/dashboard/superadmin' : '/dashboard'
+                }
+                className="px-8 py-4 bg-white text-[#C0392B] rounded-2xl font-bold hover:bg-gray-50 hover:shadow-lg hover:-translate-y-0.5 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
+              >
+                {
+                  user.role === 'pmi' ? 'Kelola Stok Darah' :
+                  user.role === 'rs' ? 'Cari & Pesan Darah' :
+                  user.role === 'donor' ? 'Lihat Jadwal Donor' :
+                  user.role === 'driver' ? 'Lihat Tugas Pengantaran' :
+                  user.role === 'superadmin' ? 'Buka Control Panel' : 'Ke Dashboard'
+                }
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="px-8 py-4 bg-white text-[#C0392B] rounded-2xl font-bold hover:bg-gray-50 hover:shadow-lg hover:-translate-y-0.5 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
+              >
+                Mulai Gunakan <ArrowRight className="w-5 h-5" />
+              </Link>
+            )}
             <a
               href="#tentang"
               className="px-8 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-bold hover:bg-white/20 transition-all w-full sm:w-auto"

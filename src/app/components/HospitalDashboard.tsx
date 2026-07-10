@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, LayoutGrid, Trash2, ChevronDown, Save
+  RefreshCw, Trash2, ChevronDown, Save
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -53,6 +53,7 @@ interface HospitalStock {
   expiringSoon: number;
   lastUpdated?: string;
   batches?: StockBatch[];
+  status?: string;
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -253,10 +254,9 @@ export default function HospitalDashboard() {
 
         if (orderData && orderData.length > 0) {
           const mappedOrders: BloodOrder[] = orderData.map((o: any) => {
-            // Cocokkan order dengan delivery aktif
+            // Cocokkan order dengan delivery aktif menggunakan order_id (o.id)
             const activeDelivery = deliveryData?.find((d: any) => 
-              d.blood_type === o.blood_type &&
-              d.qty === o.quantity &&
+              d.order_id === o.id &&
               d.status !== 'selesai'
             );
 
@@ -315,74 +315,6 @@ export default function HospitalDashboard() {
     }
     fetchHospitalData();
   }, [user]);
-  // Load initial stocks cache scoped by user organization
-  useEffect(() => {
-    if (!user?.org) return;
-    const cacheKey = `shared_hospital_blood_stocks_${user.org}`;
-    const saved = localStorage.getItem(cacheKey);
-    if (saved) {
-      try {
-        setStocks(JSON.parse(saved));
-      } catch (e) {
-        console.warn('Failed parsing cached stocks:', e);
-      }
-    }
-  }, [user]);
-
-  // Sync to scoped localStorage
-  useEffect(() => {
-    if (!user?.org) return;
-    const cacheKey = `shared_hospital_blood_stocks_${user.org}`;
-    localStorage.setItem(cacheKey, JSON.stringify(stocks));
-    localStorage.setItem('shared_hospital_blood_stocks', JSON.stringify(stocks));
-  }, [stocks, user]);
-
-  // Real-time synchronization across views/tabs (localStorage)
-  useEffect(() => {
-    if (!user?.org) return;
-    const cacheKey = `shared_hospital_blood_stocks_${user.org}`;
-    const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key === cacheKey || e.key === 'shared_hospital_blood_stocks') && e.newValue) {
-        setStocks(JSON.parse(e.newValue));
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user]);
-
-  // Sinkronisasi status pesanan dari PMI (via localStorage bridge)
-  // Ketika PMI menyetujui/menolak request, status pesanan RS otomatis terupdate
-  useEffect(() => {
-    const syncOrdersFromPMI = () => {
-      try {
-        const raw = localStorage.getItem('shared_blood_requests_v1');
-        if (!raw) return;
-        const bridgeRequests: Array<{ id: string; status: string }> = JSON.parse(raw);
-        setOrders(prev => prev.map(order => {
-          const match = bridgeRequests.find(r => r.id === order.id);
-          if (!match) return order;
-          // Map status dari format PMI ke format RS
-          const statusMap: Record<string, BloodOrder['status']> = {
-            pending: 'menunggu',
-            diproses: 'diproses',
-            selesai: 'selesai',
-            ditolak: 'ditolak',
-            menunggu: 'menunggu',
-          };
-          const mappedStatus = statusMap[match.status] || order.status;
-          return { ...order, status: mappedStatus, updatedAt: 'Baru saja' };
-        }));
-      } catch (e) { console.warn('Gagal sync orders dari PMI:', e); }
-    };
-    window.addEventListener('sb_requests_changed', syncOrdersFromPMI);
-    window.addEventListener('storage', (e: StorageEvent) => {
-      if (e.key === 'shared_blood_requests_v1') syncOrdersFromPMI();
-    });
-    return () => {
-      window.removeEventListener('sb_requests_changed', syncOrdersFromPMI);
-    };
-  }, []);
-
   // Supabase Realtime — auto-refresh orders saat driver update status pengiriman
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -499,8 +431,9 @@ export default function HospitalDashboard() {
     }
     if (orderStep === 'ai') { setOrderStep('confirm'); return; }
     if (orderStep === 'confirm') {
+      const tempId = `ORD-TEMP-${Date.now()}`;
       const newOrder: BloodOrder = {
-        id: `ORD00${orders.length + 1}`,
+        id: tempId,
         bloodType: selectedBlood,
         qty: Number(selectedQty) || 0,
         urgency: selectedUrgency,
@@ -511,10 +444,12 @@ export default function HospitalDashboard() {
         trackingPct: 0,
       };
 
+      // Optimistic UI update
+      setOrders(prev => [newOrder, ...prev]);
+
       if (isSupabaseConfigured) {
         (async () => {
           try {
-            // Nama hospitals.name sudah konsisten dengan users.org
             const orgName = user?.org || 'Rumah Sakit A';
 
             const { data: hData } = await supabase
@@ -532,7 +467,8 @@ export default function HospitalDashboard() {
             const pId = pData?.id;
 
             if (hId) {
-              const { data: ordRes } = await supabase.from('blood_orders').insert({
+              // 1. Simpan ke blood_orders
+              const { data: ordRes, error: ordError } = await supabase.from('blood_orders').insert({
                 hospital_id: hId,
                 pmi_id: pId,
                 blood_type: newOrder.bloodType,
@@ -541,8 +477,11 @@ export default function HospitalDashboard() {
                 status: 'pending'
               }).select('*').single();
 
-              await supabase.from('blood_requests').insert({
-                id: ordRes ? ordRes.id : undefined,
+              if (ordError) throw ordError;
+
+              // 2. Simpan ke blood_requests dengan ID yang sama
+              const { error: reqError } = await supabase.from('blood_requests').insert({
+                id: ordRes.id,
                 hospital_id: hId,
                 pmi_id: pId,
                 blood_type: newOrder.bloodType,
@@ -550,35 +489,20 @@ export default function HospitalDashboard() {
                 urgency: newOrder.urgency,
                 status: 'pending'
               });
+
+              if (reqError) throw reqError;
+
+              // 3. Update state dengan ID asli dari database
+              if (ordRes) {
+                setOrders(prev => prev.map(o => o.id === tempId ? { ...o, id: ordRes.id } : o));
+              }
             }
           } catch (e) {
             console.warn('Gagal menyimpan pesanan ke Supabase:', e);
+            toast.error('Gagal menyimpan pesanan ke database.');
           }
         })();
       }
-
-      setOrders(prev => [newOrder, ...prev]);
-
-      // Simpan ke localStorage sebagai jembatan komunikasi ke PMIDashboard (fallback mode)
-      try {
-        const existingRaw = localStorage.getItem('shared_blood_requests_v1');
-        const existing: BloodRequest[] = existingRaw ? JSON.parse(existingRaw) : [];
-        const bridgeReq = {
-          id: newOrder.id,
-          hospital: user?.org || 'Rumah Sakit',
-          bloodType: newOrder.bloodType,
-          qty: newOrder.qty,
-          priority: newOrder.urgency,
-          status: 'pending',
-          time: 'Baru saja',
-          address: '',
-          contact: '',
-          pmi: newOrder.pmi,
-        };
-        const updated = [bridgeReq, ...existing];
-        localStorage.setItem('shared_blood_requests_v1', JSON.stringify(updated));
-        window.dispatchEvent(new Event('sb_requests_changed'));
-      } catch (e) { console.warn('Gagal simpan request ke localStorage:', e); }
 
       setOrderStep('done');
     }
@@ -632,13 +556,11 @@ export default function HospitalDashboard() {
             // Nama hospitals.name sudah konsisten dengan users.org
             const orgName = user?.org || 'Rumah Sakit A';
 
-            // Cari delivery aktif untuk order ini dan update statusnya ke selesai
+            // Cari delivery aktif untuk order ini menggunakan ID order yang tertaut
             const { data: matchedDels } = await supabase
               .from('deliveries')
               .select('id')
-              .eq('to_name', orgName)
-              .eq('blood_type', order.bloodType)
-              .eq('qty', order.qty)
+              .eq('order_id', id)
               .neq('status', 'selesai')
               .limit(1);
 
@@ -680,24 +602,6 @@ export default function HospitalDashboard() {
           }
         })();
       }
-
-      // Sinkronisasi ke localStorage untuk fallback lokal
-      try {
-        const savedDeliveries = localStorage.getItem('shared_donor_deliveries_v1');
-        if (savedDeliveries) {
-          const delsList = JSON.parse(savedDeliveries);
-          const updated = delsList.map((d: any) => 
-            d.bloodType === order.bloodType && d.qty === order.qty && d.status !== 'selesai'
-              ? { ...d, status: 'selesai' }
-              : d
-          );
-          localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(updated));
-          window.dispatchEvent(new Event('storage'));
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-
       toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
     } else {
       toast.error('Order tidak ditemukan!');
@@ -1390,29 +1294,37 @@ export default function HospitalDashboard() {
                     <p className="text-xs text-[#4A4A6A] mt-0.5">Mempertimbangkan stok, jarak, kapasitas, dan waktu tempuh</p>
                   </div>
                 </div>
-                {pmiList.map((pmi, i) => (
-                  <button key={pmi.id} onClick={() => setSelectedPMI(pmi.name)}
-                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${selectedPMI === pmi.name ? 'border-[#C0392B] bg-[#FDEDEC]/30 font-semibold' : 'border-border bg-white hover:border-[#C0392B]/50'}`}>
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        {i === 0 && <span className="text-[10px] font-bold bg-[#C0392B] text-white px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-2.5 h-2.5" /> Rekomendasi AI</span>}
-                        <span className="font-bold text-[#1A1A2E] text-sm">{pmi.name}</span>
+                {isLoadingPMI ? (
+                  <div className="py-8 text-center">
+                    <RefreshCw className="w-8 h-8 text-[#8E44AD] animate-spin mx-auto mb-3" />
+                    <p className="text-sm font-bold text-[#1A1A2E]">AI Sedang Mencari PMI...</p>
+                    <p className="text-xs text-[#9B9BB5]">Mohon tunggu sebentar</p>
+                  </div>
+                ) : (
+                  pmiList.map((pmi, i) => (
+                    <button key={pmi.id} onClick={() => setSelectedPMI(pmi.name)}
+                      className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${selectedPMI === pmi.name ? 'border-[#C0392B] bg-[#FDEDEC]/30 font-semibold' : 'border-border bg-white hover:border-[#C0392B]/50'}`}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {i === 0 && <span className="text-[10px] font-bold bg-[#C0392B] text-white px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-2.5 h-2.5" /> Rekomendasi AI</span>}
+                          <span className="font-bold text-[#1A1A2E] text-sm">{pmi.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-bold" style={{ color: pmi.score >= 90 ? '#27AE60' : pmi.score >= 70 ? '#E67E22' : '#C0392B' }}>{pmi.score}</span>
+                          <p className="text-[10px] text-[#9B9BB5]">skor</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold" style={{ color: pmi.score >= 90 ? '#27AE60' : pmi.score >= 70 ? '#E67E22' : '#C0392B' }}>{pmi.score}</span>
-                        <p className="text-[10px] text-[#9B9BB5]">skor</p>
+                      <p className="text-xs text-[#9B9BB5] flex items-center gap-1 mb-2"><MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" />{pmi.address}</p>
+                      <div className="flex items-center gap-4 text-xs font-medium">
+                        <span className="text-[#4A4A6A] flex items-center gap-1"><Navigation className="w-3 h-3" />{pmi.distance} · {pmi.travelTime}</span>
+                        <span className="text-[#4A4A6A] flex items-center gap-1"><Droplets className="w-3 h-3" />{pmi.stock} kantong {selectedBlood}</span>
                       </div>
-                    </div>
-                    <p className="text-xs text-[#9B9BB5] flex items-center gap-1 mb-2"><MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" />{pmi.address}</p>
-                    <div className="flex items-center gap-4 text-xs font-medium">
-                      <span className="text-[#4A4A6A] flex items-center gap-1"><Navigation className="w-3 h-3" />{pmi.distance} · {pmi.travelTime}</span>
-                      <span className="text-[#4A4A6A] flex items-center gap-1"><Droplets className="w-3 h-3" />{pmi.stock} kantong {selectedBlood}</span>
-                    </div>
-                    <div className="mt-2 h-1.5 bg-[#F4F4F8] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pmi.score}%`, background: pmi.score >= 90 ? '#27AE60' : pmi.score >= 70 ? '#E67E22' : '#C0392B' }} />
-                    </div>
-                  </button>
-                ))}
+                      <div className="mt-2 h-1.5 bg-[#F4F4F8] rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pmi.score}%`, background: pmi.score >= 90 ? '#27AE60' : pmi.score >= 70 ? '#E67E22' : '#C0392B' }} />
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             )}
 

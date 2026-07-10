@@ -3,6 +3,7 @@ import { TrendingUp, Users, Calendar, Edit, Trash2, Plus, AlertCircle, LayoutDas
 import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 const initialInventory = [
@@ -38,6 +39,7 @@ const btColor: Record<string, string> = {
 
 export default function Dashboard() {
   usePageTitle('Dashboard Manajemen');
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('inventory');
 
   const [bloodInventory, setBloodInventory] = useState(initialInventory);

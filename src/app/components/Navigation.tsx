@@ -62,16 +62,13 @@ export default function Navigation() {
     async function loadNotifications() {
       if (!user) return;
 
-      const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
-      const deletedIds: string[] = deletedSaved ? JSON.parse(deletedSaved) : [];
-
       // Try fetching live notifications from Supabase first
       if (isSupabaseConfigured) {
         try {
           if (user.role === 'pmi') {
             const { data: reqs } = await supabase.from('blood_requests').select('*').eq('status', 'pending').limit(3);
             if (reqs && reqs.length > 0) {
-              const liveNotifs = reqs.map((r: any, idx: number) => ({
+              const liveNotifs = reqs.map((r: any) => ({
                 id: `N_PMI_LIVE_${r.id}`,
                 type: 'darurat',
                 title: '🚨 Permintaan Darah Baru!',
@@ -79,11 +76,7 @@ export default function Navigation() {
                 time: 'Baru saja',
                 read: false
               }));
-              const defaults = getRoleDefaultNotifications('pmi');
-              const merged = [...liveNotifs, ...defaults.slice(liveNotifs.length)];
-              const filtered = merged.filter((n: any) => !deletedIds.includes(n.id));
-              setNotifications(filtered);
-              localStorage.setItem(userKey, JSON.stringify(filtered));
+              setNotifications(liveNotifs);
               return;
             }
           } else if (user.role === 'driver') {
@@ -97,57 +90,58 @@ export default function Navigation() {
                 time: d.updated_at ? new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
                 read: false
               }));
-              const filtered = liveNotifs.filter((n: any) => !deletedIds.includes(n.id));
-              setNotifications(filtered);
-              localStorage.setItem(userKey, JSON.stringify(filtered));
+              setNotifications(liveNotifs);
               return;
+            }
+          } else if (user.role === 'donor') {
+            // Fetch from donor_notifications table if exists
+            const { data: donorData } = await supabase.from('users').select('id, donor_profiles(id)').eq('email', user.email).single();
+            if (donorData?.donor_profiles) {
+              const { data: donorNotifs } = await supabase
+                .from('donor_notifications')
+                .select('*')
+                .eq('donor_id', (donorData.donor_profiles as any).id)
+                .order('created_at', { ascending: false })
+                .limit(5);
+              
+              if (donorNotifs && donorNotifs.length > 0) {
+                const mapped = donorNotifs.map((n: any) => ({
+                  id: n.id,
+                  type: n.type,
+                  title: n.title,
+                  message: n.message,
+                  time: new Date(n.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+                  read: n.read
+                }));
+                setNotifications(mapped);
+                return;
+              }
             }
           }
         } catch (e) {
-          console.warn('Gagal fetch live notifications:', e);
+          console.warn('Gagal fetch live notifications dari Supabase:', e);
         }
       }
 
-      // LocalStorage or Role Default fallback
-      try {
-        const saved = localStorage.getItem(userKey);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.length === 0) {
-            setNotifications([]);
-            return;
-          }
-          const isRoleMatch = Array.isArray(parsed) && (
-            (user.role === 'pmi' && parsed[0]?.id?.includes('PMI')) ||
-            (user.role === 'rs' && parsed[0]?.id?.includes('RS')) ||
-            (user.role === 'driver' && parsed[0]?.id?.includes('DRV')) ||
-            (user.role === 'donor' && !parsed[0]?.id?.includes('PMI') && !parsed[0]?.id?.includes('RS') && !parsed[0]?.id?.includes('DRV'))
-          );
-          if (isRoleMatch) {
-            const filtered = parsed.filter((n: any) => !deletedIds.includes(n.id));
-            setNotifications(filtered);
-            return;
-          }
-        }
-      } catch (e) { console.warn(e); }
-
-      // Reset to exact role defaults
+      // Fallback to defaults (no localStorage saving)
       const defaults = getRoleDefaultNotifications(user.role);
-      const filtered = defaults.filter((n: any) => !deletedIds.includes(n.id));
-      setNotifications(filtered);
-      localStorage.setItem(userKey, JSON.stringify(filtered));
-      window.dispatchEvent(new Event('sb_notifications_changed'));
+      setNotifications(defaults);
     }
 
     loadNotifications();
   }, [user]);
 
-  const handleNotificationClick = (notifId: string) => {
+  const handleNotificationClick = async (notifId: string) => {
     const updated = notifications.map(n => n.id === notifId ? { ...n, read: true } : n);
     setNotifications(updated);
-    if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-    window.dispatchEvent(new Event('sb_notifications_changed'));
     setNotifOpen(false);
+
+    // Persist read status for donors in Supabase
+    if (user?.role === 'donor' && isSupabaseConfigured) {
+      try {
+        await supabase.from('donor_notifications').update({ read: true }).eq('id', notifId);
+      } catch (e) { console.warn('Gagal update status baca ke Supabase:', e); }
+    }
 
     const role = user?.role;
     const targetPath = getNotifAction(role).to;
@@ -161,33 +155,11 @@ export default function Navigation() {
     e.stopPropagation();
     const updated = notifications.filter(n => n.id !== notifId);
     setNotifications(updated);
-    if (user) {
-      localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-      const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
-      const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
-      const newDeleted = Array.from(new Set([...deletedIds, notifId]));
-      localStorage.setItem(`sb_deleted_notifications_${user.email}`, JSON.stringify(newDeleted));
-    }
-    window.dispatchEvent(new Event('sb_notifications_changed'));
   };
 
+  // Sync notifications across tabs (now only using in-memory state, sync removed as requested to avoid localStorage)
   useEffect(() => {
-    const handleSync = () => {
-      if (!user) return;
-      const userKey = `sb_notifications_${user.email}`;
-      try {
-        const saved = localStorage.getItem(userKey);
-        if (saved) setNotifications(JSON.parse(saved));
-      } catch (e) {
-        console.warn(e);
-      }
-    };
-    window.addEventListener('sb_notifications_changed', handleSync);
-    window.addEventListener('storage', handleSync);
-    return () => {
-      window.removeEventListener('sb_notifications_changed', handleSync);
-      window.removeEventListener('storage', handleSync);
-    };
+    // Logic for cross-tab sync removed to comply with "No LocalStorage" policy for business data
   }, [user]);
 
   const profileRef = useRef<HTMLDivElement>(null);
@@ -393,11 +365,21 @@ export default function Navigation() {
                             {notifications.some(n => !n.read) && (
                               <>
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     const updated = notifications.map(n => ({ ...n, read: true }));
                                     setNotifications(updated);
-                                    if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                                    window.dispatchEvent(new Event('sb_notifications_changed'));
+                                    
+                                    // Persist for donors
+                                    if (user?.role === 'donor' && isSupabaseConfigured) {
+                                      try {
+                                        const { data: donorData } = await supabase.from('users').select('donor_profiles(id)').eq('email', user.email).single();
+                                        if (donorData?.donor_profiles) {
+                                          await supabase.from('donor_notifications')
+                                            .update({ read: true })
+                                            .eq('donor_id', (donorData.donor_profiles as any).id);
+                                        }
+                                      } catch (e) { console.warn(e); }
+                                    }
                                   }}
                                   className="text-[10px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
                                 >
@@ -408,15 +390,7 @@ export default function Navigation() {
                             )}
                             <button
                               onClick={() => {
-                                if (user) {
-                                  const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
-                                  const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
-                                  const newDeleted = Array.from(new Set([...deletedIds, ...notifications.map(n => n.id)]));
-                                  localStorage.setItem(`sb_deleted_notifications_${user.email}`, JSON.stringify(newDeleted));
-                                  localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
-                                }
                                 setNotifications([]);
-                                window.dispatchEvent(new Event('sb_notifications_changed'));
                               }}
                               className="text-[10px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
                             >
@@ -555,11 +529,21 @@ export default function Navigation() {
                             {notifications.some(n => !n.read) && (
                               <>
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     const updated = notifications.map(n => ({ ...n, read: true }));
                                     setNotifications(updated);
-                                    if (user) localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify(updated));
-                                    window.dispatchEvent(new Event('sb_notifications_changed'));
+                                    
+                                    // Persist for donors
+                                    if (user?.role === 'donor' && isSupabaseConfigured) {
+                                      try {
+                                        const { data: donorData } = await supabase.from('users').select('donor_profiles(id)').eq('email', user.email).single();
+                                        if (donorData?.donor_profiles) {
+                                          await supabase.from('donor_notifications')
+                                            .update({ read: true })
+                                            .eq('donor_id', (donorData.donor_profiles as any).id);
+                                        }
+                                      } catch (e) { console.warn(e); }
+                                    }
                                   }}
                                   className="text-[9px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
                                 >
@@ -570,15 +554,7 @@ export default function Navigation() {
                             )}
                             <button
                               onClick={() => {
-                                if (user) {
-                                  const deletedSaved = localStorage.getItem(`sb_deleted_notifications_${user.email}`);
-                                  const deletedIds = deletedSaved ? JSON.parse(deletedSaved) : [];
-                                  const newDeleted = Array.from(new Set([...deletedIds, ...notifications.map(n => n.id)]));
-                                  localStorage.setItem(`sb_deleted_notifications_${user.email}`, JSON.stringify(newDeleted));
-                                  localStorage.setItem(`sb_notifications_${user.email}`, JSON.stringify([]));
-                                }
                                 setNotifications([]);
-                                window.dispatchEvent(new Event('sb_notifications_changed'));
                               }}
                               className="text-[9px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
                             >

@@ -10,10 +10,12 @@ import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
+
 interface TicketItem {
   id: string;
   ticketId: string;
-  eventId?: number;
+  eventId?: any;
   eventName: string;
   organizer: string;
   location: string;
@@ -39,120 +41,111 @@ export default function AlurDonor() {
   const [selectedTicketForModal, setSelectedTicketForModal] = useState<TicketItem | null>(null);
 
   // Tickets State
-  const [ticketList, setTicketList] = useState<TicketItem[]>(() => {
-    // Load registered events from localStorage
-    const savedRegisteredEventIds: number[] = JSON.parse(
-      localStorage.getItem('donor_registered_events') || '[]'
-    );
-    const savedEvents = JSON.parse(
-      localStorage.getItem('shared_donor_events_v5') || '[]'
-    );
+  const [ticketList, setTicketList] = useState<TicketItem[]>([]);
 
-    // Build ticket items from registered events
-    const eventTickets: TicketItem[] = savedRegisteredEventIds.map((eId) => {
-      const foundEvent = savedEvents.find((e: any) => e.id === eId);
-      return {
-        id: `EVT-TICKET-${eId}`,
-        ticketId: `EVT-SUB-${eId}-8841`,
-        eventId: eId,
-        eventName: foundEvent ? foundEvent.name : 'Event Donor Darah Surabaya',
-        organizer: foundEvent ? foundEvent.organizer : 'PMI Kota Surabaya',
-        location: foundEvent ? foundEvent.location : 'Lokasi PMI Surabaya',
-        address: foundEvent ? foundEvent.address : 'Kota Surabaya',
-        date: foundEvent ? foundEvent.date : '2026-07-15',
-        time: foundEvent ? foundEvent.time : '08:00 - 12:00 WIB',
-        registeredAt: '2026-07-02 22:45',
-        donorName: user?.name || 'Rizky Pratama',
-        nik: '3578012409950003',
-        bloodType: 'O',
-        rhesus: '+',
-        status: 'ready',
-        points: 100,
-      };
-    });
-
-    // Default sample ticket if user has no registered events yet
-    const defaultSampleTicket: TicketItem = {
-      id: 'SAMPLE-TICKET-01',
-      ticketId: 'SB-REG-2026-9481',
-      eventName: 'Donor Darah Peduli Surabaya 2026',
-      organizer: 'PMI A',
-      location: 'Markas PMI A',
-      address: 'Jl. Embong Ploso No. 7-15, Genteng, Surabaya',
-      date: '2026-07-10',
-      time: '08:00 - 11:00 WIB (Sesi Pagi)',
-      registeredAt: '2026-07-02 10:30',
-      donorName: user?.name || 'Rizky Pratama',
-      nik: '3578012409950003',
-      bloodType: 'O',
-      rhesus: '+',
-      status: 'ready',
-      points: 100,
-    };
-
-    return eventTickets.length > 0 ? eventTickets : [defaultSampleTicket];
-  });
-
-  // Re-sync if localStorage changes
+  // Load registered events from Supabase on mount
   useEffect(() => {
-    const handleStorage = () => {
-      const savedIds: number[] = JSON.parse(
-        localStorage.getItem('donor_registered_events') || '[]'
-      );
-      const savedEvts = JSON.parse(
-        localStorage.getItem('shared_donor_events_v5') || '[]'
-      );
+    async function loadTicketsFromSupabase() {
+      if (!isSupabaseConfigured || !user) return;
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
 
-      if (savedIds.length > 0) {
-        const updated: TicketItem[] = savedIds.map((eId) => {
-          const found = savedEvts.find((e: any) => e.id === eId);
-          return {
-            id: `EVT-TICKET-${eId}`,
-            ticketId: `EVT-SUB-${eId}-8841`,
-            eventId: eId,
-            eventName: found ? found.name : 'Event Donor Darah Surabaya',
-            organizer: found ? found.organizer : 'PMI Kota Surabaya',
-            location: found ? found.location : 'Lokasi PMI Surabaya',
-            address: found ? found.address : 'Kota Surabaya',
-            date: found ? found.date : '2026-07-15',
-            time: found ? found.time : '08:00 - 12:00 WIB',
-            registeredAt: '2026-07-02 22:45',
-            donorName: user?.name || 'Rizky Pratama',
-            nik: '3578012409950003',
-            bloodType: 'O',
-            rhesus: '+',
-            status: 'ready',
-            points: 100,
-          };
-        });
-        setTicketList(updated);
-      }
-    };
+        if (userData) {
+          const { data: bookings, error } = await supabase
+            .from('event_bookings')
+            .select('*, events(*)')
+            .eq('donor_id', userData.id);
 
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, [user?.name]);
-
-  const handleCancelTicket = (ticket: TicketItem) => {
-    // If associated with an event
-    if (ticket.eventId) {
-      const savedIds: number[] = JSON.parse(
-        localStorage.getItem('donor_registered_events') || '[]'
-      );
-      const updatedIds = savedIds.filter((id) => id !== ticket.eventId);
-      localStorage.setItem('donor_registered_events', JSON.stringify(updatedIds));
-
-      // Decrement count in shared_donor_events_v5
-      const savedEvts = JSON.parse(
-        localStorage.getItem('shared_donor_events_v5') || '[]'
-      );
-      const updatedEvts = savedEvts.map((e: any) => {
-        if (e.id === ticket.eventId) {
-          return { ...e, registered: Math.max(0, e.registered - 1) };
+          if (error) throw error;
+          if (bookings && bookings.length > 0) {
+            const mapped: TicketItem[] = bookings.map((b: any) => {
+              const event = b.events;
+              return {
+                id: `EVT-TICKET-${b.event_id}`,
+                ticketId: b.ticket_id || `EVT-SUB-${b.event_id}-8841`,
+                eventId: b.event_id,
+                eventName: event ? event.name : 'Event Donor Darah Surabaya',
+                organizer: event ? event.organizer : 'PMI Kota Surabaya',
+                location: event ? event.location : 'Lokasi PMI Surabaya',
+                address: event ? event.address : 'Kota Surabaya',
+                date: event ? event.date : '2026-07-15',
+                time: b.session || (event ? event.time : '08:00 - 12:00 WIB'),
+                registeredAt: new Date(b.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
+                donorName: user?.name || 'Rizky Pratama',
+                nik: '3578012409950003',
+                bloodType: 'O',
+                rhesus: '+',
+                status: b.status === 'checked_in' ? 'checked_in' : 'ready',
+                points: 100,
+              };
+            });
+            setTicketList(mapped);
+          } else {
+            // Default sample ticket if user has no registered events yet
+            setTicketList([{
+              id: 'SAMPLE-TICKET-01',
+              ticketId: 'SB-REG-2026-9481',
+              eventName: 'Donor Darah Peduli Surabaya 2026',
+              organizer: 'PMI A',
+              location: 'Markas PMI A',
+              address: 'Jl. Embong Ploso No. 7-15, Genteng, Surabaya',
+              date: '2026-07-10',
+              time: '08:00 - 11:00 WIB (Sesi Pagi)',
+              registeredAt: '2026-07-02 10:30',
+              donorName: user?.name || 'Rizky Pratama',
+              nik: '3578012409950003',
+              bloodType: 'O',
+              rhesus: '+',
+              status: 'ready',
+              points: 100,
+            }]);
+          }
         }
-        return e;
-      });
-      localStorage.setItem('shared_donor_events_v5', JSON.stringify(updatedEvts));
+      } catch (err) {
+        console.warn('Gagal memuat tiket donor dari Supabase:', err);
+      }
+    }
+    loadTicketsFromSupabase();
+  }, [user]);
+
+  const handleCancelTicket = async (ticket: TicketItem) => {
+    // If associated with an event
+    if (ticket.eventId && isSupabaseConfigured && user) {
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+
+        if (userData) {
+          await supabase
+            .from('event_bookings')
+            .delete()
+            .eq('event_id', ticket.eventId)
+            .eq('donor_id', userData.id);
+          
+          // Also update event registration count
+          const { data: eventData } = await supabase
+            .from('events')
+            .select('registered')
+            .eq('id', ticket.eventId)
+            .single();
+          
+          if (eventData) {
+            await supabase
+              .from('events')
+              .update({ registered: Math.max(0, eventData.registered - 1) })
+              .eq('id', ticket.eventId);
+          }
+        }
+      } catch (err) {
+        console.error('Gagal membatalkan tiket di Supabase:', err);
+      }
     }
 
     setTicketList((prev) => prev.filter((t) => t.id !== ticket.id));

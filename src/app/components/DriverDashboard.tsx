@@ -50,12 +50,7 @@ export default function DriverDashboard() {
   const { user } = useAuth();
   usePageTitle('Dasbor Driver');
 
-  const [deliveryList, setDeliveryList] = useState<Delivery[]>(() => {
-    const saved = localStorage.getItem('shared_donor_deliveries_v1');
-    if (saved) return JSON.parse(saved);
-    localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(initialDeliveries));
-    return initialDeliveries;
-  });
+  const [deliveryList, setDeliveryList] = useState<Delivery[]>(initialDeliveries);
 
   const [filterMode, setFilterMode] = useState<'my' | 'all'>('my');
   const [selectedDeliveryDetail, setSelectedDeliveryDetail] = useState<Delivery | null>(null);
@@ -88,20 +83,9 @@ export default function DriverDashboard() {
             updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           }));
           setDeliveryList(mapped);
-          localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(mapped));
         }
       } catch (e) { console.warn('Gagal fetch deliveries:', e); }
     })();
-  }, []);
-
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'shared_donor_deliveries_v1' && e.newValue) {
-        setDeliveryList(JSON.parse(e.newValue));
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   // Mapping status delivery driver → status pesanan di RS/PMI
@@ -120,8 +104,6 @@ export default function DriverDashboard() {
   const updateDelivery = async (updated: Delivery) => {
     const newList = deliveryList.map(d => d.id === updated.id ? updated : d);
     setDeliveryList(newList);
-    localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(newList));
-    window.dispatchEvent(new Event('storage'));
 
     if (isSupabaseConfigured) {
       try {

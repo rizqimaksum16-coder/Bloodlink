@@ -15,7 +15,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (role: UserRole, email: string, name?: string) => Promise<void>;
+  login: (role: UserRole, email: string, password?: string, name?: string, org?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (name: string, email: string) => Promise<void>;
   registerDonor: (name: string, email: string, bloodType: string, phone: string, address: string) => Promise<void>;
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncProfileOnStart();
   }, []);
 
-  const login = async (role: UserRole, email: string, name?: string, org?: string) => {
+  const login = async (role: UserRole, email: string, password?: string, name?: string, org?: string) => {
     const defaults = roleDefaults[role];
     const demoMeta = knownDemoUsers[email];
     let loggedUser: AuthUser = {
@@ -207,8 +207,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     deleteCookie();
-    localStorage.removeItem('shared_pmi_blood_stocks');
-    localStorage.removeItem('shared_hospital_blood_stocks');
   };
 
   const registerDonor = async (name: string, email: string, bloodType: string, phone: string, address: string) => {

@@ -371,7 +371,7 @@ export default function BloodSearch() {
   }, [user]);
 
   // Dynamically compute PMI search recommendations from Supabase (dengan stok nyata)
-  // Fallback ke localStorage shared_orgs_v1 jika Supabase tidak tersedia
+  // Fallback ke model konstanta lokal pmiDatabase jika Supabase tidak tersedia
   const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
     if (isSupabaseConfigured) {
       try {
@@ -445,64 +445,8 @@ export default function BloodSearch() {
           return sorted;
         }
       } catch (e) {
-        console.warn('Gagal fetch PMI dari Supabase, coba localStorage:', e);
+        console.warn('Gagal fetch PMI dari Supabase:', e);
       }
-    }
-
-    // Fallback: baca dari localStorage shared_orgs_v1 (data Super Admin)
-    const saved = localStorage.getItem('shared_orgs_v1');
-    if (saved) {
-      try {
-        const orgs: any[] = JSON.parse(saved);
-        const activePMIs = orgs.filter(o => o.type === 'pmi' && o.status === 'active');
-        if (activePMIs.length > 0) {
-          const mapped: PMIResult[] = activePMIs.map((p) => {
-            const dLat = p.coords[0] - rsLat;
-            const dLng = p.coords[1] - rsLng;
-            const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
-            const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
-            const responseRate = 90;
-            
-            // Untuk fallback, kita buat stok acak tapi logis (untuk demo)
-            const stockQty = Math.floor(Math.random() * 20); // 0-19 kantong
-
-            // Skor dengan bobot stok yang sama dengan Supabase!
-            let baseScore = 0;
-            if (stockQty === 0) {
-              baseScore -= 30;
-            } else if (stockQty < requiredQty) {
-              baseScore -= 15;
-            } else {
-              baseScore += 50;
-            }
-            baseScore += (60 - distanceKm * 3);
-            baseScore += (responseRate * 0.2);
-            const score = Math.max(10, Math.min(95, Math.round(baseScore)));
-            
-            return {
-              id: p.id, name: p.name, address: p.address,
-              lat: p.coords[0], lng: p.coords[1],
-              distance: `${distanceKm.toFixed(1)} km`,
-              travelTime: `${travelTimeMin} mnt`,
-              stock: stockQty, capacity: 100, responseRate,
-              avgDelivery: '20 mnt', score,
-              reasons: [
-                stockQty >= requiredQty
-                  ? `Stok sangat mencukupi (${stockQty} kantong)`
-                  : stockQty > 0
-                  ? `Stok terbatas (${stockQty} kantong)`
-                  : 'Stok kosong',
-                `Jarak ${distanceKm.toFixed(1)} km`,
-                `Estimasi ${travelTimeMin} menit`
-              ]
-            };
-          });
-          const sorted = mapped.sort((a, b) => b.score - a.score);
-          if (sorted.length > 0) { sorted[0].tag = 'Rekomendasi AI'; sorted[0].tagColor = '#C0392B'; }
-          if (sorted.length > 1) { sorted[1].tag = 'Cadangan'; sorted[1].tagColor = '#E67E22'; }
-          return sorted;
-        }
-      } catch (e) { console.error('Error parsing shared orgs:', e); }
     }
 
     return pmiDatabase[bloodType] || [];
@@ -515,17 +459,6 @@ export default function BloodSearch() {
       return [activeMatch.lat, activeMatch.lng];
     }
 
-    // 2. Fallback ke localStorage
-    const saved = localStorage.getItem('shared_orgs_v1');
-    if (saved) {
-      try {
-        const orgs = JSON.parse(saved);
-        const match = orgs.find((o: any) => o.id === pmiId || o.name === pmiName);
-        if (match && match.coords) {
-          return match.coords;
-        }
-      } catch (e) {}
-    }
     if (pmiName.includes('Wonokromo') || pmiName.includes('Selatan')) return [-7.3005, 112.7351];
     if (pmiName.includes('Kedung Baruk') || pmiName.includes('Timur')) return [-7.3150, 112.7812];
     return [-7.2657, 112.7445];
@@ -789,7 +722,7 @@ export default function BloodSearch() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* LEFT SIDE PANEL: Filters & Parameters */}
-          <div className="lg:col-span-4 bg-white rounded-2xl border border-border p-5 shadow-sm sticky top-24">
+          <div className="lg:col-span-4 bg-white rounded-2xl border border-border p-5 shadow-sm lg:sticky lg:top-24">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-[#C0392B]" />
@@ -1070,7 +1003,7 @@ export default function BloodSearch() {
 
                     {/* Right: Route map visualization */}
                     <div className="lg:col-span-1 order-1 lg:order-2 mb-4 lg:mb-0">
-                      <div className="sticky top-6 bg-white rounded-2xl border border-border p-4 shadow-sm space-y-3">
+                      <div className="lg:sticky lg:top-6 bg-white rounded-2xl border border-border p-4 shadow-sm space-y-3">
                         <h4 className="font-bold text-xs text-[#1A1A2E] flex items-center gap-1.5 uppercase tracking-wider text-[#4A4A6A] flex items-center">
                           <Map className="w-4 h-4 text-[#8E44AD]" /> Peta Rute Distribusi AI
                         </h4>

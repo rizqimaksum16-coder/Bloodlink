@@ -172,15 +172,8 @@ export default function SuperAdminDashboard() {
   usePageTitle('Super Admin — Blood Link');
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
-  const [orgs, setOrgs] = useState<OrgAccount[]>(() => {
-    const saved = localStorage.getItem('shared_orgs_v1');
-    return saved ? JSON.parse(saved) : initialOrgs;
-  });
+  const [orgs, setOrgs] = useState<OrgAccount[]>(initialOrgs);
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    localStorage.setItem('shared_orgs_v1', JSON.stringify(orgs));
-  }, [orgs]);
 
   // Load and sync real accounts from Supabase on mount
   useEffect(() => {
@@ -433,22 +426,7 @@ export default function SuperAdminDashboard() {
       } catch (err: any) {
         console.error('Gagal menyimpan ke database Supabase:', err);
         toast.error(`Gagal menyimpan: ${err?.message || 'Cek koneksi database'}`);
-        return; // jangan lanjut jika Supabase gagal
       }
-    }
-
-    // Mode non-Supabase (localStorage only)
-    if (editingOrg) {
-      setOrgs(prev => prev.map(o => o.id === editingOrg.id ? { ...o, ...orgForm } : o));
-      toast.success(`Lokasi & Akun ${orgForm.name} berhasil diperbarui!`);
-    } else {
-      const newOrg: OrgAccount = {
-        ...orgForm,
-        id: generateId(orgForm.type === 'pmi' ? 'PMI' : 'RS'),
-        createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-      };
-      setOrgs(prev => [...prev, newOrg]);
-      toast.success(`Akun ${newOrg.name} berhasil ditambahkan!`);
     }
     setShowOrgModal(false);
   };

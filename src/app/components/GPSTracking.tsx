@@ -177,12 +177,7 @@ function MapMockup({ delivery }: { delivery: Delivery }) {
 }
 
 export default function GPSTracking() {
-  const [deliveryList, setDeliveryList] = useState<Delivery[]>(() => {
-    const saved = localStorage.getItem('shared_donor_deliveries_v1');
-    if (saved) return JSON.parse(saved);
-    localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(initialDeliveries));
-    return initialDeliveries;
-  });
+  const [deliveryList, setDeliveryList] = useState<Delivery[]>(initialDeliveries);
 
   const [selected, setSelected] = useState<Delivery>(() => {
     return deliveryList[0] || initialDeliveries[0];
@@ -229,25 +224,12 @@ export default function GPSTracking() {
           }));
           setDeliveryList(mapped);
           setSelected(prev => mapped.find(item => item.id === prev.id) || mapped[0]);
-          localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(mapped));
         }
       } catch (e) {
         console.warn('Gagal fetch deliveries di GPSTracking:', e);
       }
     };
     fetchDeliveries();
-  }, []);
-
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'shared_donor_deliveries_v1' && e.newValue) {
-        const parsed = JSON.parse(e.newValue) as Delivery[];
-        setDeliveryList(parsed);
-        setSelected(prev => parsed.find(d => d.id === prev.id) || parsed[0]);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const handleRefresh = async () => {
@@ -291,13 +273,6 @@ export default function GPSTracking() {
           setSelected(prev => mapped.find(item => item.id === prev.id) || mapped[0]);
         }
       } catch (e) { console.warn(e); }
-    } else {
-      const saved = localStorage.getItem('shared_donor_deliveries_v1');
-      if (saved) {
-        const parsed = JSON.parse(saved) as Delivery[];
-        setDeliveryList(parsed);
-        setSelected(prev => parsed.find(d => d.id === prev.id) || parsed[0]);
-      }
     }
     setTimeout(() => setRefreshing(false), 800);
   };

@@ -47,47 +47,49 @@ export default function QRCheckIn() {
 
   usePageTitle(isDonor ? 'Karcis Kehadiran' : 'QR Check-In');
 
-  // Safely load dynamic events list from localStorage or fallback + Supabase sync
-  const [eventList, setEventList] = useState<DonorEvent[]>(() => {
-    try {
-      const savedEvents = localStorage.getItem('shared_donor_events_v5');
-      if (savedEvents) {
-        const parsed = JSON.parse(savedEvents);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const mapped: DonorEvent[] = parsed.map((e: any) => ({
-            id: String(e.id),
-            name: e.name || 'Event Donor Darah',
-            date: e.date || '2026-07-15',
-            time: e.time || '08:00 - 14:00',
-            location: `${e.location || 'Surabaya'} — ${e.address || 'Kota Surabaya'}`,
-            registered: e.registered || 1,
-            checkedIn: 0,
-            target: e.capacity || 100,
-            status: 'open',
-          }));
-          return mapped;
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading shared_donor_events_v5:', e);
-    }
-    return [];
-  });
+  const [eventList, setEventList] = useState<DonorEvent[]>([]);
 
-  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const queryId = params.get('eventId');
-    if (queryId) return queryId;
-    return eventList.length > 0 ? eventList[0].id : '';
-  });
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
 
+  // Load events from Supabase
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const queryId = params.get('eventId');
-    if (queryId && eventList.some((e) => String(e.id) === queryId)) {
-      setSelectedEventId(queryId);
+    async function fetchEvents() {
+      if (!isSupabaseConfigured) return;
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .order('date', { ascending: true });
+        
+        if (error) throw error;
+        if (data) {
+          const mapped: DonorEvent[] = data.map((e: any) => ({
+            id: String(e.id),
+            name: e.name,
+            date: e.date,
+            time: e.time || '08:00 - 14:00',
+            location: `${e.location} — ${e.address}`,
+            registered: e.registered || 0,
+            checkedIn: 0, // Will be calculated from bookings
+            target: e.capacity || 100,
+            status: e.status === 'completed' ? 'closed' : 'open',
+          }));
+          setEventList(mapped);
+          
+          const params = new URLSearchParams(window.location.search);
+          const queryId = params.get('eventId');
+          if (queryId && mapped.some(ev => ev.id === queryId)) {
+            setSelectedEventId(queryId);
+          } else if (mapped.length > 0) {
+            setSelectedEventId(mapped[0].id);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat event dari Supabase:', err);
+      }
     }
-  }, [eventList]);
+    fetchEvents();
+  }, []);
 
   const activeEvent = eventList.find((e) => e.id === selectedEventId) || eventList[0] || {
     id: '',
@@ -101,47 +103,7 @@ export default function QRCheckIn() {
     status: 'closed'
   };
 
-  // Safely load bookings list dynamically with localStorage persistence + Supabase sync
-  const [localBookings, setLocalBookings] = useState<Booking[]>(() => {
-    let baseBookings: Booking[] = initialDefaultBookings;
-    try {
-      const savedBookings = localStorage.getItem('qr_checkin_bookings_v2');
-      if (savedBookings) {
-        baseBookings = JSON.parse(savedBookings);
-      }
-    } catch (e) {
-      console.warn('Error reading qr_checkin_bookings_v2:', e);
-    }
-
-    try {
-      // Synchronize with registered events from localStorage
-      const savedRegisteredEventIds: number[] = JSON.parse(
-        localStorage.getItem('donor_registered_events') || '[]'
-      );
-
-      if (savedRegisteredEventIds.length > 0) {
-        const effectiveDonorName = user?.role === 'donor' ? (user?.name || 'Rizky Pratama') : 'Rizky Pratama';
-        savedRegisteredEventIds.forEach((eId) => {
-          const strId = String(eId);
-          const exists = baseBookings.some((b) => b.eventId === strId && b.donorName === effectiveDonorName);
-          if (!exists) {
-            baseBookings.unshift({
-              id: `REG-${eId}`,
-              donorName: effectiveDonorName,
-              bloodType: 'O-',
-              qrCode: `EVT-SUB-${eId}-8841`,
-              eventId: strId,
-              checkedIn: false,
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('Error syncing registered events:', e);
-    }
-
-    return baseBookings;
-  });
+  const [localBookings, setLocalBookings] = useState<Booking[]>([]);
 
   const [scanInput, setScanInput] = useState('');
   const [scanResult, setScanResult] = useState<'success' | 'already' | 'notfound' | null>(null);
@@ -157,15 +119,6 @@ export default function QRCheckIn() {
     inputRef.current?.focus();
   }, []);
 
-  // Sync to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('qr_checkin_bookings_v2', JSON.stringify(localBookings));
-    } catch (e) {
-      console.warn('Failed saving qr_checkin_bookings_v2:', e);
-    }
-  }, [localBookings]);
-
   // Load real bookings from Supabase
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -178,60 +131,34 @@ export default function QRCheckIn() {
             event_id,
             qr_code,
             checked_in,
-            donor_profiles (
-              blood_type,
-              users (
-                name
-              )
-            )
+            donor_id
           `);
         if (error) throw error;
         if (data) {
-          const mapped: Booking[] = data.map((b: any) => ({
-            id: b.id,
-            donorName: b.donor_profiles?.users?.name || 'Pendonor Terdaftar',
-            bloodType: b.donor_profiles?.blood_type || 'O-',
-            qrCode: b.qr_code,
-            eventId: String(b.event_id),
-            checkedIn: b.checked_in,
-          }));
+          // We need to fetch user names as well
+          const donorIds = data.map((b: any) => b.donor_id).filter(Boolean);
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, name')
+            .in('id', donorIds);
+
+          const mapped: Booking[] = data.map((b: any) => {
+            const userMatch = usersData?.find((u: any) => u.id === b.donor_id);
+            return {
+              id: b.id,
+              donorName: userMatch?.name || 'Pendonor Terdaftar',
+              bloodType: 'O-', // Static for now as we don't have donor_profiles join here
+              qrCode: b.qr_code,
+              eventId: String(b.event_id),
+              checkedIn: b.checked_in,
+            };
+          });
           setLocalBookings(mapped);
-          localStorage.setItem('qr_checkin_bookings_v2', JSON.stringify(mapped));
         }
       } catch (err) {
         console.warn('Gagal memuat data event bookings dari Supabase:', err);
       }
     })();
-  }, []);
-
-  // Handle cross-tab updates
-  useEffect(() => {
-    const handleStorage = () => {
-      try {
-        const savedEvts = localStorage.getItem('shared_donor_events_v5');
-        if (savedEvts) {
-          const parsed = JSON.parse(savedEvts);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const mapped: DonorEvent[] = parsed.map((e: any) => ({
-              id: String(e.id),
-              name: e.name || 'Event Donor Darah',
-              date: e.date || '2026-07-15',
-              time: e.time || '08:00 - 14:00',
-              location: `${e.location || 'Surabaya'} — ${e.address || 'Kota Surabaya'}`,
-              registered: e.registered || 1,
-              checkedIn: 0,
-              target: e.capacity || 100,
-              status: 'open',
-            }));
-            setEventList([...mapped, ...defaultEventsList]);
-          }
-        }
-      } catch (e) {
-        console.warn('Storage event handling error:', e);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const eventBookings = localBookings.filter((b) => b.eventId === activeEvent.id);
@@ -499,13 +426,25 @@ export default function QRCheckIn() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [scanning]);
 
-  const handleResetCheckins = () => {
-    const resetBookings = initialDefaultBookings.map(b => ({ ...b, checkedIn: false, checkedInAt: undefined }));
-    setLocalBookings(resetBookings);
-    try {
-      localStorage.setItem('qr_checkin_bookings_v2', JSON.stringify(resetBookings));
-    } catch (e) {}
-    toast.info('Status kehadiran seluruh peserta berhasil di-reset ke Menunggu.');
+  const handleResetCheckins = async () => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('event_bookings')
+          .update({ checked_in: false })
+          .eq('event_id', activeEvent.id);
+        
+        if (error) throw error;
+        
+        setLocalBookings(prev => prev.map(b => 
+          b.eventId === activeEvent.id ? { ...b, checkedIn: false, checkedInAt: undefined } : b
+        ));
+        toast.info('Status kehadiran seluruh peserta event ini berhasil di-reset.');
+      } catch (e) {
+        console.warn('Gagal reset checkins di Supabase:', e);
+        toast.error('Gagal mereset status kehadiran.');
+      }
+    }
   };
 
   return (

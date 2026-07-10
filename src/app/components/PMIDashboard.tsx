@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Priority = 'darurat' | 'mendesak' | 'normal';
-type RequestStatus = 'pending' | 'diproses' | 'selesai' | 'ditolak';
+type RequestStatus = 'pending' | 'diproses' | 'dikirim' | 'tiba' | 'selesai' | 'ditolak';
 type StockStatus = 'good' | 'low' | 'critical';
 
 interface BloodRequest {
@@ -236,43 +236,18 @@ export default function PMIDashboard() {
     }
   }, [location.search, tabParam]);
 
-  const [requests, setRequests] = useState<BloodRequest[]>(() => {
-    // Baca request dari localStorage sebagai jembatan komunikasi dengan RS (fallback mode)
-    try {
-      const saved = localStorage.getItem('shared_blood_requests_v1');
-      return saved ? JSON.parse(saved) : bloodRequests;
-    } catch {
-      return bloodRequests;
-    }
-  });
+  const [requests, setRequests] = useState<BloodRequest[]>(bloodRequests);
   const [stocks, setStocks] = useState<BloodStock[]>(bloodStocks);
 
   const [donorList, setDonorList] = useState<Donor[]>([]);
   const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
   
-  const [drivers, setDrivers] = useState<any[]>(() => {
-    const saved = localStorage.getItem('shared_driver_accounts_v1');
-    const defaultDrivers = [
-      { id: 'DRV001', name: 'Budi Santoso', email: 'driver@suroboyoblood.id', phone: '081234567890', vehicleNo: 'L 1234 AB', org: 'PMI A', password: 'demo123' },
-      { id: 'DRV002', name: 'Agus Prasetyo', email: 'agus@kurir.id', phone: '082198765432', vehicleNo: 'L 5678 CD', org: 'PMI Kota Surabaya' },
-      { id: 'DRV003', name: 'Hendra Wijaya', email: 'hendra@kurir.id', phone: '083147852369', vehicleNo: 'L 9012 EF', org: 'PMI Kota Surabaya' },
-      { id: 'DRV004', name: 'Rizal Firmansyah', email: 'rizal@kurir.id', phone: '085236987410', vehicleNo: 'L 3456 GH', org: 'PMI Kota Surabaya' }
-    ];
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Gabungkan parsed dengan defaultDrivers tanpa duplikat email
-        const merged = [...parsed];
-        defaultDrivers.forEach(def => {
-          if (!merged.find(m => m.email === def.email)) {
-            merged.push(def);
-          }
-        });
-        return merged;
-      }
-    }
-    return defaultDrivers;
-  });
+  const [drivers, setDrivers] = useState<any[]>([
+    { id: 'DRV001', name: 'Budi Santoso', email: 'driver@suroboyoblood.id', phone: '081234567890', vehicleNo: 'L 1234 AB', org: 'PMI A', password: 'demo123' },
+    { id: 'DRV002', name: 'Agus Prasetyo', email: 'agus@kurir.id', phone: '082198765432', vehicleNo: 'L 5678 CD', org: 'PMI Kota Surabaya' },
+    { id: 'DRV003', name: 'Hendra Wijaya', email: 'hendra@kurir.id', phone: '083147852369', vehicleNo: 'L 9012 EF', org: 'PMI Kota Surabaya' },
+    { id: 'DRV004', name: 'Rizal Firmansyah', email: 'rizal@kurir.id', phone: '085236987410', vehicleNo: 'L 3456 GH', org: 'PMI Kota Surabaya' }
+  ]);
 
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverEmail, setNewDriverEmail] = useState('');
@@ -283,27 +258,6 @@ export default function PMIDashboard() {
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
   const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
   const [chosenDriverId, setChosenDriverId] = useState<string>('');
-
-  // Sinkronisasi request dari localStorage (jembatan antara RS dan PMI)
-  useEffect(() => {
-    const syncFromStorage = () => {
-      try {
-        const saved = localStorage.getItem('shared_blood_requests_v1');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setRequests(parsed);
-          }
-        }
-      } catch (e) { console.warn('Gagal sync requests dari localStorage:', e); }
-    };
-    window.addEventListener('storage', syncFromStorage);
-    window.addEventListener('sb_requests_changed', syncFromStorage);
-    return () => {
-      window.removeEventListener('storage', syncFromStorage);
-      window.removeEventListener('sb_requests_changed', syncFromStorage);
-    };
-  }, []);
 
   // Load from Supabase if configured
   useEffect(() => {
@@ -322,12 +276,11 @@ export default function PMIDashboard() {
           .single();
         const currentPmiId = pData?.id;
 
-        // Prepare queries — jika pmi_id ditemukan, filter; jika tidak, tampilkan semua request
+        // 2. Prepare queries — jika pmi_id ditemukan, filter; jika tidak, tampilkan semua request
         let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false });
         if (currentPmiId) {
           reqQuery = reqQuery.eq('pmi_id', currentPmiId);
         }
-        // Jika pmi_id tidak ditemukan, kita tetap lanjutkan tanpa filter (tampilkan semua request)
 
         let stockQuery = supabase.from('blood_stock').select('*');
         if (currentPmiId) {
@@ -338,13 +291,20 @@ export default function PMIDashboard() {
         const eventsQuery = supabase.from('events').select('id, name, date, location, capacity, registered').order('date', { ascending: true });
         const driversQuery = supabase.from('users').select('*').eq('role', 'driver');
 
+        // 3. Ambil data pengiriman logistik aktif dari PMI ini
+        let deliveriesQuery = supabase
+          .from('deliveries')
+          .select('*')
+          .eq('from_name', orgName);
+
         // Run all queries in parallel
-        const [reqResult, stockResult, donorsResult, eventsResult, driversResult] = await Promise.all([
+        const [reqResult, stockResult, donorsResult, eventsResult, driversResult, deliveryResult] = await Promise.all([
           reqQuery,
           stockQuery,
           donorsQuery,
           eventsQuery,
-          driversQuery
+          driversQuery,
+          deliveriesQuery
         ]);
 
         if (reqResult.error) throw reqResult.error;
@@ -352,25 +312,39 @@ export default function PMIDashboard() {
         if (donorsResult.error) throw donorsResult.error;
         if (eventsResult.error) throw eventsResult.error;
         if (driversResult.error) throw driversResult.error;
+        if (deliveryResult.error) throw deliveryResult.error;
 
         const reqData = reqResult.data;
         const stockData = stockResult.data;
         const dpData = donorsResult.data;
         const evtData = eventsResult.data;
         const driverData = driversResult.data;
+        const deliveryData = deliveryResult.data;
 
         if (reqData && reqData.length > 0) {
-          const mappedReq: BloodRequest[] = reqData.map((r: any) => ({
-            id: r.id,
-            hospital: r.hospitals?.name || r.hospital || r.org || 'RSUD Dr. Soetomo',
-            bloodType: r.blood_type,
-            qty: r.quantity || r.qty || 5,
-            priority: r.urgency || r.priority || 'normal',
-            status: r.status || 'pending',
-            time: new Date(r.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            address: r.hospitals?.address || r.address || 'Kota Surabaya',
-            contact: r.hospitals?.phone || r.phone || r.contact || '031-5010000'
-          }));
+          const mappedReq: BloodRequest[] = reqData.map((r: any) => {
+            // Cocokkan dengan delivery aktif untuk resolusi status (dikirim/tiba)
+            const activeDelivery = deliveryData?.find((d: any) => d.order_id === r.id);
+            
+            let status = r.status || 'pending';
+            if (activeDelivery && status !== 'selesai' && status !== 'ditolak') {
+              if (activeDelivery.status === 'tiba') status = 'tiba';
+              else if (activeDelivery.status === 'perjalanan') status = 'dikirim';
+              else if (activeDelivery.status === 'dijemput' || activeDelivery.status === 'disiapkan') status = 'diproses';
+            }
+
+            return {
+              id: r.id,
+              hospital: r.hospitals?.name || r.hospital || r.org || 'RSUD Dr. Soetomo',
+              bloodType: r.blood_type,
+              qty: r.quantity || r.qty || 5,
+              priority: r.urgency || r.priority || 'normal',
+              status: status as RequestStatus,
+              time: new Date(r.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+              address: r.hospitals?.address || r.address || 'Kota Surabaya',
+              contact: r.hospitals?.phone || r.phone || r.contact || '031-5010000'
+            };
+          });
           setRequests(mappedReq);
         }
 
@@ -447,62 +421,13 @@ export default function PMIDashboard() {
           org: d.org && d.org.includes('PMI') ? d.org : 'PMI Kota Surabaya'
         })) : [];
 
-        // Ambil driver dari localStorage untuk digabungkan (agar driver lokal tetap tampil jika insert Supabase diblokir RLS)
-        const savedLocal = localStorage.getItem('shared_driver_accounts_v1');
-        const localDrivers = savedLocal ? JSON.parse(savedLocal) : [];
-
-        // Gabungkan keduanya berdasarkan email unik
-        const mergedDrivers = [...dbDrivers];
-        localDrivers.forEach((ld: any) => {
-          if (!mergedDrivers.some(md => md.email.toLowerCase() === ld.email.toLowerCase())) {
-            mergedDrivers.push(ld);
-          }
-        });
-
-        setDrivers(mergedDrivers);
-        localStorage.setItem('shared_driver_accounts_v1', JSON.stringify(mergedDrivers));
+        setDrivers(dbDrivers);
       } catch (e) {
         console.warn('PMIDashboard Supabase fetch error:', e);
       }
     }
     loadPMIData();
   }, []);
-
-  // Load initial stocks cache scoped by user organization
-  useEffect(() => {
-    if (!user?.org) return;
-    const cacheKey = `shared_pmi_blood_stocks_${user.org}`;
-    const saved = localStorage.getItem(cacheKey);
-    if (saved) {
-      try {
-        setStocks(JSON.parse(saved));
-      } catch (e) {
-        console.warn('Failed parsing cached stocks:', e);
-      }
-    }
-  }, [user]);
-
-  // Sync to scoped localStorage
-  useEffect(() => {
-    if (!user?.org) return;
-    const cacheKey = `shared_pmi_blood_stocks_${user.org}`;
-    localStorage.setItem(cacheKey, JSON.stringify(stocks));
-    // Keep standard shared key updated for fallback AI matching reading
-    localStorage.setItem('shared_pmi_blood_stocks', JSON.stringify(stocks));
-  }, [stocks, user]);
-
-  // Real-time synchronization across views/tabs (localStorage)
-  useEffect(() => {
-    if (!user?.org) return;
-    const cacheKey = `shared_pmi_blood_stocks_${user.org}`;
-    const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key === cacheKey || e.key === 'shared_pmi_blood_stocks') && e.newValue) {
-        setStocks(JSON.parse(e.newValue));
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user]);
 
   // Supabase Realtime — auto-refresh permintaan darah saat ada INSERT atau UPDATE
   useEffect(() => {
@@ -605,15 +530,7 @@ export default function PMIDashboard() {
     }
 
     // 1. Update status permintaan darah & kurangi stok
-    setRequests(prev => {
-      const updated = prev.map(r => r.id === approvingRequestId ? { ...r, status: 'diproses' as const } : r);
-      // Sync ke localStorage
-      try {
-        localStorage.setItem('shared_blood_requests_v1', JSON.stringify(updated));
-        window.dispatchEvent(new Event('sb_requests_changed'));
-      } catch (e) { console.warn(e); }
-      return updated;
-    });
+    setRequests(prev => prev.map(r => r.id === approvingRequestId ? { ...r, status: 'diproses' as const } : r));
     setStocks(prev => prev.map(s => {
       if (s.type === req.bloodType) {
         const newStock = Math.max(0, s.stock - req.qty);
@@ -654,7 +571,7 @@ export default function PMIDashboard() {
 
     const newDelivery = {
       id: `del_${Date.now()}`,
-      orderId: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      orderId: req.id, // Menggunakan ID asli dari blood_requests
       bloodType: req.bloodType,
       qty: req.qty,
       from: fromName,
@@ -673,8 +590,9 @@ export default function PMIDashboard() {
     if (isSupabaseConfigured) {
       (async () => {
         try {
+          // A. Insert ke tabel deliveries
           await supabase.from('deliveries').insert({
-            order_id: newDelivery.orderId,
+            order_id: newDelivery.orderId, // Tertaut ke blood_requests.id & blood_orders.id
             blood_type: newDelivery.bloodType,
             qty: newDelivery.qty,
             from_name: newDelivery.from,
@@ -688,33 +606,20 @@ export default function PMIDashboard() {
             urgent: newDelivery.urgent
           });
 
+          // B. Update status di blood_requests
           await supabase
             .from('blood_requests')
             .update({ status: 'diproses', updated_at: new Date().toISOString() })
             .eq('id', approvingRequestId);
 
-          // Update blood_orders: cocokkan berdasarkan hospital_id + pmi_id + blood_type
-          // (bukan by UUID karena blood_orders dan blood_requests punya ID berbeda)
-          if (pId) {
-            const { data: hDataForOrder } = await supabase
-              .from('hospitals')
-              .select('id')
-              .eq('name', req.hospital)
-              .single();
-            if (hDataForOrder?.id) {
-              await supabase
-                .from('blood_orders')
-                .update({ status: 'diproses', updated_at: new Date().toISOString() })
-                .eq('hospital_id', hDataForOrder.id)
-                .eq('pmi_id', pId)
-                .eq('blood_type', req.bloodType)
-                .eq('status', 'pending');
-            }
-          }
+          // C. Update status di blood_orders (ID yang sama)
+          await supabase
+            .from('blood_orders')
+            .update({ status: 'diproses', updated_at: new Date().toISOString() })
+            .eq('id', approvingRequestId);
 
-          // Nama pmi_units.name sudah konsisten dengan users.org
+          // D. Update stok PMI
           const orgName = user?.org || 'PMI A';
-
           const { data: pData } = await supabase
             .from('pmi_units')
             .select('id')
@@ -748,26 +653,12 @@ export default function PMIDashboard() {
       })();
     }
 
-    // 4. Sinkronisasi ke localStorage untuk fallback lokal
-    const savedDeliveries = localStorage.getItem('shared_donor_deliveries_v1');
-    const deliveriesList = savedDeliveries ? JSON.parse(savedDeliveries) : [];
-    const updatedDeliveries = [newDelivery, ...deliveriesList];
-    localStorage.setItem('shared_donor_deliveries_v1', JSON.stringify(updatedDeliveries));
-
-    // 5. Beri feedback sukses
+    // 4. Beri feedback sukses
     toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
     setApprovingRequestId(null);
   };
   const handleReject = (id: string) => {
-    setRequests(prev => {
-      const updated = prev.map(r => r.id === id ? { ...r, status: 'ditolak' as const } : r);
-      // Sync ke localStorage
-      try {
-        localStorage.setItem('shared_blood_requests_v1', JSON.stringify(updated));
-        window.dispatchEvent(new Event('sb_requests_changed'));
-      } catch (e) { console.warn(e); }
-      return updated;
-    });
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'ditolak' as const } : r));
   };
 
   const handleAddDriver = async (e: React.FormEvent) => {
@@ -819,11 +710,7 @@ export default function PMIDashboard() {
       password: newDriverPassword || 'demo123'
     };
 
-    setDrivers(prev => {
-      const updated = [...prev, addedDriver];
-      localStorage.setItem('shared_driver_accounts_v1', JSON.stringify(updated));
-      return updated;
-    });
+    setDrivers(prev => [...prev, addedDriver]);
 
     setNewDriverName('');
     setNewDriverEmail('');
@@ -847,11 +734,7 @@ export default function PMIDashboard() {
       console.warn('Gagal menghapus driver di Supabase:', err);
     }
 
-    setDrivers(prev => {
-      const updated = prev.filter(d => d.id !== id);
-      localStorage.setItem('shared_driver_accounts_v1', JSON.stringify(updated));
-      return updated;
-    });
+    setDrivers(prev => prev.filter(d => d.id !== id));
 
     toast.success('Driver berhasil dihapus.');
   };
