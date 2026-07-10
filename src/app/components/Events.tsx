@@ -447,8 +447,12 @@ export default function Events() {
               .insert({
                 event_id: eventId,
                 donor_id: donorProfile.id,
-                session: regSession,
-                ticket_id: ticketId
+                event_name: selectedEventForReg.name,
+                event_date: selectedEventForReg.date,
+                location: selectedEventForReg.location,
+                status: 'terdaftar',
+                qr_code: ticketId,
+                checked_in: false
               });
 
             if (insertError) {
