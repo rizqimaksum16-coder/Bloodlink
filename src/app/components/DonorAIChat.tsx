@@ -118,7 +118,8 @@ ATURAN KETAT:
         messages: [
           { role: 'system', content: systemPrompt },
           ...updatedHistory
-        ]
+        ],
+        temperature: 0.3
       };
 
       const response = await fetch(endpoint, {

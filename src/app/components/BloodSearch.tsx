@@ -191,8 +191,8 @@ async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requ
   const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!apiKey) return '';
 
-  const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://api.gemini.google.com/v1/chat/completions';
-  const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-1.0';
+  const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/chat/completions';
+  const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
   const prompt = `Jelaskan secara singkat dan mudah dipahami dalam 1 kalimat mengapa PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType}. Sertakan pembagian sederhana skor: stok, jarak, dan respons, misalnya 'stok memberi 40%, jarak 35%, respons 25%'.`;
 
   try {
@@ -207,7 +207,8 @@ async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requ
         messages: [
           { role: 'system', content: 'Kamu adalah asisten yang membantu menjelaskan rekomendasi AI matching stok darah.' },
           { role: 'user', content: prompt }
-        ]
+        ],
+        temperature: 0.1
       })
     });
 
