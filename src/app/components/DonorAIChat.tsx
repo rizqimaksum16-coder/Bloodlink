@@ -98,8 +98,8 @@ export default function DonorAIChat() {
 
     try {
       const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-      const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://api.gemini.google.com/v1/chat/completions';
-      const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-1.0';
+      const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/chat/completions';
+      const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
 
       const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Blood Link di Kota Surabaya.
 Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar donor darah, seperti:
