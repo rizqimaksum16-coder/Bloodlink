@@ -48,42 +48,51 @@ export default function AlurDonor() {
     async function loadTicketsFromSupabase() {
       if (!isSupabaseConfigured || !user) return;
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
+        let donorProfileId = user.donorProfileId;
 
-        if (userData) {
-          let { data: donorProfile } = await supabase
-            .from('donor_profiles')
+        if (!donorProfileId) {
+          const { data: userData } = await supabase
+            .from('users')
             .select('id')
-            .eq('user_id', userData.id)
-            .maybeSingle();
+            .eq('email', user.email)
+            .single();
 
-          if (!donorProfile) {
-            const { data: newProfile } = await supabase
+          if (userData) {
+            let { data: donorProfile } = await supabase
               .from('donor_profiles')
-              .insert({
-                user_id: userData.id,
-                blood_type: 'O-',
-                dob: '1995-01-01',
-                phone: '081234567890',
-                address: 'Surabaya',
-                points: 200,
-                level: 'Pemula',
-                streak: 0,
-              })
               .select('id')
-              .single();
-            donorProfile = newProfile;
-          }
+              .eq('user_id', userData.id)
+              .maybeSingle();
 
-          if (donorProfile) {
-            const { data: bookings, error } = await supabase
-              .from('event_bookings')
-              .select('*, events(*)')
-              .eq('donor_id', donorProfile.id);
+            if (!donorProfile) {
+              const { data: newProfile } = await supabase
+                .from('donor_profiles')
+                .insert({
+                  user_id: userData.id,
+                  blood_type: 'O-',
+                  dob: '1995-01-01',
+                  phone: '081234567890',
+                  address: 'Surabaya',
+                  points: 200,
+                  level: 'Pemula',
+                  streak: 0,
+                })
+                .select('id')
+                .single();
+              donorProfile = newProfile;
+            }
+
+            if (donorProfile) {
+              donorProfileId = donorProfile.id;
+            }
+          }
+        }
+
+        if (donorProfileId) {
+          const { data: bookings, error } = await supabase
+            .from('event_bookings')
+            .select('*, events(*)')
+            .eq('donor_id', donorProfileId);
 
             if (error) throw error;
             if (bookings && bookings.length > 0) {
@@ -112,7 +121,6 @@ export default function AlurDonor() {
               return;
             }
           }
-        }
         // Fallback to sample or empty if no active profile or bookings found
         setTicketList([]);
       } catch (err) {

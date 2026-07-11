@@ -128,6 +128,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (error) throw error;
           if (data) {
+            let donorProfileId = stored.donorProfileId;
+
+            // Dapatkan ID donor_profile jika belum disimpan di cookie
+            if (data.role === 'donor' && !donorProfileId) {
+              const { data: dp } = await supabase
+                .from('donor_profiles')
+                .select('id')
+                .eq('user_id', data.id)
+                .maybeSingle();
+              if (dp) {
+                donorProfileId = dp.id;
+              }
+            }
+
             const syncedUser: AuthUser = {
               id: data.id,
               name: data.name,
@@ -135,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               role: data.role as UserRole,
               org: data.org,
               avatar: data.avatar,
+              donorProfileId,
             };
             setUser(syncedUser);
             setCookie(JSON.stringify(syncedUser), COOKIE_DAYS);
@@ -199,23 +214,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Auto-create donor profile if it does not exist
       if (loggedUser.role === 'donor' && loggedUser.id) {
-        const { data: dProfile } = await supabase
+        let { data: dProfile } = await supabase
           .from('donor_profiles')
           .select('id')
           .eq('user_id', loggedUser.id)
           .maybeSingle();
 
         if (!dProfile) {
-          await supabase.from('donor_profiles').insert({
-            user_id: loggedUser.id,
-            blood_type: 'O-',
-            dob: '1995-01-01',
-            phone: '081234567890',
-            address: 'Surabaya',
-            points: 200,
-            level: 'Pemula',
-            streak: 0,
-          });
+          const { data: insertedDp } = await supabase
+            .from('donor_profiles')
+            .insert({
+              user_id: loggedUser.id,
+              blood_type: 'O-',
+              dob: '1995-01-01',
+              phone: '081234567890',
+              address: 'Surabaya',
+              points: 200,
+              level: 'Pemula',
+              streak: 0,
+            })
+            .select('id')
+            .single();
+          dProfile = insertedDp;
+        }
+
+        if (dProfile) {
+          loggedUser.donorProfileId = dProfile.id;
         }
       }
     } catch (err) {
@@ -233,6 +257,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerDonor = async (name: string, email: string, bloodType: string, phone: string, address: string) => {
     let newUserId = `usr_${Date.now()}`;
+    let resolvedProfileId: string | undefined;
+
     if (isSupabaseConfigured) {
       try {
         const { data: inserted } = await supabase
@@ -249,14 +275,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (inserted) {
           newUserId = inserted.id;
-          await supabase.from('donor_profiles').insert({
-            user_id: inserted.id,
-            blood_type: bloodType,
-            phone,
-            address,
-            points: 50,
-            badge: 'Pendonor Baru'
-          });
+          const { data: profile } = await supabase
+            .from('donor_profiles')
+            .insert({
+              user_id: inserted.id,
+              blood_type: bloodType,
+              phone,
+              address,
+              points: 50,
+              badge: 'Pendonor Baru'
+            })
+            .select('id')
+            .single();
+          
+          if (profile) {
+            resolvedProfileId = profile.id;
+          }
         }
       } catch (e) {
         console.warn('Register donor error:', e);
@@ -269,7 +303,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       role: 'donor',
       org: 'Pendonor Aktif',
-      avatar: name.slice(0, 2).toUpperCase()
+      avatar: name.slice(0, 2).toUpperCase(),
+      donorProfileId: resolvedProfileId,
     };
     setUser(newUser);
     setCookie(JSON.stringify(newUser), COOKIE_DAYS);

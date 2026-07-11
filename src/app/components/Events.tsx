@@ -52,49 +52,57 @@ export default function Events() {
     async function loadRegisteredEvents() {
       if (!isSupabaseConfigured || !user) return;
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
+        let donorProfileId = user.donorProfileId;
 
-        if (userData) {
-          // Dapatkan ID donor_profile terlebih dahulu
-          let { data: donorProfile } = await supabase
-            .from('donor_profiles')
+        if (!donorProfileId) {
+          const { data: userData } = await supabase
+            .from('users')
             .select('id')
-            .eq('user_id', userData.id)
-            .maybeSingle();
+            .eq('email', user.email)
+            .single();
 
-          if (!donorProfile) {
-            const { data: newProfile } = await supabase
+          if (userData) {
+            // Dapatkan ID donor_profile terlebih dahulu
+            let { data: donorProfile } = await supabase
               .from('donor_profiles')
-              .insert({
-                user_id: userData.id,
-                blood_type: 'O-',
-                dob: '1995-01-01',
-                phone: '081234567890',
-                address: 'Surabaya',
-                points: 200,
-                level: 'Pemula',
-                streak: 0,
-              })
               .select('id')
-              .single();
-            donorProfile = newProfile;
-          }
+              .eq('user_id', userData.id)
+              .maybeSingle();
 
-          if (donorProfile) {
-            const { data: bookings, error } = await supabase
-              .from('event_bookings')
-              .select('event_id')
-              .eq('donor_id', donorProfile.id);
-
-            if (error) throw error;
-            if (bookings) {
-              const bookedIds = bookings.map((b: any) => b.event_id);
-              setRegisteredEvents(bookedIds);
+            if (!donorProfile) {
+              const { data: newProfile } = await supabase
+                .from('donor_profiles')
+                .insert({
+                  user_id: userData.id,
+                  blood_type: 'O-',
+                  dob: '1995-01-01',
+                  phone: '081234567890',
+                  address: 'Surabaya',
+                  points: 200,
+                  level: 'Pemula',
+                  streak: 0,
+                })
+                .select('id')
+                .single();
+              donorProfile = newProfile;
             }
+
+            if (donorProfile) {
+              donorProfileId = donorProfile.id;
+            }
+          }
+        }
+
+        if (donorProfileId) {
+          const { data: bookings, error } = await supabase
+            .from('event_bookings')
+            .select('event_id')
+            .eq('donor_id', donorProfileId);
+
+          if (error) throw error;
+          if (bookings) {
+            const bookedIds = bookings.map((b: any) => b.event_id);
+            setRegisteredEvents(bookedIds);
           }
         }
       } catch (err) {
@@ -291,43 +299,52 @@ export default function Events() {
   const handleCancelRegistration = async (eventId: any) => {
     if (isSupabaseConfigured && user) {
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
+        let donorProfileId = user.donorProfileId;
 
-        if (userData) {
-          let { data: donorProfile } = await supabase
-            .from('donor_profiles')
+        if (!donorProfileId) {
+          const { data: userData } = await supabase
+            .from('users')
             .select('id')
-            .eq('user_id', userData.id)
-            .maybeSingle();
+            .eq('email', user.email)
+            .single();
 
-          if (!donorProfile) {
-            const { data: newProfile } = await supabase
+          if (userData) {
+            let { data: donorProfile } = await supabase
               .from('donor_profiles')
-              .insert({
-                user_id: userData.id,
-                blood_type: 'O-',
-                dob: '1995-01-01',
-                phone: '081234567890',
-                address: 'Surabaya',
-                points: 200,
-                level: 'Pemula',
-                streak: 0,
-              })
               .select('id')
-              .single();
-            donorProfile = newProfile;
-          }
+              .eq('user_id', userData.id)
+              .maybeSingle();
 
-          if (donorProfile) {
-            const { error: deleteError } = await supabase
-              .from('event_bookings')
-              .delete()
-              .eq('event_id', eventId)
-              .eq('donor_id', donorProfile.id);
+            if (!donorProfile) {
+              const { data: newProfile } = await supabase
+                .from('donor_profiles')
+                .insert({
+                  user_id: userData.id,
+                  blood_type: 'O-',
+                  dob: '1995-01-01',
+                  phone: '081234567890',
+                  address: 'Surabaya',
+                  points: 200,
+                  level: 'Pemula',
+                  streak: 0,
+                })
+                .select('id')
+                .single();
+              donorProfile = newProfile;
+            }
+
+            if (donorProfile) {
+              donorProfileId = donorProfile.id;
+            }
+          }
+        }
+
+        if (donorProfileId) {
+          const { error: deleteError } = await supabase
+            .from('event_bookings')
+            .delete()
+            .eq('event_id', eventId)
+            .eq('donor_id', donorProfileId);
 
             if (deleteError) {
                console.warn('Gagal delete event_bookings dari Supabase:', deleteError);
@@ -344,11 +361,10 @@ export default function Events() {
                 .eq('id', eventId);
             }
           }
+        } catch (err) {
+          console.error('Gagal membatalkan registrasi di Supabase:', err);
         }
-      } catch (err) {
-        console.error('Gagal membatalkan registrasi di Supabase:', err);
       }
-    }
 
     setEventList(prev => {
       const updated = prev.map(ev => {
@@ -413,43 +429,52 @@ export default function Events() {
 
     if (isSupabaseConfigured && user) {
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
+        let donorProfileId = user.donorProfileId;
 
-        if (userData) {
-          let { data: donorProfile } = await supabase
-            .from('donor_profiles')
+        if (!donorProfileId) {
+          const { data: userData } = await supabase
+            .from('users')
             .select('id')
-            .eq('user_id', userData.id)
-            .maybeSingle();
+            .eq('email', user.email)
+            .single();
 
-          if (!donorProfile) {
-            const { data: newProfile } = await supabase
+          if (userData) {
+            let { data: donorProfile } = await supabase
               .from('donor_profiles')
-              .insert({
-                user_id: userData.id,
-                blood_type: 'O-',
-                dob: '1995-01-01',
-                phone: '081234567890',
-                address: 'Surabaya',
-                points: 200,
-                level: 'Pemula',
-                streak: 0,
-              })
               .select('id')
-              .single();
-            donorProfile = newProfile;
-          }
+              .eq('user_id', userData.id)
+              .maybeSingle();
 
-          if (donorProfile) {
-            const { error: insertError } = await supabase
-              .from('event_bookings')
-              .insert({
-                event_id: eventId,
-                donor_id: donorProfile.id,
+            if (!donorProfile) {
+              const { data: newProfile } = await supabase
+                .from('donor_profiles')
+                .insert({
+                  user_id: userData.id,
+                  blood_type: 'O-',
+                  dob: '1995-01-01',
+                  phone: '081234567890',
+                  address: 'Surabaya',
+                  points: 200,
+                  level: 'Pemula',
+                  streak: 0,
+                })
+                .select('id')
+                .single();
+              donorProfile = newProfile;
+            }
+
+            if (donorProfile) {
+              donorProfileId = donorProfile.id;
+            }
+          }
+        }
+
+        if (donorProfileId) {
+          const { error: insertError } = await supabase
+            .from('event_bookings')
+            .insert({
+              event_id: eventId,
+              donor_id: donorProfileId,
                 event_name: selectedEventForReg.name,
                 event_date: selectedEventForReg.date,
                 location: selectedEventForReg.location,
@@ -473,11 +498,10 @@ export default function Events() {
                 .eq('id', eventId);
             }
           }
+        } catch (err) {
+          console.error('Gagal menyimpan booking event ke Supabase:', err);
         }
-      } catch (err) {
-        console.error('Gagal menyimpan booking event ke Supabase:', err);
       }
-    }
 
     // Update registration stats
     setEventList(prev => {
