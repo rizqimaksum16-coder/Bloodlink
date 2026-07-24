@@ -87,13 +87,14 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
   }
 
   // 2. Direct Fallback ke xAI Grok API (VITE_GROK_API_KEY atau VITE_XAI_API_KEY)
-  const apiKey = (import.meta as any).env?.VITE_GROK_API_KEY || (import.meta as any).env?.VITE_XAI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  const rawKey = (import.meta as any).env?.VITE_GROK_API_KEY || (import.meta as any).env?.VITE_XAI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+  const apiKey = String(rawKey).trim().replace(/\.$/, '');
   if (!apiKey) {
-    throw new Error('Tidak ada API Key Grok: Konfigurasi VITE_GROK_API_KEY atau VITE_XAI_API_KEY di file .env');
+    throw new Error('Tidak ada API Key Grok: Konfigurasi VITE_GROK_API_KEY atau VITE_XAI_API_KEY di file .env atau Vercel Environment Variables.');
   }
 
   const endpoint = (import.meta as any).env?.VITE_GROK_API_URL || 'https://api.x.ai/v1/chat/completions';
-  const model = payload.model || (import.meta as any).env?.VITE_GROK_MODEL || 'grok-2-mini'; // Model paling hemat & cepat
+  const model = payload.model || (import.meta as any).env?.VITE_GROK_MODEL || 'grok-2-1212'; // Model paling hemat & cepat
 
   const response = await fetch(endpoint, {
     method: 'POST',
