@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Bot, Send, X, MessageSquare, AlertTriangle, Sparkles, Database } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
-import { callGeminiProxy } from '../utils/geminiProxy';
+import { callGrokProxy } from '../utils/grokProxy';
 
 interface ChatMessage {
   sender: 'user' | 'ai';
@@ -130,7 +130,7 @@ ATURAN KETAT:
 - Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan.`;
 
     try {
-      const reply = await callGeminiProxy({
+      const reply = await callGrokProxy({
         messages: [
           { role: 'system', content: systemPrompt },
           ...trimHistory(updatedHistory)
@@ -187,7 +187,7 @@ ATURAN KETAT:
                 <p className="font-bold text-xs flex items-center gap-1">
                   Diana - Asisten AI <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
                 </p>
-                <p className="text-[10px] text-red-200">Hybrid AI — Database + Gemini</p>
+                <p className="text-[10px] text-red-200">Hybrid AI — Database + Grok AI</p>
               </div>
             </div>
             <button
@@ -216,7 +216,7 @@ ATURAN KETAT:
                       msg.source === 'database' ? 'text-blue-500' : msg.source === 'ai' ? 'text-purple-500' : 'text-gray-400'
                     }`}>
                       {msg.source === 'database' && <><Database className="w-2.5 h-2.5" /> Jawaban Database</>}
-                      {msg.source === 'ai' && <><Sparkles className="w-2.5 h-2.5" /> Gemini AI</>}
+                      {msg.source === 'ai' && <><Sparkles className="w-2.5 h-2.5" /> Grok AI</>}
                     </span>
                   )}
                 </div>
