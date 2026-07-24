@@ -27,6 +27,10 @@ function trimHistory(history: GeminiMessage[]): GeminiMessage[] {
 const getMockResponse = (inputMsg: string): string => {
   const query = inputMsg.toLowerCase();
 
+  if (query.includes('diminum') || query.includes('minum darah')) {
+    return 'Secara medis, darah manusia TIDAK boleh diminum. Meminum darah berbahaya bagi tubuh karena darah kaya akan zat besi yang dapat menyebabkan penumpukan racun (hemochromatosis) serta berisiko menularkan infeksi atau bakteri.';
+  }
+
   if (query.includes('syarat') || query.includes('kriteria') || query.includes('kondisi') || query.includes('tensi') || query.includes('hemoglobin') || query.includes('hb')) {
     return 'Syarat utama mendonorkan darah di Blood Link:\n1. Usia 17-60 tahun.\n2. Berat badan minimal 45 kg.\n3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).\n4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.\n5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.\n6. Istirahat/tidur minimal 5 jam sebelum donor.';
   }
@@ -44,10 +48,10 @@ const getMockResponse = (inputMsg: string): string => {
   }
 
   if (query.includes('halo') || query.includes('hai') || query.includes('pagi') || query.includes('siang') || query.includes('sore') || query.includes('malam') || query.includes('assalamualaikum')) {
-    return 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah atau kesehatan pendonor hari ini?';
+    return 'Halo! Saya Diana, asisten AI medis Blood Link. Ada yang bisa saya bantu seputar donor darah, ilmu darah, atau kesehatan Anda hari ini?';
   }
 
-  return 'Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor.';
+  return 'Saya Diana, asisten medis Blood Link. Saya dapat membantu menjawab berbagai pertanyaan seputar kesehatan umum, medis, ilmu darah, dan donor darah. Ada yang ingin Anda tanyakan seputar kesehatan?';
 };
 
 // ─── Hybrid Lookup: Query bot_dictionary terlebih dahulu ───────────────────────
@@ -117,17 +121,14 @@ export default function DonorAIChat() {
       { role: 'user', content: userText }
     ];
 
-    const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Blood Link di Kota Surabaya.
-Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar donor darah, seperti:
-1. Syarat donor darah (tensi darah >= 100/60, hemoglobin 12.5-17.0 g/dL, berat badan >= 45 kg, rentang usia 17-60 tahun, interval waktu minimal 2 bulan).
-2. Panduan/tips sebelum dan sesudah melakukan donor darah.
-3. Alur dan tata cara pelaksanaan donor darah di PMI.
-4. Manfaat donor darah bagi kesehatan tubuh.
+    const systemPrompt = `Kamu adalah "Diana", asisten AI medis dan kesehatan resmi untuk platform Blood Link Surabaya.
+Tugasmu adalah membantu pengguna dengan menjawab pertanyaan seputar donor darah, ilmu darah, kesehatan umum, nutrisi, pertolongan pertama, serta informasi medis dasar.
 
-ATURAN KETAT:
-- Jawablah semua pertanyaan dengan ramah, informatif, dan ringkas menggunakan Bahasa Indonesia yang sopan.
-- Kamu HANYA boleh menjawab pertanyaan yang berkaitan dengan donor darah, kesehatan pendonor, atau cara kerja platform Blood Link.
-- Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan.`;
+ATURAN UTAMA:
+- Jawablah secara ramah, akurat, edukatif, dan SANGAT RINGKAS (maksimal 2-4 kalimat/poin) agar hemat token & mudah dipahami.
+- Kamu BERHAK dan BEBAS menjawab SELURUH pertanyaan mengenai topik kesehatan, medis, penyakit, darah, gizi, gaya hidup sehat, maupun fitur platform Blood Link.
+- Jika ada pertanyaan berbahaya (misal: "apakah darah bisa diminum?"), jelaskan secara edukatif medis singkat mengapa hal tersebut tidak disarankan/berbahaya.
+- Tolak secara sopan HANYA pertanyaan yang benar-benar di luar dunia medis & kesehatan (seperti pemrograman komputer, matematika, politik, atau gaming).`;
 
     try {
       const reply = await callGrokProxy({
