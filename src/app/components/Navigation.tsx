@@ -256,8 +256,8 @@ export default function Navigation() {
     { to: '/dashboard/superadmin', label: 'Super Admin', icon: Shield },
   ] : [
     { to: isAuthenticated ? '/home' : '/', label: 'Beranda', icon: Droplets },
-    ...(user?.role !== 'pmi' && user?.role !== 'driver' ? [{ to: '/search', label: 'Cari Stok', icon: Search }] : []),
-    ...(user?.role !== 'driver' ? [{ to: '/events', label: 'Event', icon: Calendar }] : []),
+    ...(!isAuthenticated || (user?.role !== 'pmi' && user?.role !== 'driver') ? [{ to: '/search', label: 'Cari Stok', icon: Search }] : []),
+    ...(!isAuthenticated || user?.role !== 'driver' ? [{ to: '/events', label: 'Event', icon: Calendar }] : []),
     ...(user?.role === 'donor' ? [{ to: '/rewards', label: 'Reward', icon: Trophy }] : []),
     { to: '/info', label: 'Info & FAQ', icon: HelpCircle },
   ];

@@ -45,18 +45,14 @@ export default function App() {
                 {/* Public */}
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/search" element={<BloodSearch />} />
+                <Route path="/events" element={<Events />} />
 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/home" element={<HomePage />} />
-                  <Route path="/search" element={
-                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs']}><BloodSearch /></ProtectedRoute>
-                  } />
                   <Route path="/add-stock" element={
                     <ProtectedRoute allowedRoles={['pmi']}><AddBloodStock /></ProtectedRoute>
-                  } />
-                  <Route path="/events" element={
-                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs']}><Events /></ProtectedRoute>
                   } />
                   <Route path="/alur" element={
                     <ProtectedRoute allowedRoles={['donor', 'driver']}><AlurDonor /></ProtectedRoute>
