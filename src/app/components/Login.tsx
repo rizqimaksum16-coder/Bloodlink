@@ -337,61 +337,14 @@ export default function Login() {
               <div className="mb-5">
                 <h2 className="text-xl font-bold text-white mb-1"
                   style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Buat Akun Baru ✨
+                  Buat Akun Pendonor Baru ✨
                 </h2>
-                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Pilih peran dan lengkapi data Anda</p>
+                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Lengkapi data pendaftaran Anda sebagai Pendonor</p>
               </div>
 
               <form onSubmit={handleRegister} className="space-y-4" autoComplete="off">
 
-                {/* ── Role picker ── */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    Pilih Peran
-                  </label>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {registerRoleOptions.map(opt => {
-                      const Icon = opt.icon;
-                      const isSel = regRole === opt.role;
-                      const rc    = roleColorMap[opt.role];
-                      return (
-                        <button key={opt.role} type="button" onClick={() => setRegRole(opt.role)}
-                          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-all duration-200 active:scale-[0.98]"
-                          style={isSel ? {
-                            background: `linear-gradient(135deg, ${rc.from}22, ${rc.to}33)`,
-                            border: `1px solid ${rc.from}80`,
-                            boxShadow: `0 4px 20px ${rc.from}30`,
-                          } : {
-                            background: 'rgba(255,255,255,0.04)',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                          }}>
-                          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200"
-                            style={isSel ? {
-                              background: `linear-gradient(135deg, ${rc.from}, ${rc.to})`,
-                              boxShadow: `0 4px 12px ${rc.from}50`,
-                            } : {
-                              background: 'rgba(255,255,255,0.07)',
-                            }}>
-                            <Icon className="w-4 h-4" style={{ color: isSel ? '#fff' : 'rgba(255,255,255,0.4)' }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold" style={{ color: isSel ? '#fff' : 'rgba(255,255,255,0.6)' }}>{opt.label}</p>
-                            <p className="text-[11px] truncate" style={{ color: isSel ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.25)' }}>{opt.desc}</p>
-                          </div>
-                          <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
-                            style={isSel ? {
-                              background: `linear-gradient(135deg, ${rc.from}, ${rc.to})`,
-                              boxShadow: `0 0 8px ${rc.from}60`,
-                            } : {
-                              border: '1.5px solid rgba(255,255,255,0.2)',
-                            }}>
-                            {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* ── Role picker dihilangkan, default selalu 'donor' ── */}
 
                 {/* Nama */}
                 <GlassInput

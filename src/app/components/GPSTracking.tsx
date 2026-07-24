@@ -30,40 +30,7 @@ interface Delivery {
   toCoords: [number, number];
 }
 
-const initialDeliveries: Delivery[] = [
-  {
-    id: 'DEL001', orderId: 'ORD-2847', bloodType: 'O+', qty: 5,
-    from: 'PMI A', to: 'Rumah Sakit A',
-    driver: 'Budi Santoso', driverPhone: '081234567890',
-    status: 'perjalanan', eta: '6 mnt', distance: '2.1 km',
-    pct: 72, urgent: true, updatedAt: '2 mnt lalu',
-    fromCoords: [-7.2657, 112.7445], toCoords: [-7.2678, 112.7584],
-  },
-  {
-    id: 'DEL002', orderId: 'ORD-2851', bloodType: 'A-', qty: 3,
-    from: 'PMI B', to: 'Rumah Sakit E',
-    driver: 'Agus Prasetyo', driverPhone: '082198765432',
-    status: 'dijemput', eta: '18 mnt', distance: '5.4 km',
-    pct: 25, urgent: false, updatedAt: '5 mnt lalu',
-    fromCoords: [-7.2709, 112.7505], toCoords: [-7.2745, 112.7490],
-  },
-  {
-    id: 'DEL003', orderId: 'ORD-2838', bloodType: 'B+', qty: 8,
-    from: 'PMI A', to: 'Rumah Sakit D',
-    driver: 'Hendra Wijaya', driverPhone: '083147852369',
-    status: 'tiba', eta: 'Sudah tiba', distance: '3.8 km',
-    pct: 100, urgent: false, updatedAt: '12 mnt lalu',
-    fromCoords: [-7.2657, 112.7445], toCoords: [-7.2847, 112.7845],
-  },
-  {
-    id: 'DEL004', orderId: 'ORD-2855', bloodType: 'AB-', qty: 2,
-    from: 'PMI C', to: 'Rumah Sakit F',
-    driver: 'Rizal Firmansyah', driverPhone: '085236987410',
-    status: 'disiapkan', eta: '30 mnt', distance: '8.2 km',
-    pct: 5, urgent: true, updatedAt: 'Baru saja',
-    fromCoords: [-7.4475, 112.7025], toCoords: [-7.2890, 112.7378],
-  },
-];
+const initialDeliveries: Delivery[] = [];
 
 const statusSteps: DeliveryStatus[] = ['disiapkan', 'dijemput', 'perjalanan', 'tiba'];
 
@@ -188,7 +155,7 @@ export default function GPSTracking() {
     if (!isSupabaseConfigured) return;
     const fetchDeliveries = async () => {
       try {
-        const { data, error } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false }).limit(50);
         if (error) throw error;
         if (data && data.length > 0) {
           const locationCoords: Record<string, [number, number]> = {
@@ -236,7 +203,7 @@ export default function GPSTracking() {
     setRefreshing(true);
     if (isSupabaseConfigured) {
       try {
-        const { data } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false });
+        const { data } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false }).limit(50);
         if (data && data.length > 0) {
           const locationCoords: Record<string, [number, number]> = {
             'PMI A': [-7.2657, 112.7445],
@@ -274,7 +241,7 @@ export default function GPSTracking() {
         }
       } catch (e) { console.warn(e); }
     }
-    setTimeout(() => setRefreshing(false), 800);
+    setRefreshing(false);
   };
 
   const activeStep = statusSteps.indexOf(selected.status);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import {
   Shield, Users, Building2, HeartPulse, MapPin, Plus, Edit2, Trash2,
   CheckCircle, AlertCircle, Eye, EyeOff, X, Save,
@@ -10,6 +11,7 @@ import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { hashPassword } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,14 +35,7 @@ type ActiveTab = 'overview' | 'pmi' | 'rs' | 'map';
 
 // ─── Initial Mock Data ────────────────────────────────────────────────────────
 
-const initialOrgs: OrgAccount[] = [
-  { id: 'PMI001', name: 'PMI A', type: 'pmi', email: 'admin@pmia.org', address: 'Jl. Embong Ploso No. 5, Surabaya', phone: '(031) 123-0001', coords: [-7.2657, 112.7445], status: 'active', adminName: 'Admin PMI A', createdAt: '01 Jan 2025' },
-  { id: 'PMI002', name: 'PMI B', type: 'pmi', email: 'admin@pmib.org', address: 'Jl. Raya Kedung Baruk 40, Surabaya', phone: '(031) 123-0002', coords: [-7.3150, 112.7812], status: 'active', adminName: 'Admin PMI B', createdAt: '01 Jan 2025' },
-  { id: 'PMI003', name: 'PMI C', type: 'pmi', email: 'admin@pmic.org', address: 'Jl. Wonokromo No. 12, Surabaya', phone: '(031) 123-0003', coords: [-7.3005, 112.7351], status: 'active', adminName: 'Admin PMI C', createdAt: '01 Jan 2025' },
-  { id: 'RS001', name: 'Rumah Sakit A', type: 'rs', email: 'admin@rumahsakita.com', address: 'Jl. Prof. Dr. Moestopo No. 6-8, Surabaya', phone: '(031) 501-0001', coords: [-7.2678, 112.7584], status: 'active', adminName: 'Admin RS A', createdAt: '01 Jan 2025' },
-  { id: 'RS002', name: 'Rumah Sakit B', type: 'rs', email: 'admin@rumahsakitb.com', address: 'Jl. Raya Gubeng No. 70, Surabaya', phone: '(031) 501-0002', coords: [-7.2745, 112.7490], status: 'active', adminName: 'Admin RS B', createdAt: '01 Jan 2025' },
-  { id: 'RS003', name: 'Rumah Sakit C', type: 'rs', email: 'admin@rumahsakitc.com', address: 'Jl. Nginden Intan Barat 10, Surabaya', phone: '(031) 501-0003', coords: [-7.3051, 112.7690], status: 'active', adminName: 'Admin RS C', createdAt: '01 Jan 2025' },
-];
+const initialOrgs: OrgAccount[] = [];
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -182,7 +177,7 @@ export default function SuperAdminDashboard() {
       try {
         // Fetch users, pmi_units, and hospitals in parallel
         const [usersResult, pmisResult, hospitalsResult] = await Promise.all([
-          supabase.from('users').select('*').in('role', ['pmi', 'rs']),
+          supabase.from('users').select('*').in('role', ['pmi', 'rs']).limit(100),
           supabase.from('pmi_units').select('*'),
           supabase.from('hospitals').select('*')
         ]);
@@ -249,6 +244,7 @@ export default function SuperAdminDashboard() {
   const [orgModalType, setOrgModalType] = useState<OrgType>('pmi');
   const [editingOrg, setEditingOrg] = useState<OrgAccount | null>(null);
   const [orgForm, setOrgForm] = useState(emptyOrg('pmi'));
+  const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // ─── Computed Stats ─────────────────────────────────────────────────────────
@@ -271,6 +267,7 @@ export default function SuperAdminDashboard() {
     setEditingOrg(null);
     setOrgModalType(type);
     setOrgForm(emptyOrg(type));
+    setNewPassword('');
     setShowOrgModal(true);
   };
 
@@ -282,8 +279,16 @@ export default function SuperAdminDashboard() {
   };
 
   const handleSaveOrg = async () => {
-    if (!orgForm.name || !orgForm.email || !orgForm.adminName) {
+    const safeEmail = orgForm.email.trim();
+    if (!orgForm.name || !safeEmail || !orgForm.adminName) {
       toast.error('Mohon lengkapi nama, email, dan nama admin');
+      return;
+    }
+    
+    // Validasi format email dasar
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(safeEmail)) {
+      toast.error('Format email tidak valid');
       return;
     }
 
@@ -296,7 +301,7 @@ export default function SuperAdminDashboard() {
             .from('users')
             .update({
               name: orgForm.adminName,
-              email: orgForm.email,
+              email: safeEmail,
               org: orgForm.name,
               avatar: orgForm.adminName.slice(0, 2).toUpperCase()
             })
@@ -328,11 +333,46 @@ export default function SuperAdminDashboard() {
           }
         } else {
           // Insert in Supabase
-          // 1. Insert user login credentials
+          if (!newPassword || newPassword.length < 6) {
+            toast.error('Kata sandi harus minimal 6 karakter');
+            return;
+          }
+
+          // Gunakan ghost client (tempClient) agar sesi Super Admin saat ini tidak ter-logout saat signUp
+          const rawUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
+          const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '').trim();
+          const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
+          
+          const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: { persistSession: false }
+          });
+
+          // 1. Coba Insert user login credentials using Temp Client
+          let userId = crypto.randomUUID(); // Valid UUID untuk fallback
+          
+          try {
+            const { data: authData, error: authErr } = await tempClient.auth.signUp({
+              email: safeEmail,
+              password: newPassword,
+            });
+
+            if (!authErr && authData?.user) {
+              userId = authData.user.id;
+            } else {
+              console.warn('Supabase Auth signUp skipped/failed:', authErr?.message);
+            }
+          } catch (e: any) {
+            console.warn('Exception saat Supabase Auth signUp:', e.message);
+          }
+
+          // 2. Insert metadata ke tabel public.users (baik Auth berhasil atau tidak)
+          const hashedPwd = await hashPassword(newPassword);
           const { data: newUser, error: uErr } = await supabase
             .from('users')
             .insert({
-              email: orgForm.email,
+              id: userId,
+              email: safeEmail,
+              password_hash: hashedPwd,
               name: orgForm.adminName,
               role: orgForm.type,
               org: orgForm.name,
@@ -764,7 +804,9 @@ export default function SuperAdminDashboard() {
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      defaultValue="demo123"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Masukkan kata sandi (min. 6 karakter)"
                       className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A2E]/20 bg-[#F7F7FB] pr-10"
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)}

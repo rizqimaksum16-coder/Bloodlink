@@ -54,7 +54,7 @@ export default function RewardPage() {
   const [rewardsList, setRewardsList] = useState<RewardItem[]>(initialRewards);
   const [activeTab, setActiveTab] = useState<'rewards' | 'achievements' | 'leaderboard'>('rewards');
   const [filter, setFilter] = useState('all');
-  const [claimed, setClaimed] = useState<string[]>(['R003']);
+  const [claimed, setClaimed] = useState<string[]>([]);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
   const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
 
@@ -204,7 +204,7 @@ export default function RewardPage() {
               </div>
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Flame className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">Streak {donorProfile ? donorProfile.streak : 4}</span>
+                <span className="text-sm font-bold">Konsistensi {donorProfile ? donorProfile.streak : 4}</span>
               </div>
             </div>
           </div>

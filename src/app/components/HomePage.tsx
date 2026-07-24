@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   Search, Plus, MapPin, Users, Heart, Calendar, TrendingUp, Shield,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth, UserRole } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 const statusMap: Record<string, { label: string; bg: string; text: string }> = {
   available: { label: 'Cukup', bg: '#EAFAF1', text: '#1E8449' },
@@ -14,18 +15,18 @@ const statusMap: Record<string, { label: string; bg: string; text: string }> = {
   critical: { label: 'Kritis', bg: '#FDEDEC', text: '#C0392B' },
 };
 
-const bloodTypes = [
-  { type: 'A+', stock: 108, status: 'available', border: '#E74C3C' },
-  { type: 'B+', stock: 40, status: 'low', border: '#2980B9' },
-  { type: 'O+', stock: 172, status: 'available', border: '#27AE60' },
-  { type: 'AB+', stock: 37, status: 'critical', border: '#8E44AD' },
+const defaultBloodTypes = [
+  { type: 'A+', stock: 0, status: 'critical', border: '#E74C3C' },
+  { type: 'B+', stock: 0, status: 'critical', border: '#2980B9' },
+  { type: 'O+', stock: 0, status: 'critical', border: '#27AE60' },
+  { type: 'AB+', stock: 0, status: 'critical', border: '#8E44AD' },
 ];
 
-const globalStats = [
-  { label: 'Total Stok Darah', value: '1.240', unit: 'kantong', icon: Droplets, color: 'text-[#C0392B]', bg: 'bg-[#FDEDEC]' },
-  { label: 'Rumah Sakit Mitra', value: '24', unit: 'RS', icon: Building2, color: 'text-[#2980B9]', bg: 'bg-[#D6EAF8]' },
-  { label: 'Pendonor Aktif', value: '3.580', unit: 'orang', icon: Users, color: 'text-[#8E44AD]', bg: 'bg-[#E8DAEF]' },
-  { label: 'Event Bulan Ini', value: '6', unit: 'event', icon: Calendar, color: 'text-[#27AE60]', bg: 'bg-[#D5F5E3]' },
+const defaultGlobalStats = [
+  { id: 'stock', label: 'Total Stok Darah', value: '0', unit: 'kantong', icon: Droplets, color: 'text-[#C0392B]', bg: 'bg-[#FDEDEC]' },
+  { id: 'rs', label: 'Rumah Sakit Mitra', value: '0', unit: 'RS', icon: Building2, color: 'text-[#2980B9]', bg: 'bg-[#D6EAF8]' },
+  { id: 'users', label: 'Pendonor Aktif', value: '0', unit: 'orang', icon: Users, color: 'text-[#8E44AD]', bg: 'bg-[#E8DAEF]' },
+  { id: 'events', label: 'Event Aktif', value: '0', unit: 'event', icon: Calendar, color: 'text-[#27AE60]', bg: 'bg-[#D5F5E3]' },
 ];
 
 // Dynamic configurations for each user role
@@ -216,6 +217,81 @@ export default function HomePage() {
 
   usePageTitle('Beranda');
 
+  const [liveBloodTypes, setLiveBloodTypes] = useState(defaultBloodTypes);
+  const [liveGlobalStats, setLiveGlobalStats] = useState(defaultGlobalStats);
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    async function fetchLiveStats() {
+      if (!isSupabaseConfigured) {
+        setIsOffline(true);
+        return;
+      }
+      try {
+        // 1. Fetch total users (donors)
+        const { count: usersCount } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'donor');
+
+        // 2. Fetch total hospitals
+        const { count: rsCount } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'rs');
+
+        // 3. Fetch total events
+        const { count: eventsCount } = await supabase
+          .from('events')
+          .select('*', { count: 'exact', head: true });
+
+        // 4. Fetch blood stock aggregates
+        const { data: stockData } = await supabase
+          .from('blood_stock')
+          .select('blood_type, stock_qty');
+
+        let totalStock = 0;
+        const typeStockMap: Record<string, number> = { 'A+': 0, 'B+': 0, 'O+': 0, 'AB+': 0, 'A-': 0, 'B-': 0, 'O-': 0, 'AB-': 0 };
+        if (stockData) {
+          stockData.forEach((s: any) => {
+            const qty = s.stock_qty || 0;
+            totalStock += qty;
+            if (typeStockMap[s.blood_type] !== undefined) {
+              typeStockMap[s.blood_type] += qty;
+            }
+          });
+        }
+
+        // Update global stats
+        setLiveGlobalStats(prev => prev.map(stat => {
+          if (stat.id === 'stock') return { ...stat, value: totalStock.toLocaleString('id-ID') };
+          if (stat.id === 'rs') return { ...stat, value: (rsCount || 0).toLocaleString('id-ID') };
+          if (stat.id === 'users') return { ...stat, value: (usersCount || 0).toLocaleString('id-ID') };
+          if (stat.id === 'events') return { ...stat, value: (eventsCount || 0).toLocaleString('id-ID') };
+          return stat;
+        }));
+
+        // Update blood types (mengelompokkan + dan - ke card yang sama untuk simpelnya di Homepage, atau tampilkan + saja sesuai UI awal)
+        setLiveBloodTypes(prev => prev.map(bt => {
+          const btName = bt.type; // A+, B+, etc.
+          // jumlahkan + dan - jika ingin, atau cukup + 
+          const qty = typeStockMap[btName] + (typeStockMap[btName.replace('+', '-')] || 0);
+          
+          let status = 'critical';
+          if (qty > 100) status = 'available';
+          else if (qty > 20) status = 'low';
+          
+          return { ...bt, stock: qty, status };
+        }));
+
+      } catch (e) {
+        console.warn('Gagal fetch live stats', e);
+        setIsOffline(true);
+      }
+    }
+    fetchLiveStats();
+  }, []);
+
   const cfg = heroConfigs[role] as any;
   const feats = roleFeatures[role];
   const PrimaryIcon = cfg.primaryBtn.icon;
@@ -300,7 +376,7 @@ export default function HomePage() {
             <div>
               <p className="text-xs font-semibold text-[#C0392B] uppercase tracking-wider mb-1">Live Data</p>
               <h2 className="text-lg md:text-xl font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Ketersediaan Stok Darah Surabaya dan sekitarnya
+                Ketersediaan Stok Darah Surabaya dan sekitarnya {isOffline && <span className="text-sm font-normal text-orange-500">(Offline)</span>}
               </h2>
               <p className="text-[#9B9BB5] text-xs">Akumulasi stok darah siaga di seluruh Rumah Sakit dan PMI Mitra Surabaya dan sekitarnya</p>
             </div>
@@ -310,7 +386,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {bloodTypes.map((blood) => {
+            {liveBloodTypes.map((blood) => {
               const s = statusMap[blood.status];
               return (
                 <div
@@ -386,7 +462,7 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {globalStats.map(({ label, value, unit, icon: Icon, color, bg }) => (
+            {liveGlobalStats.map(({ label, value, unit, icon: Icon, color, bg }) => (
               <div key={label} className="bg-[#F7F7FB] rounded-2xl p-4 flex items-center gap-3 border border-border">
                 <div className={`${bg} rounded-xl p-2 flex-shrink-0`}>
                   <Icon className={`w-4 h-4 ${color}`} />

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import {
-  Droplets, Search, LogIn, LayoutDashboard, Calendar, Info,
-  Menu, X, ChevronRight, Building2, HeartPulse, Heart, LogOut, User,
-  ChevronDown, Sun, Moon, Truck, HelpCircle, Activity, QrCode, Trophy, Bell, Shield
+  Heart, Menu, Search, X, Calendar, User, LogOut, ChevronRight, Droplets, Building2, Bell, Truck, Activity, QrCode, Shield,
+  Sun, Moon, HelpCircle, Trophy, LayoutDashboard, ChevronDown, LogIn
 } from 'lucide-react';
 import { useAuth, UserRole } from '../context/AuthContext';
+import { useAutoSave } from '../context/AutoSaveContext';
 import LogoutConfirmDialog from './LogoutConfirmDialog';
 import ProfileModal from './ProfileModal';
 import DonorAIChat from './DonorAIChat';
@@ -14,7 +14,7 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 // ─── Role nav config (dashboard link per role) ────────────────────────────────
 
 const roleNavExtra: Partial<Record<UserRole, { to: string; label: string; icon: React.ElementType }>> = {
-  pmi: { to: '/dashboard/pmi', label: 'Dashboard PMI', icon: HeartPulse },
+  pmi: { to: '/dashboard/pmi', label: 'Dashboard PMI', icon: Heart },
   rs: { to: '/dashboard/rs', label: 'Dashboard RS', icon: Building2 },
   donor: { to: '/dashboard/donor', label: 'Dashboard', icon: Activity },
   driver: { to: '/dashboard/driver', label: 'Dashboard Driver', icon: Truck },
@@ -32,9 +32,10 @@ const roleColors: Record<UserRole, { color: string; bg: string; label: string }>
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Navigation() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const { triggerAutoSave } = useAutoSave();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -63,7 +64,7 @@ export default function Navigation() {
     async function loadNotifications() {
       if (!user) return;
 
-      // Try fetching live notifications from Supabase first
+      // Coba fetch live notifications dari Supabase
       if (isSupabaseConfigured) {
         try {
           if (user.role === 'pmi') {
@@ -78,8 +79,10 @@ export default function Navigation() {
                 read: false
               }));
               setNotifications(liveNotifs);
-              return;
+            } else {
+              setNotifications([]); // Kosong jika tidak ada
             }
+            return;
           } else if (user.role === 'driver') {
             const { data: delivs } = await supabase.from('deliveries').select('*').eq('driver_name', user.name).limit(3);
             if (delivs && delivs.length > 0) {
@@ -92,10 +95,11 @@ export default function Navigation() {
                 read: false
               }));
               setNotifications(liveNotifs);
-              return;
+            } else {
+              setNotifications([]); // Kosong
             }
+            return;
           } else if (user.role === 'donor') {
-            // Fetch from donor_notifications table if exists
             const { data: donorData } = await supabase.from('users').select('id, donor_profiles(id)').eq('email', user.email).single();
             if (donorData?.donor_profiles) {
               const { data: donorNotifs } = await supabase
@@ -115,18 +119,25 @@ export default function Navigation() {
                   read: n.read
                 }));
                 setNotifications(mapped);
-                return;
+              } else {
+                setNotifications([]);
               }
+              return;
             }
+            setNotifications([]);
+            return;
+          } else if (user.role === 'superadmin') {
+             // Superadmin tidak punya notif spesifik untuk saat ini
+             setNotifications([]);
+             return;
           }
         } catch (e) {
           console.warn('Gagal fetch live notifications dari Supabase:', e);
         }
       }
 
-      // Fallback to defaults (no localStorage saving)
-      const defaults = getRoleDefaultNotifications(user.role);
-      setNotifications(defaults);
+      // Jika error atau Supabase mati, set kosong (hapus notifikasi mock/konyol)
+      setNotifications([]);
     }
 
     loadNotifications();
@@ -240,12 +251,10 @@ export default function Navigation() {
   };
 
   const confirmLogout = async () => {
-    if ((window as any).isStockDirty && typeof (window as any).saveStockToDb === 'function') {
-      try {
-        await (window as any).saveStockToDb();
-      } catch (e) {
-        console.warn('Gagal auto-save sebelum logout:', e);
-      }
+    try {
+      await triggerAutoSave();
+    } catch (e) {
+      console.warn('Gagal auto-save sebelum logout:', e);
     }
     logout();
     setShowLogoutDialog(false);
@@ -784,37 +793,6 @@ const getNotifAction = (role?: string) => {
     case 'donor':
     default:
       return { to: '/events', label: 'Daftar Donor Sekarang →' };
-  }
-};
-
-const getRoleDefaultNotifications = (role: string) => {
-  switch (role) {
-    case 'pmi':
-      return [
-        { id: 'N_PMI_01', type: 'darurat', title: '🚨 Permintaan Darah Baru!', message: 'Rumah Sakit A mengajukan permintaan 5 kantong O+ (Urgency: Darurat).', time: '1 menit lalu', read: false },
-        { id: 'N_PMI_02', type: 'info', title: '⚠️ Stok Darah Kritis!', message: 'Stok darah B- di gudang PMI A kurang dari batas aman (tersisa 3 kantong).', time: '2 jam lalu', read: false },
-        { id: 'N_PMI_03', type: 'info', title: '📅 Rapat Koordinasi PMI', message: 'Rapat koordinasi distribusi darah wilayah PMI A besok pukul 09:00 WIB.', time: '1 hari lalu', read: true }
-      ];
-    case 'rs':
-      return [
-        { id: 'N_RS_01', type: 'darurat', title: '📦 Pesanan Darah Dikirim', message: 'Order darah ORD001 (5 kantong O+) sedang dalam perjalanan bersama kurir Budi (ETA: 5 menit).', time: '5 menit lalu', read: false },
-        { id: 'N_RS_02', type: 'reward', title: '✅ Permintaan Disetujui', message: 'Permintaan darah O- oleh Rumah Sakit A telah diverifikasi dan disetujui oleh PMI.', time: '15 menit lalu', read: false },
-        { id: 'N_RS_03', type: 'info', title: '💡 Rekomendasi AI', message: 'Stok darah A+ Anda diprediksi habis dalam 2 hari berdasarkan data histori pemakaian.', time: '1 hari lalu', read: true }
-      ];
-    case 'driver':
-      return [
-        { id: 'N_DRV_01', type: 'darurat', title: '🚨 Tugas Pengantaran Baru!', message: 'Kirim 5 kantong O+ dari PMI A ke Rumah Sakit A. Segera ambil muatan.', time: '2 menit lalu', read: false },
-        { id: 'N_DRV_02', type: 'reward', title: '✅ Pengiriman Selesai', message: 'Serah terima darah O- di Rumah Sakit C telah berhasil dikonfirmasi.', time: '3 jam lalu', read: false },
-        { id: 'N_DRV_03', type: 'info', title: '⚠️ Kendala Rute', message: 'Rute Jl. Nginden terpantau padat. Gunakan rute alternatif untuk efisiensi pengiriman.', time: '1 hari lalu', read: true }
-      ];
-    case 'donor':
-    default:
-      return [
-        { id: 'N001', type: 'darurat', title: '🚨 Darah O- Kritis!', message: 'PMI A sangat membutuhkan golongan darah O- saat ini. Hanya 4 kantong tersisa. Kamu salah satu pendonor terdekat.', time: '5 menit lalu', read: false },
-        { id: 'N002', type: 'reminder', title: 'Kamu Sudah Bisa Donor Lagi', message: 'Selamat! Masa tunggu 3 bulanmu sudah selesai per 22 Januari 2026. Jadwalkan donor sekarang.', time: '1 hari lalu', read: false },
-        { id: 'N003', type: 'reward', title: 'Reward Baru Tersedia', message: 'Kamu sudah cukup poin untuk menukar voucher Indomaret Rp25.000. Segera tukarkan sebelum kedaluwarsa!', time: '3 hari lalu', read: true },
-        { id: 'N004', type: 'info', title: 'Event Donor Juli 2026', message: 'Event Kampanye Donor PMI Juli 2026 di Mall Galaxy tinggal 9 hari lagi. Jangan lupa hadir!', time: '5 hari lalu', read: true }
-      ];
   }
 };
 

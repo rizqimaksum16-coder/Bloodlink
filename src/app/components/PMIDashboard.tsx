@@ -8,8 +8,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
+import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -72,16 +74,7 @@ interface DonorEvent {
 
 const bloodRequests: BloodRequest[] = [];
 
-const bloodStocks: BloodStock[] = [
-  { type: 'A+', stock: 0, target: 20, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'A-', stock: 0, target: 15, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'B+', stock: 0, target: 25, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'B-', stock: 0, target: 10, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'AB+', stock: 0, target: 15, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'AB-', stock: 0, target: 8, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'O+', stock: 0, target: 30, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'O-', stock: 0, target: 20, status: 'critical', expiringSoon: 0, predictedShortfall: true, lastUpdated: 'Baru saja', batches: [] },
-];
+const bloodStocks: BloodStock[] = [];
 
 
 const donorEvents: DonorEvent[] = [];
@@ -218,17 +211,18 @@ const isExpiringSoon = (dateStr: string): boolean => {
 
 export default function PMIDashboard() {
   const { user } = useAuth();
+  const { registerAutoSave } = useAutoSave();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(() => tabParam || 'requests');
+  const [activeTab, setActiveTab] = useState<'overview'|'requests'|'stock'|'drivers'>('overview');
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const currentTab = new URLSearchParams(location.search).get('tab') || tabParam;
     if (currentTab) {
-      setActiveTab(currentTab);
+      setActiveTab(currentTab as any);
       setTimeout(() => {
         const el = document.getElementById(`${currentTab}-section`) || document.getElementById('requests-section');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -242,12 +236,7 @@ export default function PMIDashboard() {
   const [donorList, setDonorList] = useState<Donor[]>([]);
   const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
   
-  const [drivers, setDrivers] = useState<any[]>([
-    { id: 'DRV001', name: 'Budi Santoso', email: 'driver@suroboyoblood.id', phone: '081234567890', vehicleNo: 'L 1234 AB', org: 'PMI A', password: 'demo123' },
-    { id: 'DRV002', name: 'Agus Prasetyo', email: 'agus@kurir.id', phone: '082198765432', vehicleNo: 'L 5678 CD', org: 'PMI Kota Surabaya' },
-    { id: 'DRV003', name: 'Hendra Wijaya', email: 'hendra@kurir.id', phone: '083147852369', vehicleNo: 'L 9012 EF', org: 'PMI Kota Surabaya' },
-    { id: 'DRV004', name: 'Rizal Firmansyah', email: 'rizal@kurir.id', phone: '085236987410', vehicleNo: 'L 3456 GH', org: 'PMI Kota Surabaya' }
-  ]);
+  const [drivers, setDrivers] = useState<any[]>([]);
 
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverEmail, setNewDriverEmail] = useState('');
@@ -277,7 +266,7 @@ export default function PMIDashboard() {
         const currentPmiId = pData?.id;
 
         // 2. Prepare queries — jika pmi_id ditemukan, filter; jika tidak, tampilkan semua request
-        let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false });
+        let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false }).limit(100);
         if (currentPmiId) {
           reqQuery = reqQuery.eq('pmi_id', currentPmiId);
         }
@@ -287,9 +276,9 @@ export default function PMIDashboard() {
           stockQuery = stockQuery.eq('owner_pmi_id', currentPmiId);
         }
 
-        const donorsQuery = supabase.from('donor_profiles').select('*, users(name, email)');
-        const eventsQuery = supabase.from('events').select('id, name, date, location, capacity, registered').order('date', { ascending: true });
-        const driversQuery = supabase.from('users').select('*').eq('role', 'driver');
+        const donorsQuery = supabase.from('donor_profiles').select('*, users(name, email)').limit(100);
+        const eventsQuery = supabase.from('events').select('id, name, date, location, capacity, registered').order('date', { ascending: true }).limit(50);
+        const driversQuery = supabase.from('users').select('*').eq('role', 'driver').limit(50);
 
         // 3. Ambil data pengiriman logistik aktif dari PMI ini
         let deliveriesQuery = supabase
@@ -864,16 +853,14 @@ export default function PMIDashboard() {
     }
   };
 
-  // Expose isStockDirty and saveStockToDb on the window object for auto-save during logout
-  // Must be placed AFTER saveStocksToDatabase declaration to avoid TDZ error
+  // Register to AutoSaveContext for auto-save during logout
   useEffect(() => {
-    (window as any).isStockDirty = isDirty;
-    (window as any).saveStockToDb = saveStocksToDatabase;
-    return () => {
-      (window as any).isStockDirty = false;
-      (window as any).saveStockToDb = null;
-    };
-  }, [isDirty, saveStocksToDatabase]);
+    if (isDirty) {
+      return registerAutoSave(async () => {
+        await saveStocksToDatabase();
+      });
+    }
+  }, [isDirty, saveStocksToDatabase, registerAutoSave]);
 
   const preventNegativeInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === 'E') {
@@ -935,7 +922,7 @@ export default function PMIDashboard() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
           <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex flex-wrap gap-1 h-auto">
             {[
               { value: 'requests', label: 'Request RS', icon: Bell },

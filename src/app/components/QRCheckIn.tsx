@@ -5,8 +5,8 @@ import {
 } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
-import jsQR from 'jsqr';
 import { QRCodeSVG } from 'qrcode.react';
+import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
@@ -390,30 +390,46 @@ export default function QRCheckIn() {
 
   useEffect(() => {
     let animationFrameId: number;
+    let qrWorker: Worker | null = null;
+    let isWorkerBusy = false;
+
+    if (scanning) {
+      // Inisialisasi Web Worker khusus untuk scanning (Offload CPU)
+      qrWorker = new Worker(new URL('../workers/qrWorker.ts', import.meta.url), { type: 'module' });
+      qrWorker.onmessage = (e) => {
+        isWorkerBusy = false; // Pekerja siap terima frame baru
+        if (e.data.success && e.data.data) {
+          handleScan(e.data.data);
+          stopCamera();
+        }
+      };
+    }
 
     const scanFrame = () => {
       if (scanning && videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-        const video = videoRef.current;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
+        // Hanya mengirim frame ke worker jika worker sedang tidak sibuk
+        if (!isWorkerBusy && qrWorker) {
+          const video = videoRef.current;
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const decodeQR = (jsQR as any).default || jsQR;
-
-          if (typeof decodeQR === 'function') {
-            const code = decodeQR(imageData.data, imageData.width, imageData.height);
-            if (code && code.data) {
-              handleScan(code.data);
-              stopCamera();
-              return;
-            }
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            isWorkerBusy = true;
+            // Transfer buffer imageData.data tanpa melakukan copy untuk optimasi memori
+            qrWorker.postMessage({
+              data: imageData.data,
+              width: imageData.width,
+              height: imageData.height
+            });
           }
         }
       }
+      
       if (scanning) {
         animationFrameId = requestAnimationFrame(scanFrame);
       }
@@ -423,7 +439,12 @@ export default function QRCheckIn() {
       animationFrameId = requestAnimationFrame(scanFrame);
     }
 
-    return () => cancelAnimationFrame(animationFrameId);
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      if (qrWorker) {
+        qrWorker.terminate();
+      }
+    };
   }, [scanning]);
 
   const handleResetCheckins = async () => {

@@ -326,7 +326,7 @@ export default function Events() {
                   address: 'Surabaya',
                   points: 200,
                   level: 'Pemula',
-                  streak: 0,
+                  konsistensi: 0,
                 })
                 .select('id')
                 .single();
@@ -456,7 +456,7 @@ export default function Events() {
                   address: 'Surabaya',
                   points: 200,
                   level: 'Pemula',
-                  streak: 0,
+                  konsistensi: 0,
                 })
                 .select('id')
                 .single();

@@ -9,11 +9,7 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-const initialSubmissions = [
-  { hospital: 'Rumah Sakit A', bloodType: 'O+', quantity: 15, time: '10 menit lalu' },
-  { hospital: 'Rumah Sakit B', bloodType: 'A+', quantity: 8, time: '25 menit lalu' },
-  { hospital: 'Rumah Sakit C', bloodType: 'B+', quantity: 12, time: '1 jam lalu' },
-];
+const initialSubmissions: any[] = [];
 
 const btColor: Record<string, string> = {
   'A+': '#E74C3C', 'A-': '#E74C3C',

@@ -6,24 +6,11 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
-const initialInventory = [
-  { id: 1, type: 'A+', stock: 42, target: 50, status: 'good', expiringSoon: 2 },
-  { id: 2, type: 'B+', stock: 8, target: 30, status: 'low', expiringSoon: 0 },
-  { id: 3, type: 'O+', stock: 55, target: 60, status: 'good', expiringSoon: 3 },
-  { id: 4, type: 'AB+', stock: 3, target: 15, status: 'critical', expiringSoon: 1 },
-];
+const initialInventory: any[] = [];
 
-const initialActivities = [
-  { id: 1, action: 'Pengisian Stok', bloodType: 'O+', quantity: 15, user: 'Admin RS', time: '10 menit lalu', positive: true },
-  { id: 2, action: 'Pengeluaran Transfusi', bloodType: 'A+', quantity: 3, user: 'Dr. Ahmad', time: '25 menit lalu', positive: false },
-  { id: 3, action: 'Penerimaan dari PMI', bloodType: 'B+', quantity: 8, user: 'Admin RS', time: '1 jam lalu', positive: true },
-];
+const initialActivities: any[] = [];
 
-const initialEvents = [
-  { id: 1, name: 'Donor Darah Peduli Surabaya 2026', date: '2026-07-15', location: 'Mall Galaxy Surabaya', target: 150, registered: 42 },
-  { id: 2, name: 'Event Donor Bersama UNAIR', date: '2026-08-01', location: 'Kampus B Unair', target: 200, registered: 89 },
-  { id: 3, name: 'Donor Darah Pahlawan Kemanusiaan', date: '2026-08-17', location: 'Balai Kota Surabaya', target: 300, registered: 120 },
-];
+const initialEvents: any[] = [];
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; barColor: string }> = {
   available: { label: 'Baik', bg: '#EAFAF1', text: '#1E8449', barColor: '#27AE60' },

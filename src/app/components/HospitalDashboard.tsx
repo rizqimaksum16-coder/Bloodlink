@@ -6,7 +6,9 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
+import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -58,29 +60,13 @@ interface HospitalStock {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const pmiOptions: PMIOption[] = [
-  { id: 'PMI001', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', stock: 0, capacity: 100, score: 96, travelTime: '8 mnt' },
-  { id: 'PMI002', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', stock: 0, capacity: 80, score: 85, travelTime: '14 mnt' },
-  { id: 'PMI003', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', stock: 0, capacity: 100, score: 78, travelTime: '22 mnt' },
-];
+const pmiOptions: PMIOption[] = [];
 
 const bloodOrders: BloodOrder[] = [];
 
-const initialHospitalStock: HospitalStock[] = [
-  { type: 'A+', stock: 0, target: 20, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'A-', stock: 0, target: 15, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'B+', stock: 0, target: 25, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'B-', stock: 0, target: 10, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'AB+', stock: 0, target: 15, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'AB-', stock: 0, target: 8, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'O+', stock: 0, target: 30, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-  { type: 'O-', stock: 0, target: 20, expiringSoon: 0, lastUpdated: 'Baru saja', batches: [] },
-];
+const initialHospitalStock: HospitalStock[] = [];
 
-const bloodHistory = [
-  { month: 'Jan', used: 120 }, { month: 'Feb', used: 145 }, { month: 'Mar', used: 138 },
-  { month: 'Apr', used: 162 }, { month: 'Mei', used: 155 }, { month: 'Jun', used: 180 },
-];
+
 
 // ─── Date & Expiration Helpers ───────────────────────────────────────────────
 
@@ -178,7 +164,8 @@ function TrackingBar({ order }: { order: BloodOrder }) {
 
 export default function HospitalDashboard() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('stock');
+  const { registerAutoSave } = useAutoSave();
+  const [activeTab, setActiveTab] = useState<'overview'|'stock'|'requests'>('overview');
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
@@ -195,6 +182,13 @@ export default function HospitalDashboard() {
   const [isLoadingPMI, setIsLoadingPMI] = useState(false);
 
   const [stocks, setStocks] = useState<HospitalStock[]>(initialHospitalStock);
+
+  // Riwayat pemakaian darah bulanan — diisi dari Supabase atau fallback statis
+  const staticBloodHistory = [
+    { month: 'Jan', used: 120 }, { month: 'Feb', used: 145 }, { month: 'Mar', used: 138 },
+    { month: 'Apr', used: 162 }, { month: 'Mei', used: 155 }, { month: 'Jun', used: 180 },
+  ];
+  const [bloodHistory, setBloodHistory] = useState<{ month: string; used: number }[]>(staticBloodHistory);
 
   // Load data from Supabase if configured
   useEffect(() => {
@@ -308,6 +302,40 @@ export default function HospitalDashboard() {
             });
             setStocks(mappedStocks);
           }
+        }
+
+        // Fetch blood usage history from donation_records — group by month
+        try {
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+          const { data: donationData, error: donErr } = await supabase
+            .from('donation_records')
+            .select('date, volume_ml')
+            .gte('date', '2026-01-01')
+            .lte('date', '2026-12-31')
+            .order('date', { ascending: true });
+
+          if (!donErr && donationData && donationData.length > 0) {
+            // Aggregate by month: count records as proxy for "units used"
+            const monthMap: Record<number, number> = {};
+            donationData.forEach((rec: any) => {
+              const month = new Date(rec.date).getMonth(); // 0-11
+              monthMap[month] = (monthMap[month] || 0) + 1;
+            });
+
+            const dynamicHistory = Object.keys(monthMap)
+              .sort((a, b) => Number(a) - Number(b))
+              .map(monthIdx => ({
+                month: monthNames[Number(monthIdx)],
+                used: monthMap[Number(monthIdx)]
+              }));
+
+            if (dynamicHistory.length > 0) {
+              setBloodHistory(dynamicHistory);
+            }
+          }
+          // If no donation data, keep the static fallback
+        } catch (histErr) {
+          console.warn('Gagal memuat riwayat pemakaian darah:', histErr);
         }
       } catch (e) {
         console.warn('HospitalDashboard Supabase fetch error:', e);
@@ -735,16 +763,14 @@ export default function HospitalDashboard() {
     }
   };
 
-  // Expose isStockDirty and saveStockToDb on the window object for auto-save during logout
-  // Must be placed AFTER saveStocksToDatabase declaration to avoid TDZ error
+  // Register to AutoSaveContext for auto-save during logout
   useEffect(() => {
-    (window as any).isStockDirty = isDirty;
-    (window as any).saveStockToDb = saveStocksToDatabase;
-    return () => {
-      (window as any).isStockDirty = false;
-      (window as any).saveStockToDb = null;
-    };
-  }, [isDirty, saveStocksToDatabase]);
+    if (isDirty) {
+      return registerAutoSave(async () => {
+        await saveStocksToDatabase();
+      });
+    }
+  }, [isDirty, saveStocksToDatabase, registerAutoSave]);
 
   const preventNegativeInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === 'E') {
@@ -1150,7 +1176,7 @@ export default function HospitalDashboard() {
         </div>
 
         {/* Hybrid Navigation System (Tabs for filtering + default active 'all' overview) */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'overview' | 'stock' | 'requests')}>
           <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex flex-wrap gap-1 h-auto w-fit shadow-xs">
             {[
               { value: 'stock', label: 'Stok RS', icon: Package },

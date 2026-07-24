@@ -81,7 +81,7 @@ function readUserFromCookie(): AuthUser | null {
 }
 
 // ─── Password hashing sederhana (SHA-256 via Web Crypto API) ─────────────────
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -99,64 +99,66 @@ const roleDefaults: Record<UserRole, Omit<AuthUser, 'email'>> = {
   superadmin: { name: 'Super Admin',        role: 'superadmin', org: 'Blood Link Pusat',   avatar: 'SA' },
 };
 
-// ─── Demo credentials (untuk fallback ketika Supabase tidak terkonfigurasi) ──
 
-const demoCreds: Record<string, { password: string; role: UserRole; name: string; org: string; avatar: string }> = {
-  'admin@pmia.org':           { password: 'demo123',       role: 'pmi',        name: 'Admin PMI A',       org: 'PMI A',            avatar: 'PA' },
-  'admin@pmib.org':           { password: 'demo123',       role: 'pmi',        name: 'Admin PMI B',       org: 'PMI B',            avatar: 'PB' },
-  'admin@pmic.org':           { password: 'demo123',       role: 'pmi',        name: 'Admin PMI C',       org: 'PMI C',            avatar: 'PC' },
-  'admin@rumahsakita.com':    { password: 'demo123',       role: 'rs',         name: 'Admin RS A',        org: 'Rumah Sakit A',    avatar: 'RA' },
-  'admin@rumahsakitb.com':    { password: 'demo123',       role: 'rs',         name: 'Admin RS B',        org: 'Rumah Sakit B',    avatar: 'RB' },
-  'admin@rumahsakitc.com':    { password: 'demo123',       role: 'rs',         name: 'Admin RS C',        org: 'Rumah Sakit C',    avatar: 'RC' },
-  'rizky@donor.id':           { password: 'demo123',       role: 'donor',      name: 'Rizky Pratama',     org: 'Pendonor Aktif',   avatar: 'RP' },
-  'driver@suroboyoblood.id':  { password: 'demo123',       role: 'driver',     name: 'Budi Santoso',      org: 'PMI A (Logistik)', avatar: 'BS' },
-  'superadmin@suroboyo.id':   { password: 'superadmin123', role: 'superadmin', name: 'Super Admin',       org: 'Blood Link Pusat', avatar: 'SA' },
-};
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => readUserFromCookie());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Sinkronisasi profil dengan Supabase saat startup
   useEffect(() => {
     async function syncProfileOnStart() {
-      const stored = readUserFromCookie();
-      if (stored && stored.email) {
+      const saved = getCookie();
+      if (saved) {
         try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', stored.email)
-            .single();
+          const parsed = JSON.parse(saved);
+          
+          if (isSupabaseConfigured) {
+            // Sinkronisasi session JWT Supabase
+            await supabase.auth.getSession();
+            
+            // Validasi keras: Re-fetch profil dari public.users
+            const { data, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('email', parsed.email)
+              .maybeSingle();
 
-          if (error) throw error;
-          if (data) {
-            let donorProfileId = stored.donorProfileId;
-            if (data.role === 'donor' && !donorProfileId) {
-              const { data: dp } = await supabase
-                .from('donor_profiles')
-                .select('id')
-                .eq('user_id', data.id)
-                .maybeSingle();
-              if (dp) donorProfileId = dp.id;
+            if (!error && data) {
+              let donorProfileId = parsed.donorProfileId;
+              if (data.role === 'donor' && !donorProfileId) {
+                const { data: dp } = await supabase
+                  .from('donor_profiles')
+                  .select('id')
+                  .eq('user_id', data.id)
+                  .maybeSingle();
+                if (dp) donorProfileId = dp.id;
+              }
+              const syncedUser: AuthUser = {
+                id: data.id,
+                name: data.name,
+                email: data.email,
+                role: data.role as UserRole,
+                org: data.org,
+                avatar: data.avatar,
+                donorProfileId,
+              };
+              setUser(syncedUser);
+              setCookie(JSON.stringify(syncedUser), COOKIE_DAYS);
+            } else {
+              setUser(null);
+              deleteCookie();
             }
-
-            const syncedUser: AuthUser = {
-              id: data.id,
-              name: data.name,
-              email: data.email,
-              role: data.role as UserRole,
-              org: data.org,
-              avatar: data.avatar,
-              donorProfileId,
-            };
-            setUser(syncedUser);
-            setCookie(JSON.stringify(syncedUser), COOKIE_DAYS);
+          } else {
+            // Jika Supabase belum dikonfigurasi, gunakan data dari cookie (fallback)
+            setUser(parsed);
           }
         } catch (err) {
           console.warn('Gagal men-sync profil saat startup:', err);
+          setUser(null);
+          deleteCookie();
         }
       }
       setIsLoading(false);
@@ -166,148 +168,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── loginWithEmail: hanya email + password, role diambil dari DB ─────────────
   const loginWithEmail = async (email: string, password: string): Promise<UserRole> => {
-    const hashedPwd = await hashPassword(password);
-
-    // 1. Coba Supabase terlebih dahulu
     if (isSupabaseConfigured) {
-      try {
-        // Cek di tabel users berdasarkan email (password hashed)
-        const { data, error } = await supabase
+      // 1. Coba login JWT ke Supabase Auth terlebih dahulu
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      
+      let userId = authData?.user?.id;
+      
+      // Jika gagal dari Supabase Auth, kita cek fallback dari public.users (khusus akun demo SQL)
+      if (authError) {
+        console.warn('Supabase Auth gagal, mencoba fallback akun lokal...', authError.message);
+        const hashedPwd = await hashPassword(password);
+        
+        const { data: fallbackUser, error: fallbackError } = await supabase
           .from('users')
-          .select('*')
+          .select('id')
           .eq('email', email)
+          .eq('password_hash', hashedPwd)
           .maybeSingle();
 
-        if (!error && data) {
-          // Verifikasi password
-          const storedHash = data.password_hash;
-          if (storedHash) {
-            if (storedHash !== hashedPwd) {
-              throw new Error('Email atau password salah.');
-            }
-          }
-          // Password cocok atau belum ada hash (demo user lama)
-          let donorProfileId: string | undefined;
-          if (data.role === 'donor') {
-            const { data: dp } = await supabase
-              .from('donor_profiles')
-              .select('id')
-              .eq('user_id', data.id)
-              .maybeSingle();
-            if (dp) donorProfileId = dp.id;
-          }
-          const loggedUser: AuthUser = {
-            id: data.id,
-            name: data.name,
-            email: data.email,
-            role: data.role as UserRole,
-            org: data.org,
-            avatar: data.avatar,
-            donorProfileId,
-          };
-          setUser(loggedUser);
-          setCookie(JSON.stringify(loggedUser), COOKIE_DAYS);
-          return loggedUser.role;
+        if (fallbackError || !fallbackUser) {
+          throw new Error('Email atau password salah. ' + authError.message);
         }
-      } catch (err: any) {
-        if (err?.message?.includes('salah')) throw err;
-        console.warn('Supabase login error, fallback ke demo:', err);
+        userId = fallbackUser.id;
       }
-    }
 
-    // 2. Fallback: demo credentials (offline / Supabase belum dikonfigurasi)
-    const demo = demoCreds[email];
-    if (demo && demo.password === password) {
-      const loggedUser: AuthUser = {
-        name:   demo.name,
-        email,
-        role:   demo.role,
-        org:    demo.org,
-        avatar: demo.avatar,
-      };
-      setUser(loggedUser);
-      setCookie(JSON.stringify(loggedUser), COOKIE_DAYS);
-      return demo.role;
-    }
-
-    throw new Error('Email atau password salah.');
-  };
-
-  // ── login lama (kompatibilitas): berbasis role + email ───────────────────────
-  const login = async (role: UserRole, email: string, password?: string, name?: string, org?: string) => {
-    const defaults = roleDefaults[role];
-    let loggedUser: AuthUser = {
-      ...defaults,
-      email,
-      name:   name   || defaults.name,
-      org:    org    || defaults.org,
-      avatar: (name  || defaults.name).slice(0, 2).toUpperCase(),
-    };
-
-    try {
-      const { data } = await supabase
+      // 2. Fetch profil tambahan dari tabel users berdasarkan ID
+      const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email)
+        .eq('id', userId)
         .single();
 
-      if (data) {
-        loggedUser = {
-          id:     data.id,
-          name:   data.name,
-          email:  data.email,
-          role:   data.role as UserRole,
-          org:    data.org,
-          avatar: data.avatar,
-        };
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from('users')
-          .insert({
-            name:   loggedUser.name,
-            email:  loggedUser.email,
-            role:   loggedUser.role,
-            org:    loggedUser.org,
-            avatar: loggedUser.avatar,
-          })
-          .select('*')
-          .single();
-        if (insertError) throw insertError;
-        if (inserted) loggedUser.id = inserted.id;
-      }
-
-      if (loggedUser.role === 'donor' && loggedUser.id) {
-        let { data: dProfile } = await supabase
-          .from('donor_profiles')
-          .select('id')
-          .eq('user_id', loggedUser.id)
-          .maybeSingle();
-
-        if (!dProfile) {
-          const { data: insertedDp } = await supabase
+      if (!error && data) {
+        let donorProfileId: string | undefined;
+        if (data.role === 'donor') {
+          const { data: dp } = await supabase
             .from('donor_profiles')
-            .insert({
-              user_id:    loggedUser.id,
-              blood_type: 'O-',
-              dob:        '1995-01-01',
-              phone:      '081234567890',
-              address:    'Surabaya',
-              points:     200,
-              level:      'Pemula',
-              streak:     0,
-            })
             .select('id')
-            .single();
-          dProfile = insertedDp;
+            .eq('user_id', data.id)
+            .maybeSingle();
+          if (dp) donorProfileId = dp.id;
         }
-        if (dProfile) loggedUser.donorProfileId = dProfile.id;
+        const loggedUser: AuthUser = {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.role as UserRole,
+          org: data.org,
+          avatar: data.avatar,
+          donorProfileId,
+        };
+        setUser(loggedUser);
+        setCookie(JSON.stringify(loggedUser), COOKIE_DAYS);
+        return loggedUser.role;
       }
-    } catch (err) {
-      console.warn('Gagal men-sync/menyimpan login ke Supabase, menggunakan local model:', err);
+      throw new Error('Profil pengguna tidak ditemukan di database.');
+    } else {
+      throw new Error('Koneksi ke server tidak tersedia.');
     }
-
-    setUser(loggedUser);
-    setCookie(JSON.stringify(loggedUser), COOKIE_DAYS);
   };
 
   // ── registerUser: mendukung semua role ───────────────────────────────────────
@@ -321,57 +239,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let resolvedProfileId: string | undefined;
 
     if (isSupabaseConfigured) {
-      try {
-        // Cek apakah email sudah terdaftar
-        const { data: existing } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', email)
-          .maybeSingle();
+      // Daftarkan user ke Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-        if (existing) {
-          throw new Error('Email sudah terdaftar. Silakan gunakan email lain atau masuk.');
-        }
+      if (authError) {
+        throw new Error('Gagal mendaftar: ' + authError.message);
+      }
 
-        const { data: inserted, error: insertError } = await supabase
+      if (authData.user) {
+        newUserId = authData.user.id;
+
+        // Upsert profil pengguna di public.users (menghindari RLS insert restrictions jika sudah terbuat oleh Trigger)
+        // Kita gunakan update atau biarkan trigger handle, tapi mari kita update profilnya.
+        const { error: upsertError } = await supabase
           .from('users')
-          .insert({
+          .upsert({
+            id: newUserId,
             name,
             email,
-            password_hash: hashedPwd,
+            password_hash: hashedPwd, // legacy
             role,
-            org:    resolvedOrg,
+            org: resolvedOrg,
             avatar,
-          })
-          .select('*')
-          .single();
+          });
 
-        if (insertError) throw insertError;
+        if (upsertError) throw upsertError;
 
-        if (inserted) {
-          newUserId = inserted.id;
+        if (role === 'donor') {
+          const { data: profile } = await supabase
+            .from('donor_profiles')
+            .upsert({
+              user_id:    newUserId,
+              blood_type: bloodType || 'O+',
+              phone:      phone     || '',
+              address:    address   || 'Surabaya',
+              points:     50,
+              badge:      'Pendonor Baru',
+            })
+            .select('id')
+            .single();
 
-          if (role === 'donor') {
-            const { data: profile } = await supabase
-              .from('donor_profiles')
-              .insert({
-                user_id:    inserted.id,
-                blood_type: bloodType || 'O+',
-                phone:      phone     || '',
-                address:    address   || 'Surabaya',
-                points:     50,
-                badge:      'Pendonor Baru',
-              })
-              .select('id')
-              .single();
-
-            if (profile) resolvedProfileId = profile.id;
-          }
+          if (profile) resolvedProfileId = profile.id;
         }
-      } catch (e: any) {
-        if (e?.message?.includes('terdaftar')) throw e;
-        console.warn('Register error Supabase:', e);
       }
+    } else {
+      throw new Error('Koneksi ke server tidak tersedia.');
     }
 
     const newUser: AuthUser = {
@@ -389,7 +304,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── registerDonor (kompatibilitas lama) ──────────────────────────────────────
   const registerDonor = async (name: string, email: string, bloodType: string, phone: string, address: string) => {
-    await registerUser({ name, email, password: '', role: 'donor', bloodType, phone, address });
+    await registerUser({ name, email, password: 'donorpassword', role: 'donor', bloodType, phone, address });
+  };
+
+  const login = async (role: UserRole, email: string, password?: string) => {
+    await loginWithEmail(email, password || 'default');
   };
 
   const logout = () => {

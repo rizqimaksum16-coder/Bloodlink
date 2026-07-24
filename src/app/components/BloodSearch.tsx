@@ -11,6 +11,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+// Gemini AI Proxy removed from this file as explanation generation is now static.
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -31,40 +32,7 @@ interface BloodStock {
   }[];
 }
 
-const mockHospitals: BloodStock[] = [
-  {
-    id: 1, hospitalName: 'Rumah Sakit A', address: 'Jl. Prof. Dr. Moestopo No. 6-8', district: 'Gubeng',
-    distance: 1.2, phone: '(031) 5501001',
-    bloodTypes: [
-      { type: 'A+', stock: 0, status: 'critical' }, { type: 'B+', stock: 0, status: 'critical' },
-      { type: 'O+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
-    ],
-  },
-  {
-    id: 2, hospitalName: 'Rumah Sakit B', address: 'Jl. Tambakrejo No. 45-47', district: 'Simokerto',
-    distance: 2.1, phone: '(031) 3717141',
-    bloodTypes: [
-      { type: 'A+', stock: 0, status: 'critical' }, { type: 'B-', stock: 0, status: 'critical' },
-      { type: 'O-', stock: 0, status: 'critical' }, { type: 'AB-', stock: 0, status: 'critical' },
-    ],
-  },
-  {
-    id: 3, hospitalName: 'Rumah Sakit C', address: 'Jl. Gadung No. 1', district: 'Wonokromo',
-    distance: 3.8, phone: '(031) 8438153',
-    bloodTypes: [
-      { type: 'A-', stock: 0, status: 'critical' }, { type: 'B+', stock: 0, status: 'critical' },
-      { type: 'O+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
-    ],
-  },
-  {
-    id: 4, hospitalName: 'Rumah Sakit D', address: 'Jl. Manyar Kertoadi No. 1', district: 'Mulyorejo',
-    distance: 5.4, phone: '(031) 5924000',
-    bloodTypes: [
-      { type: 'A+', stock: 0, status: 'critical' }, { type: 'O+', stock: 0, status: 'critical' },
-      { type: 'B+', stock: 0, status: 'critical' }, { type: 'AB+', stock: 0, status: 'critical' },
-    ],
-  },
-];
+const mockHospitals: BloodStock[] = [];
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
   available: { label: 'Cukup', bg: '#EAFAF1', text: '#1E8449', border: '#27AE60' },
@@ -186,61 +154,20 @@ function createAIMatchingExplanation(pmi: PMIResult, requiredQty: number): strin
   const breakdown = getSimpleScoreBreakdown(pmi, requiredQty);
   return `Skor ${pmi.score} berasal dari 3 hal yang paling penting: stok memberi ${breakdown.stock}% karena ${stockText}, jarak memberi ${breakdown.distance}% karena ${pmi.distance}, dan respons memberi ${breakdown.response}% karena respons ${pmi.responseRate}%.`;
 }
-
-async function fetchGeminiExplanation(pmi: PMIResult, bloodType: BloodType, requiredQty: number): Promise<string> {
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (!apiKey) return '';
-
-  const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/chat/completions';
-  const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
-  const prompt = `Jelaskan secara singkat dan mudah dipahami dalam 1 kalimat mengapa PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType}. Sertakan pembagian sederhana skor: stok, jarak, dan respons, misalnya 'stok memberi 40%, jarak 35%, respons 25%'.`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: 'Kamu adalah asisten yang membantu menjelaskan rekomendasi AI matching stok darah.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content;
-    return typeof text === 'string' && text.trim().length > 0 ? text.trim() : '';
-  } catch (error) {
-    console.warn('Gemini explanation gagal:', error);
-    return '';
+function generateStaticExplanation(pmi: PMIResult, bloodType: string, requiredQty: number): string {
+  // Static string generation instead of wasting API credits on LLM
+  let reason = `PMI ${pmi.name} direkomendasikan untuk ${requiredQty} kantong darah ${bloodType} karena `;
+  
+  if (pmi.score >= 90) {
+    reason += `stok mencukupi, jarak sangat dekat (${pmi.distance}), dan respons sangat baik (${pmi.responseRate}%).`;
+  } else if (pmi.score >= 80) {
+    reason += `memiliki jarak sedang (${pmi.distance}) dengan respons cepat (${pmi.responseRate}%).`;
+  } else {
+    reason += `ini adalah opsi cadangan dengan waktu tempuh estimasi ${pmi.travelTime}.`;
   }
+  
+  return reason;
 }
-
-async function attachGeminiAnalysis(results: PMIResult[], bloodType: BloodType, requiredQty: number): Promise<PMIResult[]> {
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (!apiKey) return results;
-
-  return Promise.all(results.map(async (pmi, index) => {
-    if (index > 1) {
-      return pmi;
-    }
-    const explanation = await fetchGeminiExplanation(pmi, bloodType, requiredQty);
-    return {
-      ...pmi,
-      analysis: explanation || pmi.analysis || createAIMatchingExplanation(pmi, requiredQty)
-    };
-  }));
-}
-
 const bloodTypesList: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const btColor: Record<string, string> = {
@@ -248,37 +175,7 @@ const btColor: Record<string, string> = {
   'AB+': '#8E44AD', 'AB-': '#6C3483', 'O+': '#27AE60', 'O-': '#1E8449',
 };
 
-const pmiDatabase: Record<BloodType, PMIResult[]> = {
-  'O+': [
-    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 70, responseRate: 98, avgDelivery: '12 mnt', score: 96, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat (2.3 km)', 'Respons rate tertinggi (98%)'] },
-    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 50, responseRate: 92, avgDelivery: '18 mnt', score: 85, tag: 'Cadangan', tagColor: '#E67E22', reasons: ['Unit PMI B Terdaftar', 'Jarak sedang (5.1 km)', 'Respons cepat'] },
-    { id: 'P3', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 0, capacity: 70, responseRate: 89, avgDelivery: '25 mnt', score: 78, reasons: ['Unit PMI C Terdaftar', 'Waktu tempuh 22 mnt'] },
-  ],
-  'A+': [
-    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 60, responseRate: 98, avgDelivery: '12 mnt', score: 95, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat', 'Respons terbaik'] },
-    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 50, responseRate: 92, avgDelivery: '18 mnt', score: 84, reasons: ['Unit PMI B Terdaftar', 'Respons cepat'] },
-  ],
-  'A-': [
-    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 15, responseRate: 98, avgDelivery: '12 mnt', score: 90, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat'] },
-    { id: 'P3', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 0, capacity: 15, responseRate: 89, avgDelivery: '25 mnt', score: 75, reasons: ['Unit PMI C Terdaftar'] },
-  ],
-  'B+': [
-    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 60, responseRate: 98, avgDelivery: '12 mnt', score: 96, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Terdekat', 'Respons terbaik'] },
-    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 60, responseRate: 92, avgDelivery: '18 mnt', score: 86, reasons: ['Unit PMI B Terdaftar'] },
-  ],
-  'B-': [
-    { id: 'P2', name: 'PMI B', address: 'Jl. Raya Kedung Baruk 40', distance: '5.1 km', travelTime: '14 mnt', stock: 0, capacity: 20, responseRate: 92, avgDelivery: '18 mnt', score: 88, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI B Terdaftar', 'Respons baik'] },
-  ],
-  'AB+': [
-    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 30, responseRate: 98, avgDelivery: '12 mnt', score: 92, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat'] },
-  ],
-  'AB-': [
-    { id: 'P3', name: 'PMI C', address: 'Jl. Wonokromo No. 12', distance: '8.7 km', travelTime: '22 mnt', stock: 0, capacity: 10, responseRate: 89, avgDelivery: '25 mnt', score: 80, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI C Terdaftar'] },
-  ],
-  'O-': [
-    { id: 'P1', name: 'PMI A', address: 'Jl. Embong Ploso No. 5', distance: '2.3 km', travelTime: '8 mnt', stock: 0, capacity: 30, responseRate: 98, avgDelivery: '12 mnt', score: 91, tag: 'Rekomendasi Utama', tagColor: '#C0392B', reasons: ['Unit PMI A Terdaftar', 'Jarak terdekat'] },
-  ],
-};
+// pmiDatabase mock removed. All searches now use real-time Supabase RPC (match_closest_pmi)
 
 function ScoreMeter({ score }: { score: number }) {
   const color = score >= 90 ? '#27AE60' : score >= 70 ? '#E67E22' : '#C0392B';
@@ -437,12 +334,15 @@ export default function BloodSearch() {
 
   const { user } = useAuth();
 
-  const triggerBackgroundGeminiAnalysis = (results: PMIResult[], bloodType: BloodType, requiredQty: number) => {
-    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-    if (!apiKey || results.length === 0) return;
+  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
 
-    results.forEach(async (pmi, index) => {
-      if (index > 1) return;
+  const triggerOnDemandGeminiAnalysis = async () => {
+    if (!pmiResults || pmiResults.length === 0) return;
+    setAiAnalysisLoading(true);
+
+    // Process top 2 results sequentially (no parallel bombardment)
+    for (let index = 0; index < Math.min(2, pmiResults.length); index++) {
+      const pmi = pmiResults[index];
 
       setPmiResults(prev => {
         if (!prev) return prev;
@@ -450,15 +350,18 @@ export default function BloodSearch() {
       });
 
       try {
-        const explanation = await fetchGeminiExplanation(pmi, bloodType, requiredQty);
+        const reqQty = Number(qty) || 1;
+        const explanation = generateStaticExplanation(pmi, selectedBloodType as any, reqQty);
         setPmiResults(prev => {
           if (!prev) return prev;
-          return prev.map(item => item.id === pmi.id ? { ...item, analysis: explanation || item.analysis } : item);
+          return prev.map(item => item.id === pmi.id ? { ...item, analysis: explanation || createAIMatchingExplanation(pmi, reqQty) } : item);
         });
       } catch (err) {
         console.warn('Gagal memuat eksplanasi Gemini:', err);
       }
-    });
+    }
+    setAiAnalysisLoading(false);
+    toast.success('Analisis AI selesai!');
   };
   const [activeHospital, setActiveHospital] = useState<{
     name: string;
@@ -531,92 +434,48 @@ export default function BloodSearch() {
     loadActiveLocation();
   }, [user]);
 
-  // Dynamically compute PMI search recommendations from Supabase (dengan stok nyata)
-  // Fallback ke model konstanta lokal pmiDatabase jika Supabase tidak tersedia
+  // Dynamically compute PMI search recommendations from Supabase RPC
   const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
-    if (isSupabaseConfigured) {
-      try {
-        // Query pmi_units + blood_stock sekaligus dari Supabase
-        const { data: pmiData, error } = await supabase
-          .from('pmi_units')
-          .select(`
-            id, name, address, latitude, longitude, response_rate, avg_delivery_mins,
-            blood_stock!blood_stock_owner_pmi_id_fkey(blood_type, stock_qty)
-          `);
+    if (!isSupabaseConfigured) return [];
+    try {
+      const { data, error } = await supabase.rpc('match_closest_pmi', {
+        p_hospital_lat: rsLat,
+        p_hospital_lng: rsLng,
+        p_blood_type: bloodType,
+        p_required_qty: requiredQty
+      });
 
-        if (!error && pmiData && pmiData.length > 0) {
-          const mapped: PMIResult[] = pmiData.map((p: any) => {
-            const dLat = p.latitude - rsLat;
-            const dLng = p.longitude - rsLng;
-            const distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
-            const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
+      if (!error && data && data.length > 0) {
+        const mapped: PMIResult[] = data.map((p: any) => {
+          const result: PMIResult = {
+            id: p.pmi_id,
+            name: p.pmi_name,
+            address: p.pmi_address,
+            lat: p.pmi_latitude,
+            lng: p.pmi_longitude,
+            distance: `${p.distance_km} km`,
+            travelTime: p.travel_time_est,
+            stock: p.stock_count,
+            capacity: p.stock_count + 30,
+            responseRate: p.response_rate,
+            avgDelivery: p.avg_delivery,
+            score: p.match_score,
+            reasons: p.reasons,
+            analysis: ''
+          };
+          result.analysis = createAIMatchingExplanation(result, requiredQty);
+          return result;
+        });
 
-            // Ambil stok nyata untuk blood type yang dicari
-            const stockEntry = (p.blood_stock || []).find((bs: any) => bs.blood_type === bloodType);
-            const stockQty = stockEntry ? (stockEntry.stock_qty ?? 0) : 0;
-
-            const features = {
-              stockRatio: stockQty / Math.max(requiredQty, 1),
-              stockAvailable: stockQty,
-              distanceKm,
-              responseRate: p.response_rate
-            };
-
-            const score = scoreWithXGBoost(features);
-
-            const result: PMIResult = {
-              id: p.id,
-              name: p.name,
-              address: p.address,
-              lat: p.latitude,
-              lng: p.longitude,
-              distance: `${distanceKm.toFixed(1)} km`,
-              travelTime: `${travelTimeMin} mnt`,
-              stock: stockQty,
-              capacity: stockQty + 30,
-              responseRate: p.response_rate,
-              avgDelivery: `${travelTimeMin + 5} mnt`,
-              score,
-              reasons: [
-                stockQty >= requiredQty
-                  ? `Stok sangat mencukupi (${stockQty} kantong)`
-                  : stockQty > 0
-                  ? `Stok terbatas (${stockQty} kantong)`
-                  : 'Stok kosong',
-                `Respons rate ${p.response_rate}%`,
-                `Jarak ${distanceKm.toFixed(1)} km dari lokasi Anda`
-              ],
-              analysis: ''
-            };
-
-            result.analysis = createAIMatchingExplanation(result, requiredQty);
-            return result;
-          });
-
-          const sorted = mapped.sort((a, b) => b.score - a.score);
-          if (sorted.length > 0) { sorted[0].tag = 'Rekomendasi AI'; sorted[0].tagColor = '#C0392B'; }
-          if (sorted.length > 1) { sorted[1].tag = 'Cadangan'; sorted[1].tagColor = '#E67E22'; }
-          return sorted;
-        }
-      } catch (e) {
-        console.warn('Gagal fetch PMI dari Supabase:', e);
+        const sorted = mapped.sort((a, b) => b.score - a.score);
+        if (sorted.length > 0) { sorted[0].tag = 'Rekomendasi AI'; sorted[0].tagColor = '#C0392B'; }
+        if (sorted.length > 1) { sorted[1].tag = 'Cadangan'; sorted[1].tagColor = '#E67E22'; }
+        return sorted;
       }
+    } catch (e) {
+      console.warn('Gagal memanggil RPC Supabase:', e);
     }
-
-    return (pmiDatabase[bloodType] || []).map((pmi) => {
-      const distanceKm = Number(pmi.distance.replace(' km', '')) || 0;
-      const features = {
-        stockRatio: pmi.stock / Math.max(requiredQty, 1),
-        stockAvailable: pmi.stock,
-        distanceKm,
-        responseRate: pmi.responseRate
-      };
-      return {
-        ...pmi,
-        score: scoreWithXGBoost(features),
-        analysis: createAIMatchingExplanation({ ...pmi, score: scoreWithXGBoost(features) }, requiredQty)
-      };
-    });
+    return [];
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
@@ -831,13 +690,13 @@ export default function BloodSearch() {
 
         setPmiResults(mappedResults);
         setIsMatching(false);
-        triggerBackgroundGeminiAnalysis(mappedResults, searchBt, reqQty);
+        // AI analysis sekarang on-demand, tidak auto-trigger
       } else {
         toast.info('Hasil RPC kosong, memuat data PMI dari database...');
         const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
         setPmiResults(fallback);
         setIsMatching(false);
-        triggerBackgroundGeminiAnalysis(fallback, searchBt, reqQty);
+        // AI analysis sekarang on-demand, tidak auto-trigger
       }
     } catch (err: any) {
       console.warn('RPC match_closest_pmi gagal, menggunakan fallback dengan stok dari DB:', err);
@@ -845,7 +704,7 @@ export default function BloodSearch() {
       const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
       setPmiResults(fallback);
       setIsMatching(false);
-      triggerBackgroundGeminiAnalysis(fallback, searchBt, reqQty);
+      // AI analysis sekarang on-demand, tidak auto-trigger
     }
   };
 
@@ -1083,6 +942,24 @@ export default function BloodSearch() {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-col-reverse lg:flex-row">
                       {/* Left: PMI recommendations list */}
                       <div className="lg:col-span-2 space-y-4 order-2 lg:order-1">
+                      {/* On-demand AI Analysis Button */}
+                      <div className="flex items-center gap-3 bg-[#F4EFFE] border border-purple-200 rounded-xl px-4 py-2.5">
+                        <Sparkles className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                        <p className="text-xs text-purple-700 flex-1">
+                          Klik untuk memuat penjelasan detail AI untuk rekomendasi teratas. Hasil di-cache otomatis.
+                        </p>
+                        <button
+                          onClick={triggerOnDemandGeminiAnalysis}
+                          disabled={aiAnalysisLoading}
+                          className="flex-shrink-0 text-[11px] font-bold bg-[#8E44AD] hover:bg-[#6C3483] text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          {aiAnalysisLoading ? (
+                            <><span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Menganalisis...</>
+                          ) : (
+                            <><Sparkles className="w-3 h-3" /> Tampilkan Analisis AI</>
+                          )}
+                        </button>
+                      </div>
                       {pmiResults.map((pmi, i) => (
                         <div key={pmi.id}
                           className={`border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:scale-[1.01] hover:shadow-md ${

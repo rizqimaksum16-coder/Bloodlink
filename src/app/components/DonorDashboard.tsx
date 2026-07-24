@@ -9,6 +9,7 @@ import { Badge } from './ui/badge';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -143,8 +144,58 @@ export default function DonorDashboard() {
   });
 
   const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>([]);
-  const [displayAchievements, setDisplayAchievements] = useState<AchievementItem[]>(achievements);
+  const [displayAchievements, setDisplayAchievements] = useState<AchievementItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+
+  const getDynamicAchievements = (totalDonations: number): AchievementItem[] => {
+    return [
+      {
+        id: 'A001',
+        name: 'Donor Pertama',
+        description: 'Selesaikan donasi darah pertamamu',
+        icon: Heart,
+        color: '#C0392B',
+        bg: '#FDEDEC',
+        earned: totalDonations >= 1,
+        progress: Math.min(totalDonations, 1),
+        total: 1,
+      },
+      {
+        id: 'A002',
+        name: 'Konsisten 3x',
+        description: 'Donor 3 kali berturut-turut',
+        icon: Flame,
+        color: '#E67E22',
+        bg: '#FEF9E7',
+        earned: totalDonations >= 3,
+        progress: Math.min(totalDonations, 3),
+        total: 3,
+      },
+      {
+        id: 'A003',
+        name: 'Bintang 10',
+        description: 'Capai 10 kali donasi',
+        icon: Star,
+        color: '#F1C40F',
+        bg: '#FEFCE8',
+        earned: totalDonations >= 10,
+        progress: Math.min(totalDonations, 10),
+        total: 10,
+      },
+      {
+        id: 'A004',
+        name: 'Pahlawan PMI',
+        description: 'Capai 25 kali donasi',
+        icon: Crown,
+        color: '#E67E22',
+        bg: '#FEF9E7',
+        earned: totalDonations >= 25,
+        progress: Math.min(totalDonations, 25),
+        total: 25,
+      }
+    ];
+  };
 
   // Load donor data from Supabase
   useEffect(() => {
@@ -199,31 +250,20 @@ export default function DonorDashboard() {
             .maybeSingle();
 
           if (!donorProfile) {
-            const { data: newProfile } = await supabase
-              .from('donor_profiles')
-              .insert({
-                user_id: userData.id,
-                blood_type: 'O-',
-                dob: '1995-01-01',
-                phone: '081234567890',
-                address: 'Surabaya',
-                points: 200,
-                level: 'Pemula',
-                streak: 0,
-              })
-              .select('*')
-              .single();
-            donorProfile = newProfile;
-          }
-
-          if (donorProfile) {
+            // Pengguna belum punya profil, tampilkan peringatan untuk setup
+            setNeedsProfileSetup(true);
+            setDisplayAchievements(getDynamicAchievements(0));
+          } else {
+            setNeedsProfileSetup(false);
+            const tDonations = donorProfile.total_donations || 0;
             setDonorStats({
-              totalDonations: donorProfile.total_donations || 0,
+              totalDonations: tDonations,
               totalPoints: donorProfile.points || 0,
               currentStreak: donorProfile.streak || 0,
               ranking: donorProfile.ranking || 0,
-              badgeLevel: determineBadgeLevel(donorProfile.total_donations || 0),
+              badgeLevel: determineBadgeLevel(tDonations),
             });
+            setDisplayAchievements(getDynamicAchievements(tDonations));
           }
 
 
@@ -242,7 +282,7 @@ export default function DonorDashboard() {
               eventDate: new Date(ticket.events.date).toLocaleDateString('id-ID'),
               status: ticket.status || 'ready',
               qrCode: ticket.ticket_id || `QR_${ticket.id}`,
-              points: 100,
+              points: ticket.points || 100,
             }));
             setActiveTickets(activeTicketsList);
           }
@@ -330,7 +370,7 @@ export default function DonorDashboard() {
             <div className="bg-white rounded-lg border-2 border-[#E8DAEF] p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-gray-600 uppercase">
-                  Streak
+                  Konsistensi
                 </span>
                 <Zap className="w-5 h-5 text-[#8E44AD]" />
               </div>
@@ -357,6 +397,28 @@ export default function DonorDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Profile Setup Warning Banner */}
+        {needsProfileSetup && (
+          <div className="bg-[#FEF9E7] border-l-4 border-[#F39C12] p-4 rounded-r-lg mb-6 shadow-sm">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Target className="h-5 w-5 text-[#F39C12]" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-bold text-[#7D6608]">Profil Belum Lengkap</h3>
+                <div className="mt-1 text-xs text-[#7D6608]">
+                  <p>Anda belum melengkapi data medis dasar (seperti Golongan Darah). Harap lengkapi profil Anda sebelum mendaftar event donor untuk menghindari kesalahan identifikasi.</p>
+                </div>
+                <div className="mt-3">
+                  <button onClick={() => toast.info('Fitur edit profil sedang dalam pengembangan')} className="text-xs font-bold text-[#F39C12] hover:text-[#D68910]">
+                    Lengkapi Profil Sekarang &rarr;
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── 4 Quick Action Cards ─────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

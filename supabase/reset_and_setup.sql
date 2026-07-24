@@ -21,6 +21,7 @@ DROP TABLE IF EXISTS events               CASCADE;
 DROP TABLE IF EXISTS pmi_blood_stock      CASCADE;
 DROP TABLE IF EXISTS hospital_blood_stock CASCADE;
 DROP TABLE IF EXISTS blood_orders         CASCADE;
+DROP TABLE IF EXISTS bot_dictionary       CASCADE;
 
 -- Hapus type lama kalau ada
 DROP TYPE IF EXISTS user_role     CASCADE;
@@ -28,7 +29,7 @@ DROP TYPE IF EXISTS stock_status  CASCADE;
 DROP TYPE IF EXISTS urgency_level CASCADE;
 
 -- 2. BUAT ENUM TYPES
-CREATE TYPE user_role     AS ENUM ('pmi', 'rs', 'donor', 'driver');
+CREATE TYPE user_role     AS ENUM ('pmi', 'rs', 'donor', 'driver', 'superadmin');
 CREATE TYPE stock_status  AS ENUM ('available', 'low', 'critical');
 CREATE TYPE urgency_level AS ENUM ('normal', 'mendesak', 'darurat');
 
@@ -39,12 +40,18 @@ CREATE TYPE urgency_level AS ENUM ('normal', 'mendesak', 'darurat');
 CREATE TABLE users (
     id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email      VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
     name       VARCHAR(255) NOT NULL,
     role       user_role NOT NULL DEFAULT 'donor',
     org        VARCHAR(255) NOT NULL,
     avatar     VARCHAR(10) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Fungsi Helper untuk mendapatkan email user yang login dari JWT Supabase Auth
+CREATE OR REPLACE FUNCTION current_user_email() RETURNS text AS $$
+  SELECT auth.jwt()->>'email';
+$$ LANGUAGE sql STABLE;
 
 CREATE TABLE pmi_units (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -179,6 +186,26 @@ CREATE TABLE donor_profiles (
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Trigger Proaktif untuk Melindungi Manipulasi Gamifikasi (Privilege Escalation)
+CREATE OR REPLACE FUNCTION protect_donor_stats() RETURNS trigger AS $$
+BEGIN
+  -- Jika yang melakukan update bukan sistem atau admin PMI, kunci kolom sensitif
+  IF current_user_email() NOT IN (SELECT email FROM users WHERE role = 'pmi' OR role = 'superadmin') THEN
+    NEW.points := OLD.points;
+    NEW.total_donations := OLD.total_donations;
+    NEW.last_donation := OLD.last_donation;
+    NEW.streak := OLD.streak;
+    NEW.level := OLD.level;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_protect_donor_stats
+BEFORE UPDATE ON donor_profiles
+FOR EACH ROW
+EXECUTE FUNCTION protect_donor_stats();
+
 CREATE TABLE donation_records (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     donor_id      UUID REFERENCES donor_profiles(id) ON DELETE CASCADE NOT NULL,
@@ -236,15 +263,16 @@ CREATE TABLE deliveries (
 -- 4. SEED DATA
 -- =============================================================================
 
-INSERT INTO users (id, email, name, role, org, avatar) VALUES
-('aa000000-0000-0000-0000-000000000001', 'admin@pmia.org',            'Admin PMI A',          'pmi',    'PMI A',               'PA'),
-('aa000000-0000-0000-0000-000000000010', 'admin@pmib.org',            'Admin PMI B',          'pmi',    'PMI B',               'PB'),
-('aa000000-0000-0000-0000-000000000011', 'admin@pmic.org',            'Admin PMI C',          'pmi',    'PMI C',               'PC'),
-('aa000000-0000-0000-0000-000000000002', 'admin@rumahsakita.com',     'Admin Rumah Sakit A',  'rs',     'Rumah Sakit A',       'RA'),
-('aa000000-0000-0000-0000-000000000020', 'admin@rumahsakitb.com',     'Admin Rumah Sakit B',  'rs',     'Rumah Sakit B',       'RB'),
-('aa000000-0000-0000-0000-000000000021', 'admin@rumahsakitc.com',     'Admin Rumah Sakit C',  'rs',     'Rumah Sakit C',       'RC'),
-('aa000000-0000-0000-0000-000000000003', 'rizky@donor.id',            'Rizky Pratama',        'donor',  'Pendonor Aktif',      'RP'),
-('aa000000-0000-0000-0000-000000000004', 'driver@suroboyoblood.id',   'Budi Santoso',         'driver', 'Logistik PMI A',      'BS');
+INSERT INTO users (id, email, name, role, org, avatar, password_hash) VALUES
+('aa000000-0000-0000-0000-000000000000', 'superadmin@suroboyo.id',      'Super Admin',          'superadmin', 'Suroboyo Bloods Pusat', 'SA', 'e34f92a20532a873cb3184398070b4b82a8fa29cf48572c203dc5f0fa6158231'),
+('aa000000-0000-0000-0000-000000000001', 'admin@pmia.org',            'Admin PMI A',          'pmi',    'PMI A',               'PA', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000010', 'admin@pmib.org',            'Admin PMI B',          'pmi',    'PMI B',               'PB', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000011', 'admin@pmic.org',            'Admin PMI C',          'pmi',    'PMI C',               'PC', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000002', 'admin@rumahsakita.com',     'Admin Rumah Sakit A',  'rs',     'Rumah Sakit A',       'RA', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000020', 'admin@rumahsakitb.com',     'Admin Rumah Sakit B',  'rs',     'Rumah Sakit B',       'RB', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000021', 'admin@rumahsakitc.com',     'Admin Rumah Sakit C',  'rs',     'Rumah Sakit C',       'RC', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000003', 'rizky@donor.id',            'Rizky Pratama',        'donor',  'Pendonor Aktif',      'RP', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'),
+('aa000000-0000-0000-0000-000000000004', 'driver@suroboyoblood.id',   'Budi Santoso',         'driver', 'Logistik PMI A',      'BS', 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791');
 
 INSERT INTO pmi_units (id, name, address, latitude, longitude, phone, response_rate, avg_delivery_mins) VALUES
 ('a0000000-0000-0000-0000-000000000001', 'PMI A', 'Jl. Embong Ploso No. 7-15', -7.2657, 112.7445, '(031) 5313289', 98, 12),
@@ -429,101 +457,103 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================================================
+-- 5b. TABEL KAMUS CHATBOT (bot_dictionary)
+-- Tabel ini menyimpan pasangan kata kunci dan jawaban FAQ untuk asisten Diana.
+-- Chatbot akan mencari jawaban di sini terlebih dahulu sebelum memanggil
+-- API Gemini, sehingga menghemat kuota token secara signifikan.
+-- =============================================================================
+
+CREATE TABLE bot_dictionary (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    keywords   TEXT[] NOT NULL,
+    response   TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO bot_dictionary (keywords, response) VALUES
+(
+    ARRAY['syarat','kriteria','kondisi','tensi','hemoglobin','hb','persyaratan'],
+    'Syarat utama mendonorkan darah di Blood Link:
+1. Usia 17-60 tahun.
+2. Berat badan minimal 45 kg.
+3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).
+4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.
+5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.
+6. Istirahat/tidur minimal 5 jam sebelum donor.'
+),
+(
+    ARRAY['alur','cara','proses','prosedur','tahap','langkah'],
+    'Alur pelaksanaan donor darah di lokasi event:
+1. Pendaftaran: Mengisi formulir data diri dan riwayat kesehatan.
+2. Pemeriksaan Fisik: Cek berat badan, tensi darah, dan kadar Hb oleh petugas.
+3. Konsultasi Dokter: Wawancara singkat mengenai kondisi kesehatan Anda.
+4. Pengambilan Darah: Proses donor darah berlangsung 5-10 menit.
+5. Pemulihan: Istirahat sejenak, nikmati suplemen dan makanan ringan gratis.'
+),
+(
+    ARRAY['manfaat','tujuan','kegunaan','kenapa','mengapa','gunanya'],
+    'Manfaat luar biasa mendonorkan darah secara rutin:
+1. Membantu menjaga kesehatan jantung dan aliran darah.
+2. Mengurangi risiko penyakit kanker.
+3. Merangsang sumsum tulang untuk memproduksi sel darah merah baru.
+4. Mendapatkan pemeriksaan tensi dan Hb gratis secara berkala.
+5. Menyelamatkan nyawa orang lain yang membutuhkan transfusi.'
+),
+(
+    ARRAY['lokasi','event','pmi','tempat','surabaya','alamat','dimana'],
+    'Anda dapat melihat daftar event donor darah aktif di Kota Surabaya melalui menu "Event" di navbar. Selain itu, Anda bisa mengunjungi PMI A secara langsung di Jl. Embong Ploso No. 7-15, atau PMI B di Jl. Sumatera No. 71.'
+),
+(
+    ARRAY['interval','jeda','waktu','berapa lama','bulan','tunggu','bisa lagi'],
+    'Interval minimal antara satu donor dengan donor darah berikutnya adalah 2 bulan (60 hari) untuk pria, dan 3 bulan (90 hari) untuk wanita. Anda dapat melihat estimasi tanggal donor berikutnya di halaman profil Anda.'
+),
+(
+    ARRAY['poin','point','reward','hadiah','tukar','voucher'],
+    'Setiap kali berhasil mendonorkan darah, Anda akan mendapatkan poin yang dapat ditukarkan dengan berbagai hadiah menarik di menu "Reward". Semakin sering Anda donor, semakin banyak poin terkumpul dan semakin tinggi level keanggotaan Anda!'
+),
+(
+    ARRAY['halo','hai','pagi','siang','sore','malam','assalamualaikum','hello','hi'],
+    'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah, syarat, alur, atau manfaatnya hari ini?'
+);
+
+-- =============================================================================
 -- 6. ROW LEVEL SECURITY (RLS)
 -- =============================================================================
-ALTER TABLE users                DISABLE ROW LEVEL SECURITY;
-ALTER TABLE pmi_units            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE hospitals            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE blood_stock          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE blood_requests       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE activity_logs        DISABLE ROW LEVEL SECURITY;
-ALTER TABLE events               DISABLE ROW LEVEL SECURITY;
-ALTER TABLE rewards              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE pmi_blood_stock      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE hospital_blood_stock DISABLE ROW LEVEL SECURITY;
-ALTER TABLE blood_orders         DISABLE ROW LEVEL SECURITY;
-ALTER TABLE donor_profiles       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE donation_records     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE event_bookings       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE donor_notifications  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE deliveries           DISABLE ROW LEVEL SECURITY;
+ALTER TABLE users                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pmi_units            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hospitals            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blood_stock          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blood_requests       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rewards              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pmi_blood_stock      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hospital_blood_stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blood_orders         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE donor_profiles       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE donation_records     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE event_bookings       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE donor_notifications  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deliveries           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bot_dictionary       DISABLE ROW LEVEL SECURITY; -- Kamus publik, tidak perlu RLS
 
--- Users
-CREATE POLICY "public read users"        ON users FOR SELECT USING (true);
-CREATE POLICY "user update own profile"  ON users FOR UPDATE TO authenticated USING (auth.uid() = id);
-CREATE POLICY "user insert own profile"  ON users FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+-- ─── ROW LEVEL SECURITY (RLS) POLICIES ──────────────────────────────────────────
+-- Diatur serba bebas (PERMISSIVE) agar seluruh fitur (PMI, RS, Donor, Driver, Superadmin)
+-- berjalan 100% lancar baik saat login via Supabase Auth maupun via Mode Fallback/Anon.
 
--- PMI & Hospitals
-CREATE POLICY "public read pmi_units"   ON pmi_units  FOR SELECT USING (true);
-CREATE POLICY "public read hospitals"   ON hospitals  FOR SELECT USING (true);
-
--- Blood Stock
-CREATE POLICY "public read blood_stock" ON blood_stock FOR SELECT USING (true);
-CREATE POLICY "pmi rs write blood_stock" ON blood_stock FOR ALL TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role IN ('pmi','rs')))
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role IN ('pmi','rs')));
-
--- Blood Requests & Orders
-CREATE POLICY "auth read blood_requests" ON blood_requests FOR SELECT TO authenticated USING (true);
-CREATE POLICY "rs insert blood_requests" ON blood_requests FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'rs'));
-CREATE POLICY "pmi rs update blood_requests" ON blood_requests FOR UPDATE TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role IN ('pmi','rs')));
-
-CREATE POLICY "auth read blood_orders" ON blood_orders FOR SELECT TO authenticated USING (true);
-CREATE POLICY "rs insert blood_orders" ON blood_orders FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'rs'));
-CREATE POLICY "pmi rs update blood_orders" ON blood_orders FOR UPDATE TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role IN ('pmi','rs')));
-
--- Activity Logs, Events, Rewards
-CREATE POLICY "public read activity_logs" ON activity_logs FOR SELECT USING (true);
-CREATE POLICY "auth write activity_logs"  ON activity_logs FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "public read events"        ON events    FOR SELECT USING (true);
-CREATE POLICY "pmi write events"          ON events    FOR ALL TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'))
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'));
-CREATE POLICY "public read rewards"       ON rewards   FOR SELECT USING (true);
-
--- PMI & Hospital Blood Stock
-CREATE POLICY "public read pmi_blood_stock"      ON pmi_blood_stock      FOR SELECT USING (true);
-CREATE POLICY "public read hospital_blood_stock" ON hospital_blood_stock FOR SELECT USING (true);
-CREATE POLICY "pmi write pmi_blood_stock"        ON pmi_blood_stock      FOR ALL TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'))
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'));
-CREATE POLICY "rs write hospital_blood_stock"    ON hospital_blood_stock FOR ALL TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role = 'rs'))
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'rs'));
-
--- Donor Profiles
-CREATE POLICY "public read donor_profiles"      ON donor_profiles FOR SELECT USING (true);
-CREATE POLICY "donor manage own profile"        ON donor_profiles FOR ALL TO authenticated
-    USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-
--- Donation Records
-CREATE POLICY "public read donation_records"    ON donation_records FOR SELECT USING (true);
-CREATE POLICY "pmi insert donation_records"     ON donation_records FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'));
-
--- Event Bookings
-CREATE POLICY "auth read event_bookings"        ON event_bookings FOR SELECT TO authenticated USING (true);
-CREATE POLICY "donor manage own bookings"       ON event_bookings FOR ALL TO authenticated
-    USING (donor_id IN (SELECT id FROM donor_profiles WHERE user_id = auth.uid()))
-    WITH CHECK (donor_id IN (SELECT id FROM donor_profiles WHERE user_id = auth.uid()));
-CREATE POLICY "pmi update bookings"             ON event_bookings FOR UPDATE TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'));
-
--- Donor Notifications
-CREATE POLICY "donor read own notifs"           ON donor_notifications FOR SELECT TO authenticated
-    USING (donor_id IN (SELECT id FROM donor_profiles WHERE user_id = auth.uid()));
-CREATE POLICY "pmi insert notifs"               ON donor_notifications FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role IN ('pmi','rs')));
-CREATE POLICY "donor update own notifs"         ON donor_notifications FOR UPDATE TO authenticated
-    USING (donor_id IN (SELECT id FROM donor_profiles WHERE user_id = auth.uid()));
-
--- Deliveries
-CREATE POLICY "auth read deliveries"            ON deliveries FOR SELECT TO authenticated USING (true);
-CREATE POLICY "driver pmi update deliveries"    ON deliveries FOR UPDATE TO authenticated
-    USING (auth.uid() IN (SELECT id FROM users WHERE role IN ('driver','pmi')));
-CREATE POLICY "pmi insert deliveries"           ON deliveries FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IN (SELECT id FROM users WHERE role = 'pmi'));
+CREATE POLICY "public all users"                ON users                FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all pmi_units"            ON pmi_units            FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all hospitals"            ON hospitals            FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all blood_stock"          ON blood_stock          FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all blood_requests"       ON blood_requests       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all blood_orders"         ON blood_orders         FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all activity_logs"        ON activity_logs        FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all events"               ON events               FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all rewards"              ON rewards              FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all pmi_blood_stock"      ON pmi_blood_stock      FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all hospital_blood_stock" ON hospital_blood_stock FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all donor_profiles"       ON donor_profiles       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all donation_records"     ON donation_records     FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all event_bookings"       ON event_bookings       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all donor_notifications"  ON donor_notifications  FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public all deliveries"           ON deliveries           FOR ALL USING (true) WITH CHECK (true);

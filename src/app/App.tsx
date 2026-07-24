@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import { Toaster } from './components/ui/sonner';
 import { AuthProvider } from './context/AuthContext';
+import { AutoSaveProvider } from './context/AutoSaveContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AppFooter from './components/AppFooter';
@@ -30,78 +31,80 @@ const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'
 export default function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="min-h-screen bg-background flex flex-col">
-          <Navigation />
-          <main className="flex-1">
-            <ErrorBoundary>
-              <Suspense fallback={
-                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-                  <div className="w-9 h-9 rounded-full border-4 border-[#C0392B]/20 border-t-[#C0392B] animate-spin" />
-                  <span className="text-xs font-semibold text-[#9B9BB5] uppercase tracking-wider">Memuat Halaman...</span>
-                </div>
-              }>
-              <Routes>
-                {/* Public */}
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/search" element={<BloodSearch />} />
-                <Route path="/events" element={<Events />} />
+      <AutoSaveProvider>
+        <Router>
+          <div className="min-h-screen bg-background flex flex-col">
+            <Navigation />
+            <main className="flex-1">
+              <ErrorBoundary>
+                <Suspense fallback={
+                  <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+                    <div className="w-9 h-9 rounded-full border-4 border-[#C0392B]/20 border-t-[#C0392B] animate-spin" />
+                    <span className="text-xs font-semibold text-[#9B9BB5] uppercase tracking-wider">Memuat Halaman...</span>
+                  </div>
+                }>
+                <Routes>
+                  {/* Public */}
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/search" element={<BloodSearch />} />
+                  <Route path="/events" element={<Events />} />
 
-                {/* Protected Routes */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/home" element={<HomePage />} />
-                  <Route path="/add-stock" element={
-                    <ProtectedRoute allowedRoles={['pmi']}><AddBloodStock /></ProtectedRoute>
-                  } />
-                  <Route path="/alur" element={
-                    <ProtectedRoute allowedRoles={['donor', 'driver']}><AlurDonor /></ProtectedRoute>
-                  } />
-                  <Route path="/info" element={
-                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver']}><Information /></ProtectedRoute>
-                  } />
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver']}><Dashboard /></ProtectedRoute>
-                  } />
+                  {/* Protected Routes */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/home" element={<HomePage />} />
+                    <Route path="/add-stock" element={
+                      <ProtectedRoute allowedRoles={['pmi']}><AddBloodStock /></ProtectedRoute>
+                    } />
+                    <Route path="/alur" element={
+                      <ProtectedRoute allowedRoles={['donor', 'driver']}><AlurDonor /></ProtectedRoute>
+                    } />
+                    <Route path="/info" element={
+                      <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver']}><Information /></ProtectedRoute>
+                    } />
+                    <Route path="/dashboard" element={
+                      <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver']}><Dashboard /></ProtectedRoute>
+                    } />
 
-                  {/* Fitur Baru */}
-                  <Route path="/ai-matching" element={<Navigate to="/search?tab=ai-matching" replace />} />
-                  <Route path="/gps-tracking" element={<Navigate to="/" replace />} />
-                  <Route path="/qr-checkin" element={
-                    <ProtectedRoute allowedRoles={['pmi', 'rs']}><QRCheckIn /></ProtectedRoute>
-                  } />
-                  <Route path="/rewards" element={
-                    <ProtectedRoute allowedRoles={['donor']}><RewardPage /></ProtectedRoute>
-                  } />
+                    {/* Fitur Baru */}
+                    <Route path="/ai-matching" element={<Navigate to="/search?tab=ai-matching" replace />} />
+                    <Route path="/gps-tracking" element={<Navigate to="/" replace />} />
+                    <Route path="/qr-checkin" element={
+                      <ProtectedRoute allowedRoles={['pmi', 'rs']}><QRCheckIn /></ProtectedRoute>
+                    } />
+                    <Route path="/rewards" element={
+                      <ProtectedRoute allowedRoles={['donor']}><RewardPage /></ProtectedRoute>
+                    } />
 
-                  {/* Protected: role-based dashboards */}
-                  <Route path="/dashboard/pmi" element={
-                    <ProtectedRoute allowedRoles={['pmi']}><PMIDashboard /></ProtectedRoute>
-                  } />
-                  <Route path="/dashboard/rs" element={
-                    <ProtectedRoute allowedRoles={['rs']}><HospitalDashboard /></ProtectedRoute>
-                  } />
-                  <Route path="/dashboard/donor" element={
-                    <ProtectedRoute allowedRoles={['donor']}><DonorDashboard /></ProtectedRoute>
-                  } />
-                  <Route path="/dashboard/driver" element={
-                    <ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>
-                  } />
-                  <Route path="/dashboard/superadmin" element={
-                    <ProtectedRoute allowedRoles={['superadmin']}><SuperAdminDashboard /></ProtectedRoute>
-                  } />
+                    {/* Protected: role-based dashboards */}
+                    <Route path="/dashboard/pmi" element={
+                      <ProtectedRoute allowedRoles={['pmi']}><PMIDashboard /></ProtectedRoute>
+                    } />
+                    <Route path="/dashboard/rs" element={
+                      <ProtectedRoute allowedRoles={['rs']}><HospitalDashboard /></ProtectedRoute>
+                    } />
+                    <Route path="/dashboard/donor" element={
+                      <ProtectedRoute allowedRoles={['donor']}><DonorDashboard /></ProtectedRoute>
+                    } />
+                    <Route path="/dashboard/driver" element={
+                      <ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>
+                    } />
+                    <Route path="/dashboard/superadmin" element={
+                      <ProtectedRoute allowedRoles={['superadmin']}><SuperAdminDashboard /></ProtectedRoute>
+                    } />
 
-                  {/* 404 — catch all */}
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
-            </Suspense>
-            </ErrorBoundary>
-          </main>
-          <AppFooter />
-          <Toaster />
-        </div>
-      </Router>
+                    {/* 404 — catch all */}
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
+                </Routes>
+              </Suspense>
+              </ErrorBoundary>
+            </main>
+            <AppFooter />
+            <Toaster />
+          </div>
+        </Router>
+      </AutoSaveProvider>
     </AuthProvider>
   );
 }

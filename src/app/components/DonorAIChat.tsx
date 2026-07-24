@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Bot, Send, X, MessageSquare, AlertTriangle, Sparkles } from 'lucide-react';
+import { Bot, Send, X, MessageSquare, AlertTriangle, Sparkles, Database } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { callGeminiProxy } from '../utils/geminiProxy';
 
 interface ChatMessage {
   sender: 'user' | 'ai';
   text: string;
+  source?: 'database' | 'ai' | 'mock'; // Untuk indikator asal jawaban
 }
 
 interface GeminiMessage {
@@ -12,55 +15,80 @@ interface GeminiMessage {
   content: string;
 }
 
+// ─── Sliding Window: Batasi riwayat pesan yang dikirim ke AI ──────────────────
+const MAX_HISTORY_MESSAGES = 8;
+
+function trimHistory(history: GeminiMessage[]): GeminiMessage[] {
+  if (history.length <= MAX_HISTORY_MESSAGES) return history;
+  return history.slice(-MAX_HISTORY_MESSAGES);
+}
+
+// ─── Local Mock Fallback (ketika tidak ada Supabase maupun Gemini) ────────────
+const getMockResponse = (inputMsg: string): string => {
+  const query = inputMsg.toLowerCase();
+
+  if (query.includes('syarat') || query.includes('kriteria') || query.includes('kondisi') || query.includes('tensi') || query.includes('hemoglobin') || query.includes('hb')) {
+    return 'Syarat utama mendonorkan darah di Blood Link:\n1. Usia 17-60 tahun.\n2. Berat badan minimal 45 kg.\n3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).\n4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.\n5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.\n6. Istirahat/tidur minimal 5 jam sebelum donor.';
+  }
+
+  if (query.includes('alur') || query.includes('cara') || query.includes('proses') || query.includes('prosedur') || query.includes('tahap')) {
+    return 'Alur pelaksanaan donor darah di lokasi event:\n1. Pendaftaran: Mengisi formulir data diri dan riwayat kesehatan.\n2. Pemeriksaan Fisik: Cek berat badan, tensi darah, dan kadar Hb oleh petugas.\n3. Konsultasi Dokter: Wawancara singkat mengenai kondisi kesehatan Anda.\n4. Pengambilan Darah: Proses donor darah berlangsung 5-10 menit.\n5. Pemulihan: Istirahat sejenak, nikmati suplemen dan makanan ringan gratis yang disediakan.';
+  }
+
+  if (query.includes('lokasi') || query.includes('event') || query.includes('pmi') || query.includes('tempat') || query.includes('surabaya')) {
+    return 'Anda dapat melihat daftar event donor darah aktif di Kota Surabaya melalui menu "Event" di navbar atas. Selain itu, Anda bisa mengunjungi PMI A secara langsung di Jl. Embong Ploso No. 7-15.';
+  }
+
+  if (query.includes('manfaat') || query.includes('tujuan') || query.includes('kegunaan') || query.includes('kenapa')) {
+    return 'Manfaat luar biasa mendonorkan darah secara rutin:\n1. Membantu menjaga kesehatan jantung dan aliran darah.\n2. Mengurangi risiko penyakit kanker.\n3. Merangsang sumsum tulang untuk memproduksi sel darah merah baru.\n4. Mendapatkan pemeriksaan tensi & Hb gratis secara berkala.\n5. Menyelamatkan nyawa orang lain yang membutuhkan transfusi.';
+  }
+
+  if (query.includes('halo') || query.includes('hai') || query.includes('pagi') || query.includes('siang') || query.includes('sore') || query.includes('malam') || query.includes('assalamualaikum')) {
+    return 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah atau kesehatan pendonor hari ini?';
+  }
+
+  return 'Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor.';
+};
+
+// ─── Hybrid Lookup: Query bot_dictionary terlebih dahulu ───────────────────────
+async function lookupBotDictionary(userText: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('bot_dictionary')
+      .select('keywords, response');
+
+    if (error || !data) return null;
+
+    const queryLower = userText.toLowerCase();
+    for (const entry of data) {
+      const keywords: string[] = entry.keywords || [];
+      if (keywords.some((kw: string) => queryLower.includes(kw.toLowerCase()))) {
+        return entry.response;
+      }
+    }
+    return null; // Tidak ada kecocokan
+  } catch {
+    return null;
+  }
+}
+
 export default function DonorAIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar persyaratan, alur, atau manfaat donor darah hari ini?' }
+    { sender: 'ai', text: 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar persyaratan, alur, atau manfaat donor darah hari ini?', source: 'mock' }
   ]);
   const [geminiHistory, setGeminiHistory] = useState<GeminiMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const hasApiKey = !!(import.meta as any).env?.VITE_GEMINI_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auto scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
-
-  // Local simulated fallback for donor questions
-  const getMockResponse = (inputMsg: string): string => {
-    const query = inputMsg.toLowerCase();
-    
-    // Syarat Donor
-    if (query.includes('syarat') || query.includes('kriteria') || query.includes('kondisi') || query.includes('tensi') || query.includes('hemoglobin') || query.includes('hb')) {
-      return 'Syarat utama mendonorkan darah di Blood Link:\n1. Usia 17-60 tahun.\n2. Berat badan minimal 45 kg.\n3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).\n4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.\n5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.\n6. Istirahat/tidur minimal 5 jam sebelum donor.';
-    }
-    
-    // Alur Donor
-    if (query.includes('alur') || query.includes('cara') || query.includes('proses') || query.includes('prosedur') || query.includes('tahap')) {
-      return 'Alur pelaksanaan donor darah di lokasi event:\n1. Pendaftaran: Mengisi formulir data diri dan riwayat kesehatan.\n2. Pemeriksaan Fisik: Cek berat badan, tensi darah, dan kadar Hb oleh petugas.\n3. Konsultasi Dokter: Wawancara singkat mengenai kondisi kesehatan Anda.\n4. Pengambilan Darah: Proses donor darah berlangsung 5-10 menit.\n5. Pemulihan: Istirahat sejenak, nikmati suplemen dan makanan ringan gratis yang disediakan.';
-    }
-    
-    // Lokasi & Event
-    if (query.includes('lokasi') || query.includes('event') || query.includes('pmi') || query.includes('tempat') || query.includes('surabaya')) {
-      return 'Anda dapat melihat daftar event donor darah aktif di Kota Surabaya melalui menu "Event" di navbar atas. Selain itu, Anda bisa mengunjungi PMI A secara langsung di Jl. Embong Ploso No. 7-15.';
-    }
-    
-    // Manfaat Donor
-    if (query.includes('manfaat') || query.includes('tujuan') || query.includes('kegunaan') || query.includes('kenapa')) {
-      return 'Manfaat luar biasa mendonorkan darah secara rutin:\n1. Membantu menjaga kesehatan jantung dan aliran darah.\n2. Mengurangi risiko penyakit kanker.\n3. Merangsang sumsum tulang untuk memproduksi sel darah merah baru.\n4. Mendapatkan pemeriksaan tensi & Hb gratis secara berkala.\n5. Menyelamatkan nyawa orang lain yang membutuhkan transfusi.';
-    }
-    
-    // Salam & Greeting
-    if (query.includes('halo') || query.includes('hai') || query.includes('pagi') || query.includes('siang') || query.includes('sore') || query.includes('malam') || query.includes('assalamualaikum')) {
-      return 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah atau kesehatan pendonor hari ini?';
-    }
-    
-    // Off-topic refusal (Guardrail)
-    return 'Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor.';
-  };
 
   const handleSendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -70,40 +98,28 @@ export default function DonorAIChat() {
     setMessages(prev => [...prev, { sender: 'user', text: userText }]);
     setLoading(true);
 
-    // Prepare Gemini History
-    const updatedHistory: GeminiMessage[] = [
-      ...geminiHistory,
-      {
-        role: 'user',
-        content: userText
-      }
-    ];
-
-    if (!hasApiKey) {
-      // Simulate response delay for mock AI
-      setTimeout(() => {
-        const reply = getMockResponse(userText);
-        setMessages(prev => [...prev, { sender: 'ai', text: reply }]);
-        setGeminiHistory([
-          ...updatedHistory,
-          {
-            role: 'assistant',
-            content: reply
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
+    // ─── Step 1: Cari di bot_dictionary (Supabase) ────────────────────────────
+    const dictResponse = await lookupBotDictionary(userText);
+    if (dictResponse) {
+      setMessages(prev => [...prev, { sender: 'ai', text: dictResponse, source: 'database' }]);
+      setGeminiHistory(prev => [
+        ...prev,
+        { role: 'user', content: userText },
+        { role: 'assistant', content: dictResponse }
+      ]);
+      setLoading(false);
       return;
     }
 
-    try {
-      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-      const endpoint = (import.meta as any).env?.VITE_GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/chat/completions';
-      const model = (import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
+    // ─── Step 2: Kirim ke Gemini via Edge Function proxy ──────────────────────
+    const updatedHistory: GeminiMessage[] = [
+      ...geminiHistory,
+      { role: 'user', content: userText }
+    ];
 
-      const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Blood Link di Kota Surabaya.
+    const systemPrompt = `Kamu adalah "Diana", asisten AI resmi untuk platform donor darah Blood Link di Kota Surabaya.
 Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar donor darah, seperti:
-1. Syarat donor darah (tensi darah >= 100/60, hemoglobin 12.5-17.0 g/dL, berat badan >= 45 kg, rentang usia 17-60 tahun, interval waktu minimal 2 bundle/bulan).
+1. Syarat donor darah (tensi darah >= 100/60, hemoglobin 12.5-17.0 g/dL, berat badan >= 45 kg, rentang usia 17-60 tahun, interval waktu minimal 2 bulan).
 2. Panduan/tips sebelum dan sesudah melakukan donor darah.
 3. Alur dan tata cara pelaksanaan donor darah di PMI.
 4. Manfaat donor darah bagi kesehatan tubuh.
@@ -111,50 +127,30 @@ Tugas utamamu adalah membantu pendonor darah dengan menjawab pertanyaan seputar 
 ATURAN KETAT:
 - Jawablah semua pertanyaan dengan ramah, informatif, dan ringkas menggunakan Bahasa Indonesia yang sopan.
 - Kamu HANYA boleh menjawab pertanyaan yang berkaitan dengan donor darah, kesehatan pendonor, atau cara kerja platform Blood Link.
-- Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan dengan kalimat: "Maaf, saya Diana, asisten Blood Link, dan saya hanya dapat membantu menjawab pertanyaan seputar donor darah dan kesehatan pendonor."`;
+- Jika pengguna menanyakan topik di luar topik donor darah (seperti matematika, pemrograman, politik, resep masakan, dll.), Anda wajib menolak secara sopan.`;
 
-      const payload = {
-        model,
+    try {
+      const reply = await callGeminiProxy({
         messages: [
           { role: 'system', content: systemPrompt },
-          ...updatedHistory
+          ...trimHistory(updatedHistory)
         ],
         temperature: 0.3
-      };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const reply = data?.choices?.[0]?.message?.content || '';
-
-      if (!reply) {
-        throw new Error('Empty response');
-      }
-
-      setMessages(prev => [...prev, { sender: 'ai', text: reply }]);
+      setMessages(prev => [...prev, { sender: 'ai', text: reply, source: 'ai' }]);
       setGeminiHistory([
         ...updatedHistory,
-        {
-          role: 'assistant',
-          content: reply
-        }
+        { role: 'assistant', content: reply }
       ]);
     } catch (error) {
-      console.error('Gemini API call failed:', error);
-      setMessages(prev => [
-        ...prev,
-        { sender: 'ai', text: 'Maaf, asisten AI sedang sibuk atau ada kendala koneksi ke Gemini. Silakan coba kembali beberapa saat lagi.' }
+      console.warn('Gemini proxy call failed, using mock:', error);
+      // ─── Step 3: Fallback ke mock response lokal ────────────────────────────
+      const mockReply = getMockResponse(userText);
+      setMessages(prev => [...prev, { sender: 'ai', text: mockReply, source: 'mock' }]);
+      setGeminiHistory([
+        ...updatedHistory,
+        { role: 'assistant', content: mockReply }
       ]);
     } finally {
       setLoading(false);
@@ -191,7 +187,7 @@ ATURAN KETAT:
                 <p className="font-bold text-xs flex items-center gap-1">
                   Diana - Asisten AI <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
                 </p>
-                <p className="text-[10px] text-red-200">Asisten Khusus Info Donor</p>
+                <p className="text-[10px] text-red-200">Hybrid AI — Database + Gemini</p>
               </div>
             </div>
             <button
@@ -202,26 +198,27 @@ ATURAN KETAT:
             </button>
           </div>
 
-          {/* Alert Banner if API Key is missing */}
-          {!hasApiKey && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-[10px] text-amber-800">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                  <span>
-                    <strong>Mode Simulasi:</strong> Masukkan <code>VITE_GEMINI_API_KEY</code> di file <code>.env</code> untuk mengaktifkan Gemini asli.
-                  </span>
-            </div>
-          )}
-
           {/* Messages Area */}
           <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#F8F9FA]">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs whitespace-pre-line shadow-sm leading-relaxed ${
-                  msg.sender === 'user'
-                    ? 'bg-[#C0392B] text-white rounded-tr-none'
-                    : 'bg-white text-[#1A1A2E] border border-border rounded-tl-none'
-                }`}>
-                  {msg.text}
+                <div className="flex flex-col gap-0.5 max-w-[85%]">
+                  <div className={`rounded-2xl px-4 py-2.5 text-xs whitespace-pre-line shadow-sm leading-relaxed ${
+                    msg.sender === 'user'
+                      ? 'bg-[#C0392B] text-white rounded-tr-none'
+                      : 'bg-white text-[#1A1A2E] border border-border rounded-tl-none'
+                  }`}>
+                    {msg.text}
+                  </div>
+                  {/* Source indicator for AI messages */}
+                  {msg.sender === 'ai' && msg.source && (
+                    <span className={`text-[9px] font-semibold px-2 flex items-center gap-0.5 ${
+                      msg.source === 'database' ? 'text-blue-500' : msg.source === 'ai' ? 'text-purple-500' : 'text-gray-400'
+                    }`}>
+                      {msg.source === 'database' && <><Database className="w-2.5 h-2.5" /> Jawaban Database</>}
+                      {msg.source === 'ai' && <><Sparkles className="w-2.5 h-2.5" /> Gemini AI</>}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -247,9 +244,7 @@ ATURAN KETAT:
             ].map((suggest, idx) => (
               <button
                 key={idx}
-                onClick={() => {
-                  setInput(suggest);
-                }}
+                onClick={() => setInput(suggest)}
                 className="text-[10px] bg-[#F4F4F8] hover:bg-[#C0392B]/10 hover:text-[#C0392B] px-2.5 py-1 rounded-full border border-border text-[#4A4A6A] font-semibold transition-colors"
               >
                 {suggest}

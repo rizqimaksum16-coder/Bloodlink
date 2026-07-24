@@ -183,14 +183,15 @@ export default function DriverDashboard() {
   };
 
 
-  // Filter deliveries
   // Driver name matches user.name
-  const currentDriverName = user?.name || 'Budi Santoso';
+  const currentDriverName = user?.name || '';
   const displayedDeliveries = filterMode === 'my'
-    ? deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase())
+    ? (currentDriverName ? deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase()) : [])
     : deliveryList;
 
-  const myActiveCount = deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase() && d.status !== 'tiba' && d.status !== 'selesai').length;
+  const myActiveCount = currentDriverName 
+    ? deliveryList.filter(d => d.driver.toLowerCase() === currentDriverName.toLowerCase() && d.status !== 'tiba' && d.status !== 'selesai').length
+    : 0;
   const totalCompletedCount = deliveryList.filter(d => d.status === 'tiba' || d.status === 'selesai').length;
 
   return (
@@ -206,7 +207,7 @@ export default function DriverDashboard() {
                 Portal Logistik & Kurir
               </span>
               <h1 className="text-2xl md:text-3xl font-black mt-2 leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Halo, {currentDriverName}!
+                Halo, {currentDriverName || 'Driver PMI'}!
               </h1>
               <p className="text-white/80 text-xs mt-1">Armada Pengiriman Stok Darah PMI Surabaya</p>
             </div>
