@@ -4,7 +4,7 @@ import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 const initialInventory: any[] = [];
 
@@ -35,55 +35,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function loadData() {
-      if (!isSupabaseConfigured) return;
-      try {
-        // Fetch inventory
-        const { data: invData } = await supabase.from('hospital_blood_stock').select('*');
-        if (invData && invData.length > 0) {
-          const mapped = invData.map((item: any) => ({
-            id: item.id,
-            type: item.blood_type,
-            stock: item.quantity !== undefined ? item.quantity : (item.stock || 0),
-            target: 50,
-            status: item.status || 'available',
-            expiringSoon: item.expiring_soon || 0
-          }));
-          setBloodInventory(mapped);
-        }
-
-        // Fetch activity logs
-        const { data: actData } = await supabase.from('activity_logs').select('*').limit(10);
-        if (actData && actData.length > 0) {
-          const mappedAct = actData.map((item: any) => ({
-            id: item.id,
-            action: item.action,
-            bloodType: item.blood_type,
-            quantity: item.quantity,
-            user: item.user_name,
-            time: item.time_ago || 'Baru saja',
-            positive: item.positive !== false
-          }));
-          setRecentActivities(mappedAct);
-        }
-
-        // Fetch events
-        const { data: evtData } = await supabase
-          .from('events')
-          .select('id, name, date, location, capacity, registered');
-        if (evtData && evtData.length > 0) {
-          const mappedEvt = evtData.map((item: any) => ({
-            id: item.id,
-            name: item.name,
-            date: item.date,
-            location: item.location,
-            target: item.capacity || 100,
-            registered: item.registered || 0
-          }));
-          setUpcomingEvents(mappedEvt);
-        }
-      } catch (e) {
-        console.warn('Dashboard data fetch error:', e);
-      }
+      // Mock mode, menggunakan state awal
+      return;
     }
     loadData();
   }, []);

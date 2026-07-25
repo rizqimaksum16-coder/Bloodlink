@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth, UserRole } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 const statusMap: Record<string, { label: string; bg: string; text: string }> = {
   available: { label: 'Cukup', bg: '#EAFAF1', text: '#1E8449' },
@@ -223,71 +223,9 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchLiveStats() {
-      if (!isSupabaseConfigured) {
-        setIsOffline(true);
-        return;
-      }
-      try {
-        // 1. Fetch total users (donors)
-        const { count: usersCount } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('role', 'donor');
-
-        // 2. Fetch total hospitals
-        const { count: rsCount } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('role', 'rs');
-
-        // 3. Fetch total events
-        const { count: eventsCount } = await supabase
-          .from('events')
-          .select('*', { count: 'exact', head: true });
-
-        // 4. Fetch blood stock aggregates
-        const { data: stockData } = await supabase
-          .from('blood_stock')
-          .select('blood_type, stock_qty');
-
-        let totalStock = 0;
-        const typeStockMap: Record<string, number> = { 'A+': 0, 'B+': 0, 'O+': 0, 'AB+': 0, 'A-': 0, 'B-': 0, 'O-': 0, 'AB-': 0 };
-        if (stockData) {
-          stockData.forEach((s: any) => {
-            const qty = s.stock_qty || 0;
-            totalStock += qty;
-            if (typeStockMap[s.blood_type] !== undefined) {
-              typeStockMap[s.blood_type] += qty;
-            }
-          });
-        }
-
-        // Update global stats
-        setLiveGlobalStats(prev => prev.map(stat => {
-          if (stat.id === 'stock') return { ...stat, value: totalStock.toLocaleString('id-ID') };
-          if (stat.id === 'rs') return { ...stat, value: (rsCount || 0).toLocaleString('id-ID') };
-          if (stat.id === 'users') return { ...stat, value: (usersCount || 0).toLocaleString('id-ID') };
-          if (stat.id === 'events') return { ...stat, value: (eventsCount || 0).toLocaleString('id-ID') };
-          return stat;
-        }));
-
-        // Update blood types (mengelompokkan + dan - ke card yang sama untuk simpelnya di Homepage, atau tampilkan + saja sesuai UI awal)
-        setLiveBloodTypes(prev => prev.map(bt => {
-          const btName = bt.type; // A+, B+, etc.
-          // jumlahkan + dan - jika ingin, atau cukup + 
-          const qty = typeStockMap[btName] + (typeStockMap[btName.replace('+', '-')] || 0);
-          
-          let status = 'critical';
-          if (qty > 100) status = 'available';
-          else if (qty > 20) status = 'low';
-          
-          return { ...bt, stock: qty, status };
-        }));
-
-      } catch (e) {
-        console.warn('Gagal fetch live stats', e);
-        setIsOffline(true);
-      }
+      // Mode offline (menggunakan mock data) tanpa Supabase
+      setIsOffline(true);
+      return;
     }
     fetchLiveStats();
   }, []);

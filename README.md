@@ -6,13 +6,10 @@ Bloodlink adalah platform digital yang dirancang untuk mempercepat koneksi antar
 
 Proyek ini dikembangkan sebagai solusi digital untuk membantu pengguna memperoleh informasi terkait ketersediaan darah, menemukan unit PMI yang sesuai, dan melihat rekomendasi lokasi yang paling relevan berdasarkan faktor seperti stok, jarak, dan respons layanan. Sistem ini dibuat dengan fokus pada kemudahan akses, transparansi, dan efisiensi penanganan kebutuhan darah.
 
-## Screenshot
-
-
 ## Fitur Utama
 
 - Pencarian dan pemantauan kebutuhan darah
-- Dashboard untuk donor, rumah sakit, PMI, dan admin
+- Dashboard untuk donor, rumah sakit, PMI, driver, dan admin
 - Rekomendasi berbasis logika skor untuk membantu pemilihan lokasi yang paling sesuai
 - Informasi stok darah dan status ketersediaan secara lebih terstruktur
 - Antarmuka yang sederhana, intuitif, dan mudah digunakan oleh berbagai pengguna
@@ -26,29 +23,31 @@ Proyek ini dikembangkan sebagai solusi digital untuk membantu pengguna memperole
 - Leaflet untuk menampilkan peta dan lokasi PMI serta rumah sakit
 - React Router untuk navigasi antar halaman
 
-### Backend
-- Supabase sebagai backend-as-a-service untuk autentikasi, database, dan API ringan
-- PostgreSQL yang digunakan oleh Supabase untuk penyimpanan data aplikasi
-- Query dan RPC dari frontend untuk mengakses data secara terstruktur
-- Integrasi dengan layanan AI untuk memberikan penjelasan naratif singkat terkait hasil rekomendasi
-
-## Pendekatan AI
-
-Sistem rekomendasi pada proyek ini belum menggunakan model AI terlatih penuh untuk pengambilan keputusan. Saat ini, proses rekomendasi dilakukan melalui logika skor berbasis aturan yang mempertimbangkan faktor utama seperti stok darah, jarak lokasi, dan tingkat respons.
-
-Secara konsep, pendekatan ini terinspirasi oleh cara kerja model tree-based seperti XGBoost dan LightGBM, namun implementasinya tetap disederhanakan dan dijalankan secara lokal tanpa pelatihan model dari data historis. Untuk bagian AI, proyek ini memanfaatkan Gemini (atau endpoint chat model yang setara) sebagai pendukung penjelasan, sehingga hasil rekomendasi dapat disajikan dengan bahasa yang lebih mudah dipahami pengguna.
+### Backend & Database
+- Express.js (Node.js) untuk server REST API
+- MySQL sebagai Relational Database Management System (RDBMS)
+- JSON Web Token (JWT) & bcryptjs untuk otentikasi pengguna
+- mysql2/promise untuk koneksi database yang efisien
 
 ## Cara Menjalankan
 
-1. Install dependency:
+1. Install dependency frontend dan backend:
    ```bash
-   pnpm install
+   npm install
+   cd backend && npm install
    ```
-2. Jalankan aplikasi lokal:
+2. Impor database MySQL:
    ```bash
-   pnpm dev
+   mysql -u root -p < backend/schema.sql
    ```
-3. Siapkan variabel environment untuk Supabase dan, jika diperlukan, API Gemini (`VITE_GEMINI_API_KEY`, `VITE_GEMINI_API_URL`) untuk dukungan penjelasan AI.
+3. Jalankan server backend (Terminal 1):
+   ```bash
+   npm run backend
+   ```
+4. Jalankan aplikasi frontend (Terminal 2):
+   ```bash
+   npm run dev
+   ```
 
 ## Tujuan Proyek
 

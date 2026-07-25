@@ -5,7 +5,7 @@ export const securityHeaders = {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "connect-src 'self' https://*.supabase.co https://generativelanguage.googleapis.com",
+    "connect-src 'self' http://localhost:3001 https://generativelanguage.googleapis.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'"

@@ -10,7 +10,7 @@ import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -252,210 +252,15 @@ export default function PMIDashboard() {
   useEffect(() => {
     if (!user) return;
     async function loadPMIData() {
-      if (!isSupabaseConfigured) return;
-      try {
-        // 1. Dapatkan ID unit PMI yang sedang login berdasarkan nama organisasi user
-        // Nama di pmi_units.name sudah konsisten dengan users.org (PMI A, PMI B, PMI C, dll.)
-        const orgName = user?.org || 'PMI A';
-
-        const { data: pData } = await supabase
-          .from('pmi_units')
-          .select('id')
-          .eq('name', orgName)
-          .single();
-        const currentPmiId = pData?.id;
-
-        // 2. Prepare queries — jika pmi_id ditemukan, filter; jika tidak, tampilkan semua request
-        let reqQuery = supabase.from('blood_requests').select('*, hospitals(name, address, phone)').order('created_at', { ascending: false }).limit(100);
-        if (currentPmiId) {
-          reqQuery = reqQuery.eq('pmi_id', currentPmiId);
-        }
-
-        let stockQuery = supabase.from('blood_stock').select('*');
-        if (currentPmiId) {
-          stockQuery = stockQuery.eq('owner_pmi_id', currentPmiId);
-        }
-
-        const donorsQuery = supabase.from('donor_profiles').select('*, users(name, email)').limit(100);
-        const eventsQuery = supabase.from('events').select('id, name, date, location, capacity, registered').order('date', { ascending: true }).limit(50);
-        const driversQuery = supabase.from('users').select('*').eq('role', 'driver').limit(50);
-
-        // 3. Ambil data pengiriman logistik aktif dari PMI ini
-        let deliveriesQuery = supabase
-          .from('deliveries')
-          .select('*')
-          .eq('from_name', orgName);
-
-        // Run all queries in parallel
-        const [reqResult, stockResult, donorsResult, eventsResult, driversResult, deliveryResult] = await Promise.all([
-          reqQuery,
-          stockQuery,
-          donorsQuery,
-          eventsQuery,
-          driversQuery,
-          deliveriesQuery
-        ]);
-
-        if (reqResult.error) throw reqResult.error;
-        if (stockResult.error) throw stockResult.error;
-        if (donorsResult.error) throw donorsResult.error;
-        if (eventsResult.error) throw eventsResult.error;
-        if (driversResult.error) throw driversResult.error;
-        if (deliveryResult.error) throw deliveryResult.error;
-
-        const reqData = reqResult.data;
-        const stockData = stockResult.data;
-        const dpData = donorsResult.data;
-        const evtData = eventsResult.data;
-        const driverData = driversResult.data;
-        const deliveryData = deliveryResult.data;
-
-        if (reqData && reqData.length > 0) {
-          const mappedReq: BloodRequest[] = reqData.map((r: any) => {
-            // Cocokkan dengan delivery aktif untuk resolusi status (dikirim/tiba)
-            const activeDelivery = deliveryData?.find((d: any) => d.order_id === r.id);
-            
-            let status = r.status || 'pending';
-            if (activeDelivery && status !== 'selesai' && status !== 'ditolak') {
-              if (activeDelivery.status === 'tiba') status = 'tiba';
-              else if (activeDelivery.status === 'perjalanan') status = 'dikirim';
-              else if (activeDelivery.status === 'dijemput' || activeDelivery.status === 'disiapkan') status = 'diproses';
-            }
-
-            return {
-              id: r.id,
-              hospital: r.hospitals?.name || r.hospital || r.org || 'RSUD Dr. Soetomo',
-              bloodType: r.blood_type,
-              qty: r.quantity || r.qty || 5,
-              priority: r.urgency || r.priority || 'normal',
-              status: status as RequestStatus,
-              time: new Date(r.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-              address: r.hospitals?.address || r.address || 'Kota Surabaya',
-              contact: r.hospitals?.phone || r.phone || r.contact || '031-5010000'
-            };
-          });
-          setRequests(mappedReq);
-        }
-
-        if (stockData && stockData.length > 0) {
-          const pmiStocksOnly = stockData;
-          if (pmiStocksOnly.length > 0) {
-            const targetMap: Record<string, number> = {
-              'A+': 20, 'A-': 15, 'B+': 25, 'B-': 10,
-              'AB+': 15, 'AB-': 8, 'O+': 30, 'O-': 20
-            };
-            const fallbackMap: Record<string, number> = {
-              'A+': 0, 'A-': 0, 'B+': 0, 'B-': 0,
-              'AB+': 0, 'AB-': 0, 'O+': 0, 'O-': 0
-            };
-            const mappedStock: BloodStock[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(type => {
-              const item = pmiStocksOnly.find((s: any) => s.blood_type === type);
-              const qty = item && typeof item.stock_qty === 'number' ? item.stock_qty : (fallbackMap[type] || 10);
-              const target = targetMap[type] || 20;
-              const pct = Math.round((qty / Math.max(1, target)) * 100);
-              const status: StockStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
-              
-              // Resolve batches structure locally for presentation
-              const generatedBatches = [
-                { id: `BTC-${type}-01`, qty: Math.round(qty * 0.6), entryDate: '3 Jul 2026', expDate: '3 Aug 2026' },
-                { id: `BTC-${type}-02`, qty: qty - Math.round(qty * 0.6), entryDate: '5 Jul 2026', expDate: '5 Aug 2026' }
-              ].filter(b => b.qty > 0);
-
-              return {
-                type,
-                stock: qty,
-                target,
-                expiringSoon: Math.floor(qty * 0.1),
-                status,
-                predictedShortfall: qty < 5,
-                lastUpdated: 'Baru saja',
-                batches: generatedBatches
-              };
-            });
-            setStocks(mappedStock);
-          }
-        }
-
-        if (dpData && dpData.length > 0) {
-          const mappedDonors: Donor[] = dpData.map((d: any) => ({
-            id: d.id,
-            name: d.users?.name || 'Pendonor Surabaya',
-            bloodType: d.blood_type,
-            lastDonor: d.last_donation || '2025-10-22',
-            phone: d.phone || '081234567890',
-            eligible: true,
-            totalDonations: d.total_donations || 1
-          }));
-          setDonorList(mappedDonors);
-        }
-
-        if (evtData && evtData.length > 0) {
-          const mappedEvts: DonorEvent[] = evtData.map((e: any) => ({
-            id: e.id,
-            name: e.name,
-            date: e.date,
-            location: e.location,
-            target: e.capacity || 150,
-            registered: e.registered || 10
-          }));
-          setEventsList(mappedEvts);
-        }
-
-        const dbDrivers = driverData ? driverData.map((d: any) => ({
-          id: d.id,
-          name: d.name,
-          email: d.email,
-          phone: '081234567890',
-          vehicleNo: d.org && d.org.includes('PMI') ? 'L 1234 AB' : (d.org || 'L 1234 AB'),
-          org: d.org && d.org.includes('PMI') ? d.org : 'PMI Kota Surabaya'
-        })) : [];
-
-        setDrivers(dbDrivers);
-      } catch (e) {
-        console.warn('PMIDashboard Supabase fetch error:', e);
-      }
+      // Mock mode aktif, data diambil dari state default (bloodRequests, bloodStocks, dll)
+      return;
     }
     loadPMIData();
   }, []);
 
-  // Supabase Realtime — auto-refresh permintaan darah saat ada INSERT atau UPDATE
+  // Supabase Realtime dihapus untuk mode offline
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    const channel = supabase
-      .channel('pmi_requests_realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'blood_requests' },
-        (payload) => {
-          const newReq = payload.new as any;
-          const mapped: BloodRequest = {
-            id: newReq.id,
-            hospital: newReq.hospital || 'Rumah Sakit',
-            bloodType: newReq.blood_type,
-            qty: newReq.quantity || newReq.qty || 1,
-            priority: newReq.urgency || newReq.priority || 'normal',
-            status: newReq.status || 'pending',
-            time: new Date(newReq.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            address: newReq.address || 'Kota Surabaya',
-            contact: newReq.contact || newReq.phone || '031-5010000',
-          };
-          setRequests(prev => [mapped, ...prev]);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'blood_requests' },
-        (payload) => {
-          const updated = payload.new as any;
-          setRequests(prev => prev.map(r =>
-            r.id === updated.id
-              ? { ...r, status: updated.status || r.status }
-              : r
-          ));
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return;
   }, []);
   const [searchDonor, setSearchDonor] = useState('');
   const [filterBlood, setFilterBlood] = useState('Semua');
@@ -575,72 +380,7 @@ export default function PMIDashboard() {
       updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // 3. Simpan ke database Supabase jika dikonfigurasi
-    if (isSupabaseConfigured) {
-      (async () => {
-        try {
-          // A. Insert ke tabel deliveries
-          await supabase.from('deliveries').insert({
-            order_id: newDelivery.orderId, // Tertaut ke blood_requests.id & blood_orders.id
-            blood_type: newDelivery.bloodType,
-            qty: newDelivery.qty,
-            from_name: newDelivery.from,
-            to_name: newDelivery.to,
-            driver_name: newDelivery.driver,
-            driver_phone: newDelivery.driverPhone,
-            status: newDelivery.status,
-            eta: newDelivery.eta,
-            distance_km: newDelivery.distance,
-            pct: newDelivery.pct,
-            urgent: newDelivery.urgent
-          });
-
-          // B. Update status di blood_requests
-          await supabase
-            .from('blood_requests')
-            .update({ status: 'diproses', updated_at: new Date().toISOString() })
-            .eq('id', approvingRequestId);
-
-          // C. Update status di blood_orders (ID yang sama)
-          await supabase
-            .from('blood_orders')
-            .update({ status: 'diproses', updated_at: new Date().toISOString() })
-            .eq('id', approvingRequestId);
-
-          // D. Update stok PMI
-          const orgName = user?.org || 'PMI A';
-          const { data: pData } = await supabase
-            .from('pmi_units')
-            .select('id')
-            .eq('name', orgName)
-            .single();
-          const pId = pData?.id;
-
-          if (pId) {
-            const { data: stockRow } = await supabase
-              .from('blood_stock')
-              .select('*')
-              .eq('owner_pmi_id', pId)
-              .eq('blood_type', req.bloodType)
-              .single();
-
-            if (stockRow) {
-              const newQty = Math.max(0, stockRow.stock_qty - req.qty);
-              await supabase
-                .from('blood_stock')
-                .update({
-                  stock_qty: newQty,
-                  status: newQty > 10 ? 'available' : newQty > 3 ? 'low' : 'critical',
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', stockRow.id);
-            }
-          }
-        } catch (e) {
-          console.warn('Gagal sinkronisasi persetujuan ke Supabase:', e);
-        }
-      })();
-    }
+    // Supabase sync dihapus
 
     // 4. Beri feedback sukses
     toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
@@ -666,28 +406,7 @@ export default function PMIDashboard() {
     const orgName = user?.org || 'PMI Kota Surabaya';
     let newId = `drv_${Date.now()}`;
 
-    try {
-      if (isSupabaseConfigured) {
-        const { data: inserted, error } = await supabase
-          .from('users')
-          .insert({
-            name: newDriverName,
-            email: newDriverEmail,
-            role: 'driver',
-            org: newDriverVehicle || 'L 1234 AB',
-            avatar: newDriverName.slice(0, 2).toUpperCase()
-          })
-          .select('*')
-          .single();
-
-        if (error) throw error;
-        if (inserted) {
-          newId = inserted.id;
-        }
-      }
-    } catch (err) {
-      console.warn('Gagal menyimpan driver ke Supabase, menggunakan model local:', err);
-    }
+    // Logika Supabase dihilangkan, update state lokal saja.
 
     const addedDriver = {
       id: newId,
@@ -711,17 +430,7 @@ export default function PMIDashboard() {
   };
 
   const handleDeleteDriver = async (id: string) => {
-    try {
-      if (isSupabaseConfigured) {
-        const { error } = await supabase
-          .from('users')
-          .delete()
-          .eq('id', id);
-        if (error) throw error;
-      }
-    } catch (err) {
-      console.warn('Gagal menghapus driver di Supabase:', err);
-    }
+    // Logika hapus Supabase dihapus
 
     setDrivers(prev => prev.filter(d => d.id !== id));
 
@@ -795,62 +504,9 @@ export default function PMIDashboard() {
   };
 
   const saveStocksToDatabase = async () => {
-    if (!isSupabaseConfigured) {
-      toast.info('Perubahan disimpan lokal (Supabase belum terhubung)');
-      setIsDirty(false);
-      return;
-    }
-    setIsSaving(true);
-    const toastId = toast.loading('Menyimpan perubahan stok ke database...');
-    try {
-      const orgName = user?.org || 'PMI A';
-      const { data: pData } = await supabase
-        .from('pmi_units')
-        .select('id')
-        .eq('name', orgName)
-        .single();
-      
-      const pId = pData?.id;
-      if (!pId) throw new Error('PMI unit tidak ditemukan di database.');
-
-      const promises = stocks.map(async (s) => {
-        const { data: stockRow } = await supabase
-          .from('blood_stock')
-          .select('id')
-          .eq('owner_pmi_id', pId)
-          .eq('blood_type', s.type)
-          .single();
-
-        if (stockRow) {
-          return supabase
-            .from('blood_stock')
-            .update({
-              stock_qty: s.stock,
-              status: s.status === 'good' ? 'available' : s.status,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', stockRow.id);
-        } else {
-          return supabase
-            .from('blood_stock')
-            .insert({
-              owner_pmi_id: pId,
-              blood_type: s.type,
-              stock_qty: s.stock,
-              status: s.status === 'good' ? 'available' : s.status
-            });
-        }
-      });
-
-      await Promise.all(promises);
-      setIsDirty(false);
-      toast.success('Semua perubahan stok berhasil disimpan ke database!', { id: toastId });
-    } catch (e: any) {
-      console.error(e);
-      toast.error(`Gagal menyimpan stok: ${e.message || e}`, { id: toastId });
-    } finally {
-      setIsSaving(false);
-    }
+    toast.info('Perubahan disimpan lokal (Mode Offline)');
+    setIsDirty(false);
+    return;
   };
 
   // Register to AutoSaveContext for auto-save during logout

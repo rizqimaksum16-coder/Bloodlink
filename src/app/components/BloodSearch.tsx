@@ -8,7 +8,7 @@ import {
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 // Gemini AI Proxy removed from this file as explanation generation is now static.
@@ -379,7 +379,7 @@ export default function BloodSearch() {
   // hospitals.name sudah konsisten dengan users.org, query langsung tanpa mapping
   useEffect(() => {
     async function loadActiveLocation() {
-      if (!isSupabaseConfigured || !user) return;
+      if (!user) return;
       
       // Jika user adalah donor, gunakan Geolocation API untuk mendapatkan lokasi terkini perangkat
       if (user.role === 'donor') {
@@ -413,69 +413,21 @@ export default function BloodSearch() {
       }
 
       // Jika user adalah RS, fetch koordinat RS dari Supabase
-      try {
-        const { data: hData } = await supabase
-          .from('hospitals')
-          .select('name, latitude, longitude, address')
-          .eq('name', user.org)
-          .single();
-        if (hData) {
-          setActiveHospital({
-            name: hData.name,
-            lat: hData.latitude || -7.2678,
-            lng: hData.longitude || 112.7584,
-            address: hData.address || 'Surabaya'
-          });
-        }
-      } catch (e) {
-        console.warn('Gagal memuat koordinat RS dari Supabase:', e);
-      }
+      // Offline Mode Fallback
+      setActiveHospital({
+        name: user.org,
+        lat: -7.2678,
+        lng: 112.7584,
+        address: 'Surabaya'
+      });
     }
     loadActiveLocation();
   }, [user]);
 
   // Dynamically compute PMI search recommendations from Supabase RPC
   const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
-    if (!isSupabaseConfigured) return [];
-    try {
-      const { data, error } = await supabase.rpc('match_closest_pmi', {
-        p_hospital_lat: rsLat,
-        p_hospital_lng: rsLng,
-        p_blood_type: bloodType,
-        p_required_qty: requiredQty
-      });
-
-      if (!error && data && data.length > 0) {
-        const mapped: PMIResult[] = data.map((p: any) => {
-          const result: PMIResult = {
-            id: p.pmi_id,
-            name: p.pmi_name,
-            address: p.pmi_address,
-            lat: p.pmi_latitude,
-            lng: p.pmi_longitude,
-            distance: `${p.distance_km} km`,
-            travelTime: p.travel_time_est,
-            stock: p.stock_count,
-            capacity: p.stock_count + 30,
-            responseRate: p.response_rate,
-            avgDelivery: p.avg_delivery,
-            score: p.match_score,
-            reasons: p.reasons,
-            analysis: ''
-          };
-          result.analysis = createAIMatchingExplanation(result, requiredQty);
-          return result;
-        });
-
-        const sorted = mapped.sort((a, b) => b.score - a.score);
-        if (sorted.length > 0) { sorted[0].tag = 'Rekomendasi AI'; sorted[0].tagColor = '#C0392B'; }
-        if (sorted.length > 1) { sorted[1].tag = 'Cadangan'; sorted[1].tagColor = '#E67E22'; }
-        return sorted;
-      }
-    } catch (e) {
-      console.warn('Gagal memanggil RPC Supabase:', e);
-    }
-    return [];
+    // Mock mode, kembalikan mock data
+    return mockSearchAI;
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
@@ -494,47 +446,8 @@ export default function BloodSearch() {
   // Bergantung pada activeHospital agar jarak dikalkulasi dengan koordinat yang benar
   useEffect(() => {
     async function loadHospitals() {
-      try {
-        const { data, error } = await supabase
-          .from('hospitals')
-          .select('*, blood_stock(*)');
-        
-        if (error) throw error;
-        if (data && data.length > 0) {
-          const rsLat = activeHospital.lat;
-          const rsLng = activeHospital.lng;
-          const mapped = data.map((h: any) => {
-            // Kalkulasi jarak nyata antara RS yang login dan RS lainnya
-            let dist = 0;
-            if (h.latitude != null && h.longitude != null) {
-              const dLat = h.latitude - rsLat;
-              const dLng = h.longitude - rsLng;
-              dist = parseFloat((Math.sqrt(dLat * dLat + dLng * dLng) * 111.12).toFixed(1));
-            } else {
-              // Fallback jika koordinat RS tidak tersedia di database
-              dist = parseFloat((Math.random() * 4 + 1).toFixed(1));
-            }
-            return {
-              id: h.id,
-              hospitalName: h.name,
-              address: h.address,
-              district: h.district,
-              distance: dist,
-              phone: h.phone,
-              bloodTypes: h.blood_stock
-                ? h.blood_stock.map((bs: any) => ({
-                    type: bs.blood_type,
-                    stock: bs.stock_qty,
-                    status: bs.status
-                  }))
-                : []
-            };
-          });
-          setHospitalsList(mapped);
-        }
-      } catch (err) {
-        console.warn('Menggunakan data fallback Rumah Sakit karena Supabase belum dikonfigurasi:', err);
-      }
+      // Mock offline, biarkan list awal
+      return;
     }
     loadHospitals();
   }, [activeHospital]);
@@ -551,69 +464,9 @@ export default function BloodSearch() {
       return;
     }
 
-    try {
-      // 1. Dapatkan ID Rumah Sakit yang sedang login berdasarkan nama organisasi user
-      const { data: hData } = await supabase
-        .from('hospitals')
-        .select('id')
-        .eq('name', user.org)
-        .single();
-      const currentHId = hData?.id;
-
-      if (!currentHId) {
-        toast.error('Rumah sakit Anda tidak terdaftar di sistem.');
-        return;
-      }
-
-      const orderQty = Number(qty) || 1;
-      const orderUrgency = urgency === 'darurat' || urgency === 'mendesak' ? 'mendesak' : 'normal';
-
-      // 2. Insert into blood_requests (untuk PMI)
-      const { error: reqErr } = await supabase
-        .from('blood_requests')
-        .insert({
-          hospital_id: currentHId,
-          pmi_id: pmiId,
-          blood_type: selectedBloodType,
-          quantity: orderQty,
-          urgency: orderUrgency,
-          status: 'pending'
-        });
-
-      if (reqErr) throw reqErr;
-
-      // 3. Insert into blood_orders (untuk Rumah Sakit)
-      const { error: orderErr } = await supabase
-        .from('blood_orders')
-        .insert({
-          hospital_id: currentHId,
-          pmi_id: pmiId,
-          blood_type: selectedBloodType,
-          quantity: orderQty,
-          urgency: orderUrgency,
-          status: 'pending'
-        });
-
-      if (orderErr) throw orderErr;
-
-      // 4. Insert into activity_logs
-      await supabase
-        .from('activity_logs')
-        .insert({
-          action: `RS memesan ${orderQty} kantong darah ${selectedBloodType} ke ${pmiName}`,
-          blood_type: selectedBloodType,
-          quantity: orderQty,
-          user_name: user.name,
-          time_ago: 'Baru saja',
-          positive: true
-        });
-
-      setConfirmedPMIId(pmiId);
-      toast.success('Permintaan darah berhasil dikirim ke Supabase!');
-    } catch (e: any) {
-      console.error('Gagal mengirim pesanan darah:', e);
-      toast.error(`Gagal mengirim pesanan: ${e.message || JSON.stringify(e)}`);
-    }
+    // Offline mode: tampilkan success toast saja
+    setConfirmedPMIId(pmiId);
+    toast.success('Permintaan darah berhasil dikirim (Simulasi Offline)!');
   };
 
   // Trigger search and AI analysis via Supabase RPC atau fallback dengan stok nyata
@@ -628,84 +481,9 @@ export default function BloodSearch() {
     const rsLat = activeHospital.lat;
     const rsLng = activeHospital.lng;
 
-    try {
-      // Coba Supabase RPC match_closest_pmi terlebih dahulu
-      const { data, error } = await supabase.rpc('match_closest_pmi', {
-        p_hospital_lat: rsLat,
-        p_hospital_lng: rsLng,
-        p_blood_type: searchBt,
-        p_required_qty: reqQty
-      });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        let mappedResults: PMIResult[] = data.map((item: any) => {
-          const distanceKm = Number(item.distance_km ?? 0);
-          const stockCount = Number(item.stock_count ?? 0);
-          const responseRate = Number(item.response_rate ?? 0);
-          const travelTimeMin = Math.round(distanceKm * 2.5 + 4);
-          const avgDeliveryMin = travelTimeMin + 5;
-
-          const features = {
-            stockRatio: stockCount / Math.max(reqQty, 1),
-            stockAvailable: stockCount,
-            distanceKm,
-            responseRate
-          };
-
-          const score = scoreWithXGBoost(features);
-
-          const result: PMIResult = {
-            id: item.pmi_id,
-            name: item.pmi_name,
-            address: item.pmi_address,
-            lat: item.pmi_latitude,
-            lng: item.pmi_longitude,
-            distance: `${distanceKm.toFixed(1)} km`,
-            travelTime: `${travelTimeMin} mnt`,
-            stock: stockCount,
-            capacity: stockCount + 30,
-            responseRate,
-            avgDelivery: `${avgDeliveryMin} mnt`,
-            score,
-            reasons: Array.isArray(item.reasons) ? item.reasons : [
-              stockCount >= reqQty ? `Stok mencukupi (${stockCount})` : stockCount > 0 ? `Stok terbatas (${stockCount})` : 'Stok kosong',
-              `Respons ${responseRate}%`,
-              `Jarak ${distanceKm.toFixed(1)} km`
-            ],
-            analysis: ''
-          };
-
-          result.analysis = createAIMatchingExplanation(result, reqQty);
-          return result;
-        });
-        
-        // Urutkan ulang berdasarkan skor baru yang sudah diperbaiki
-        mappedResults = mappedResults.sort((a, b) => b.score - a.score);
-        
-        // Tambahkan tag setelah diurutkan
-        if (mappedResults.length > 0) { mappedResults[0].tag = 'Rekomendasi AI'; mappedResults[0].tagColor = '#C0392B'; }
-        if (mappedResults.length > 1) { mappedResults[1].tag = 'Cadangan'; mappedResults[1].tagColor = '#E67E22'; }
-
-        setPmiResults(mappedResults);
-        setIsMatching(false);
-        // AI analysis sekarang on-demand, tidak auto-trigger
-      } else {
-        toast.info('Hasil RPC kosong, memuat data PMI dari database...');
-        const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
-        setPmiResults(fallback);
-        setIsMatching(false);
-        // AI analysis sekarang on-demand, tidak auto-trigger
-      }
-    } catch (err: any) {
-      console.warn('RPC match_closest_pmi gagal, menggunakan fallback dengan stok dari DB:', err);
-      // Jangan tampilkan error ke user, langsung coba fallback dengan stok nyata
-      const fallback = await getDynamicPMIResults(searchBt, reqQty, rsLat, rsLng);
-      setPmiResults(fallback);
-      setIsMatching(false);
-      // AI analysis sekarang on-demand, tidak auto-trigger
-    }
+    // Gunakan mock data offline
+    setPmiResults(mockSearchAI);
+    setIsMatching(false);
   };
 
   useEffect(() => {

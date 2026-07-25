@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -25,26 +25,8 @@ export default function AddBloodStock() {
   const [recentSubmissions, setRecentSubmissions] = useState(initialSubmissions);
 
   const fetchRecentSubmissions = async () => {
-    if (!isSupabaseConfigured) return;
-    try {
-      const { data, error } = await supabase
-        .from('activity_logs')
-        .select('*')
-        .order('id', { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      if (data && data.length > 0) {
-        const mapped = data.map((item: any) => ({
-          hospital: item.user_name || 'Rumah Sakit A',
-          bloodType: item.blood_type,
-          quantity: item.quantity,
-          time: item.time_ago || 'Baru saja'
-        }));
-        setRecentSubmissions(mapped);
-      }
-    } catch (e) {
-      console.warn('Error fetching activity logs from Supabase:', e);
-    }
+    // Mode offline, menggunakan recentSubmissions yang sudah ada
+    return;
   };
 
   useEffect(() => {
@@ -63,87 +45,11 @@ export default function AddBloodStock() {
 
     const qtyNum = parseInt(formData.quantity) || 0;
 
-    if (isSupabaseConfigured) {
-      try {
-        let ownerHospId = null;
-        let ownerPmiId = null;
-
-        const { data: hData } = await supabase
-          .from('hospitals')
-          .select('id')
-          .eq('name', formData.hospitalName)
-          .single();
-        if (hData) {
-          ownerHospId = hData.id;
-        } else {
-          const { data: pData } = await supabase
-            .from('pmi_units')
-            .select('id')
-            .eq('name', formData.hospitalName)
-            .single();
-          if (pData) {
-            ownerPmiId = pData.id;
-          }
-        }
-
-        if (ownerHospId || ownerPmiId) {
-          const query = supabase
-            .from('blood_stock')
-            .select('*')
-            .eq('blood_type', formData.bloodType);
-          
-          if (ownerHospId) query.eq('owner_hospital_id', ownerHospId);
-          if (ownerPmiId) query.eq('owner_pmi_id', ownerPmiId);
-
-          const { data: existingStock } = await query.single();
-
-          if (existingStock) {
-            const newQty = existingStock.stock_qty + qtyNum;
-            await supabase
-              .from('blood_stock')
-              .update({
-                stock_qty: newQty,
-                status: newQty > 10 ? 'available' : newQty > 3 ? 'low' : 'critical',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', existingStock.id);
-          } else {
-            await supabase
-              .from('blood_stock')
-              .insert({
-                owner_hospital_id: ownerHospId,
-                owner_pmi_id: ownerPmiId,
-                blood_type: formData.bloodType,
-                stock_qty: qtyNum,
-                status: qtyNum > 10 ? 'available' : qtyNum > 3 ? 'low' : 'critical'
-              });
-          }
-        } else {
-          console.warn('Nama Faskes tidak terdaftar di Supabase.');
-        }
-
-        await supabase
-          .from('activity_logs')
-          .insert({
-            action: 'Pengisian Stok',
-            blood_type: formData.bloodType,
-            quantity: qtyNum,
-            user_name: formData.hospitalName,
-            time_ago: 'Baru saja',
-            positive: true
-          });
-
-        await fetchRecentSubmissions();
-      } catch (err) {
-        console.warn('Supabase submission error:', err);
-      }
-    } else {
-      // Local fallback
-      setRecentSubmissions(prev => [
-        { hospital: formData.hospitalName, bloodType: formData.bloodType, quantity: qtyNum, time: 'Baru saja' },
-        ...prev.slice(0, 4)
-      ]);
-    }
+    // Local fallback untuk offline mode
+    setRecentSubmissions(prev => [
+      { hospital: formData.hospitalName, bloodType: formData.bloodType, quantity: qtyNum, time: 'Baru saja' },
+      ...prev.slice(0, 4)
+    ]);
 
     toast.success('Stok darah berhasil ditambahkan!', {
       description: `${formData.quantity} kantong ${formData.bloodType} di ${formData.hospitalName}`,

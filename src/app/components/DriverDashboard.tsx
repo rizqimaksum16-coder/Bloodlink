@@ -7,7 +7,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 type DeliveryStatus = 'disiapkan' | 'dijemput' | 'perjalanan' | 'tiba' | 'selesai';
 
@@ -57,35 +57,7 @@ export default function DriverDashboard() {
 
   // Fetch deliveries from Supabase on mount
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('deliveries')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        if (data && data.length > 0) {
-          const mapped: Delivery[] = data.map(d => ({
-            id: d.id,
-            orderId: d.order_id,
-            bloodType: d.blood_type,
-            qty: d.qty,
-            from: d.from_name,
-            to: d.to_name,
-            driver: d.driver_name,
-            driverPhone: d.driver_phone,
-            status: d.status as DeliveryStatus,
-            eta: d.eta,
-            distance: d.distance_km,
-            pct: d.pct,
-            urgent: d.urgent,
-            updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-          }));
-          setDeliveryList(mapped);
-        }
-      } catch (e) { console.warn('Gagal fetch deliveries:', e); }
-    })();
+    // Mock mode, tidak mengambil data dari Supabase
   }, []);
 
   // Mapping status delivery driver → status pesanan di RS/PMI
@@ -105,48 +77,7 @@ export default function DriverDashboard() {
     const newList = deliveryList.map(d => d.id === updated.id ? updated : d);
     setDeliveryList(newList);
 
-    if (isSupabaseConfigured) {
-      try {
-        // 1. Update tabel deliveries
-        await supabase.from('deliveries').update({
-          status: updated.status,
-          pct: updated.pct,
-          eta: updated.eta,
-          updated_at: new Date().toISOString(),
-        }).eq('id', updated.id);
-
-        // 2. Mirror ke blood_orders dan blood_requests agar PMI & RS ter-update
-        //    Lookup berdasarkan kesamaan to_name (nama RS), blood_type, dan qty
-        const orderStatus = mapDeliveryStatusToOrderStatus(updated.status);
-        const now = new Date().toISOString();
-
-        const { data: matchedOrders } = await supabase
-          .from('blood_orders')
-          .select('id')
-          .eq('blood_type', updated.bloodType)
-          .eq('quantity', updated.qty)
-          .neq('status', 'selesai')
-          .neq('status', 'ditolak')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (matchedOrders && matchedOrders.length > 0) {
-          const orderId = matchedOrders[0].id;
-
-          await supabase
-            .from('blood_orders')
-            .update({ status: orderStatus, updated_at: now })
-            .eq('id', orderId);
-
-          await supabase
-            .from('blood_requests')
-            .update({ status: orderStatus, updated_at: now })
-            .eq('id', orderId);
-        }
-      } catch (e) {
-        console.warn('Gagal update delivery/order di Supabase:', e);
-      }
-    }
+    // Supabase sync dihapus untuk mode offline
   };
 
   const handleNextStatus = (d: Delivery) => {

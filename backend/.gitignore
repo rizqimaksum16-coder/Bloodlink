@@ -1,0 +1,10 @@
+# Environment variables (DILARANG KERAS di-commit ke Git)
+.env
+.env.local
+.env.production
+
+# Node modules
+node_modules/
+
+# Logs
+*.log

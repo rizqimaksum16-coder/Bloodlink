@@ -8,8 +8,7 @@ import { useAuth, UserRole } from '../context/AuthContext';
 import { useAutoSave } from '../context/AutoSaveContext';
 import LogoutConfirmDialog from './LogoutConfirmDialog';
 import ProfileModal from './ProfileModal';
-import DonorAIChat from './DonorAIChat';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 // ─── Role nav config (dashboard link per role) ────────────────────────────────
 
@@ -62,81 +61,7 @@ export default function Navigation() {
     const expectedPrefix = rolePrefixes[user.role] || 'N00';
 
     async function loadNotifications() {
-      if (!user) return;
-
-      // Coba fetch live notifications dari Supabase
-      if (isSupabaseConfigured) {
-        try {
-          if (user.role === 'pmi') {
-            const { data: reqs } = await supabase.from('blood_requests').select('*').eq('status', 'pending').limit(3);
-            if (reqs && reqs.length > 0) {
-              const liveNotifs = reqs.map((r: any) => ({
-                id: `N_PMI_LIVE_${r.id}`,
-                type: 'darurat',
-                title: '🚨 Permintaan Darah Baru!',
-                message: `Rumah Sakit mengajukan permintaan ${r.quantity || r.qty || 5} kantong ${r.blood_type} (Urgensi: ${r.urgency || 'Mendesak'}).`,
-                time: 'Baru saja',
-                read: false
-              }));
-              setNotifications(liveNotifs);
-            } else {
-              setNotifications([]); // Kosong jika tidak ada
-            }
-            return;
-          } else if (user.role === 'driver') {
-            const { data: delivs } = await supabase.from('deliveries').select('*').eq('driver_name', user.name).limit(3);
-            if (delivs && delivs.length > 0) {
-              const liveNotifs = delivs.map((d: any) => ({
-                id: `N_DRV_LIVE_${d.id}`,
-                type: d.urgent ? 'darurat' : 'info',
-                title: d.status === 'perjalanan' ? '🚚 Sedang Dalam Perjalanan' : '🚨 Tugas Pengantaran Darah!',
-                message: `Pengiriman ${d.order_id} (${d.qty} kantong ${d.blood_type}) dari ${d.from_name} ke ${d.to_name}.`,
-                time: d.updated_at ? new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
-                read: false
-              }));
-              setNotifications(liveNotifs);
-            } else {
-              setNotifications([]); // Kosong
-            }
-            return;
-          } else if (user.role === 'donor') {
-            const { data: donorData } = await supabase.from('users').select('id, donor_profiles(id)').eq('email', user.email).single();
-            if (donorData?.donor_profiles) {
-              const { data: donorNotifs } = await supabase
-                .from('donor_notifications')
-                .select('*')
-                .eq('donor_id', (donorData.donor_profiles as any).id)
-                .order('created_at', { ascending: false })
-                .limit(5);
-              
-              if (donorNotifs && donorNotifs.length > 0) {
-                const mapped = donorNotifs.map((n: any) => ({
-                  id: n.id,
-                  type: n.type,
-                  title: n.title,
-                  message: n.message,
-                  time: new Date(n.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-                  read: n.read
-                }));
-                setNotifications(mapped);
-              } else {
-                setNotifications([]);
-              }
-              return;
-            }
-            setNotifications([]);
-            return;
-          } else if (user.role === 'superadmin') {
-             // Superadmin tidak punya notif spesifik untuk saat ini
-             setNotifications([]);
-             return;
-          }
-        } catch (e) {
-          console.warn('Gagal fetch live notifications dari Supabase:', e);
-        }
-      }
-
-      // Jika error atau Supabase mati, set kosong (hapus notifikasi mock/konyol)
+      // Mock notifications kosong untuk mode offline
       setNotifications([]);
     }
 
@@ -148,12 +73,7 @@ export default function Navigation() {
     setNotifications(updated);
     setNotifOpen(false);
 
-    // Persist read status for donors in Supabase
-    if (user?.role === 'donor' && isSupabaseConfigured) {
-      try {
-        await supabase.from('donor_notifications').update({ read: true }).eq('id', notifId);
-      } catch (e) { console.warn('Gagal update status baca ke Supabase:', e); }
-    }
+    // Fitur Supabase dihapus untuk mode offline
 
     const role = user?.role;
     const targetPath = getNotifAction(role).to;
@@ -379,17 +299,7 @@ export default function Navigation() {
                                     const updated = notifications.map(n => ({ ...n, read: true }));
                                     setNotifications(updated);
                                     
-                                    // Persist for donors
-                                    if (user?.role === 'donor' && isSupabaseConfigured) {
-                                      try {
-                                        const { data: donorData } = await supabase.from('users').select('donor_profiles(id)').eq('email', user.email).single();
-                                        if (donorData?.donor_profiles) {
-                                          await supabase.from('donor_notifications')
-                                            .update({ read: true })
-                                            .eq('donor_id', (donorData.donor_profiles as any).id);
-                                        }
-                                      } catch (e) { console.warn(e); }
-                                    }
+                                    // Update baca lokal saja
                                   }}
                                   className="text-[10px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
                                 >
@@ -543,17 +453,7 @@ export default function Navigation() {
                                     const updated = notifications.map(n => ({ ...n, read: true }));
                                     setNotifications(updated);
                                     
-                                    // Persist for donors
-                                    if (user?.role === 'donor' && isSupabaseConfigured) {
-                                      try {
-                                        const { data: donorData } = await supabase.from('users').select('donor_profiles(id)').eq('email', user.email).single();
-                                        if (donorData?.donor_profiles) {
-                                          await supabase.from('donor_notifications')
-                                            .update({ read: true })
-                                            .eq('donor_id', (donorData.donor_profiles as any).id);
-                                        }
-                                      } catch (e) { console.warn(e); }
-                                    }
+                                    // Update baca lokal saja
                                   }}
                                   className="text-[9px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
                                 >
@@ -777,7 +677,6 @@ export default function Navigation() {
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
       />
-      {isAuthenticated && user?.role === 'donor' && <DonorAIChat />}
     </>
   );
 }

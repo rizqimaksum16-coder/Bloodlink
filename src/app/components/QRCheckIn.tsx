@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 interface DonorEvent {
   id: string;
@@ -54,39 +54,8 @@ export default function QRCheckIn() {
   // Load events from Supabase
   useEffect(() => {
     async function fetchEvents() {
-      if (!isSupabaseConfigured) return;
-      try {
-        const { data, error } = await supabase
-          .from('events')
-          .select('*')
-          .order('date', { ascending: true });
-        
-        if (error) throw error;
-        if (data) {
-          const mapped: DonorEvent[] = data.map((e: any) => ({
-            id: String(e.id),
-            name: e.name,
-            date: e.date,
-            time: e.time || '08:00 - 14:00',
-            location: `${e.location} — ${e.address}`,
-            registered: e.registered || 0,
-            checkedIn: 0, // Will be calculated from bookings
-            target: e.capacity || 100,
-            status: e.status === 'completed' ? 'closed' : 'open',
-          }));
-          setEventList(mapped);
-          
-          const params = new URLSearchParams(window.location.search);
-          const queryId = params.get('eventId');
-          if (queryId && mapped.some(ev => ev.id === queryId)) {
-            setSelectedEventId(queryId);
-          } else if (mapped.length > 0) {
-            setSelectedEventId(mapped[0].id);
-          }
-        }
-      } catch (err) {
-        console.warn('Gagal memuat event dari Supabase:', err);
-      }
+      // Mock events 
+      setEventList([]);
     }
     fetchEvents();
   }, []);
@@ -121,44 +90,8 @@ export default function QRCheckIn() {
 
   // Load real bookings from Supabase
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('event_bookings')
-          .select(`
-            id,
-            event_id,
-            qr_code,
-            checked_in,
-            donor_id
-          `);
-        if (error) throw error;
-        if (data) {
-          // We need to fetch user names as well
-          const donorIds = data.map((b: any) => b.donor_id).filter(Boolean);
-          const { data: usersData } = await supabase
-            .from('users')
-            .select('id, name')
-            .in('id', donorIds);
-
-          const mapped: Booking[] = data.map((b: any) => {
-            const userMatch = usersData?.find((u: any) => u.id === b.donor_id);
-            return {
-              id: b.id,
-              donorName: userMatch?.name || 'Pendonor Terdaftar',
-              bloodType: 'O-', // Static for now as we don't have donor_profiles join here
-              qrCode: b.qr_code,
-              eventId: String(b.event_id),
-              checkedIn: b.checked_in,
-            };
-          });
-          setLocalBookings(mapped);
-        }
-      } catch (err) {
-        console.warn('Gagal memuat data event bookings dari Supabase:', err);
-      }
-    })();
+    // Mock localBookings
+    setLocalBookings([]);
   }, []);
 
   const eventBookings = localBookings.filter((b) => b.eventId === activeEvent.id);
@@ -213,13 +146,7 @@ export default function QRCheckIn() {
     );
 
     // Persist check-in to Supabase
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('event_bookings').update({
-          checked_in: true,
-        }).eq('qr_code', booking.qrCode);
-      } catch (e) { console.warn('Gagal update check-in ke Supabase:', e); }
-    }
+    // Supabase update check_in dihilangkan untuk mode offline
 
     setLastScannedName(booking.donorName);
     setScanResult('success');
@@ -448,24 +375,7 @@ export default function QRCheckIn() {
   }, [scanning]);
 
   const handleResetCheckins = async () => {
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from('event_bookings')
-          .update({ checked_in: false })
-          .eq('event_id', activeEvent.id);
-        
-        if (error) throw error;
-        
-        setLocalBookings(prev => prev.map(b => 
-          b.eventId === activeEvent.id ? { ...b, checkedIn: false, checkedInAt: undefined } : b
-        ));
-        toast.info('Status kehadiran seluruh peserta event ini berhasil di-reset.');
-      } catch (e) {
-        console.warn('Gagal reset checkins di Supabase:', e);
-        toast.error('Gagal mereset status kehadiran.');
-      }
-    }
+    // Supabase check-in reset dihilangkan untuk offline
   };
 
   return (

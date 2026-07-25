@@ -7,7 +7,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
 import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -194,180 +194,15 @@ export default function HospitalDashboard() {
   useEffect(() => {
     if (!user) return;
     async function fetchHospitalData() {
-      if (!isSupabaseConfigured) return;
-      try {
-        // 1. Dapatkan data lengkap RS yang sedang login termasuk koordinat
-        const orgName = user?.org || 'Rumah Sakit A';
-
-        const { data: hData } = await supabase
-          .from('hospitals')
-          .select('id, latitude, longitude')
-          .eq('name', orgName)
-          .single();
-        const currentHId = hData?.id;
-
-        // Simpan koordinat RS untuk kalkulasi jarak ke PMI
-        if (hData?.latitude && hData?.longitude) {
-          setHospitalCoords({ lat: hData.latitude, lng: hData.longitude });
-        }
-
-        // Prepare queries — order join pmi_units untuk mendapat nama PMI yang benar
-        let orderQuery = supabase
-          .from('blood_orders')
-          .select('*, pmi_units(name)')
-          .order('created_at', { ascending: false });
-        if (currentHId) {
-          orderQuery = orderQuery.eq('hospital_id', currentHId);
-        }
-
-        let stockQuery = supabase.from('blood_stock').select('*');
-        if (currentHId) {
-          stockQuery = stockQuery.eq('owner_hospital_id', currentHId);
-        }
-
-        // Ambil data pengiriman logistik aktif ke RS ini
-        let deliveriesQuery = supabase
-          .from('deliveries')
-          .select('*')
-          .eq('to_name', orgName);
-
-        // Run queries in parallel
-        const [orderResult, stockResult, deliveryResult] = await Promise.all([
-          orderQuery,
-          stockQuery,
-          deliveriesQuery
-        ]);
-
-        if (orderResult.error) throw orderResult.error;
-        if (stockResult.error) throw stockResult.error;
-        if (deliveryResult.error) throw deliveryResult.error;
-
-        const orderData = orderResult.data;
-        const stockData = stockResult.data;
-        const deliveryData = deliveryResult.data;
-
-        if (orderData && orderData.length > 0) {
-          const mappedOrders: BloodOrder[] = orderData.map((o: any) => {
-            // Cocokkan order dengan delivery aktif menggunakan order_id (o.id)
-            const activeDelivery = deliveryData?.find((d: any) => 
-              d.order_id === o.id &&
-              d.status !== 'selesai'
-            );
-
-            // Resolusi status berdasarkan logistik kurir
-            let orderStatus = o.status === 'pending' ? 'menunggu' : (o.status || 'menunggu');
-            if (activeDelivery) {
-              if (activeDelivery.status === 'tiba') {
-                orderStatus = 'tiba';
-              } else if (activeDelivery.status === 'perjalanan') {
-                orderStatus = 'dikirim';
-              } else if (activeDelivery.status === 'dijemput' || activeDelivery.status === 'disiapkan') {
-                orderStatus = 'diproses';
-              }
-            }
-
-            return {
-              id: o.id,
-              bloodType: o.blood_type,
-              qty: o.quantity || o.qty || 3,
-              urgency: o.urgency || 'normal',
-              status: orderStatus,
-              pmi: o.pmi_units?.name || 'PMI A',
-              createdAt: new Date(o.created_at || Date.now()).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
-              updatedAt: o.updated_at ? new Date(o.updated_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja',
-              driver: activeDelivery?.driver_name,
-              eta: activeDelivery?.eta,
-              trackingPct: activeDelivery?.pct || 0
-            };
-          });
-          setOrders(mappedOrders);
-        }
-
-        if (stockData && stockData.length > 0) {
-          const rsStocksOnly = stockData;
-          if (rsStocksOnly.length > 0) {
-            const mappedStocks: HospitalStock[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(type => {
-              const item = rsStocksOnly.find((s: any) => s.blood_type === type);
-              const qty = item ? item.stock_qty : 0;
-              return {
-                type,
-                stock: qty,
-                target: 20,
-                expiringSoon: Math.floor(qty * 0.1),
-                lastUpdated: 'Baru saja',
-                batches: [
-                  { id: `BTC-${type}-01`, qty, entryDate: '1 Jul 2026', expDate: '31 Jul 2026' }
-                ]
-              };
-            });
-            setStocks(mappedStocks);
-          }
-        }
-
-        // Fetch blood usage history from donation_records — group by month
-        try {
-          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-          const { data: donationData, error: donErr } = await supabase
-            .from('donation_records')
-            .select('date, volume_ml')
-            .gte('date', '2026-01-01')
-            .lte('date', '2026-12-31')
-            .order('date', { ascending: true });
-
-          if (!donErr && donationData && donationData.length > 0) {
-            // Aggregate by month: count records as proxy for "units used"
-            const monthMap: Record<number, number> = {};
-            donationData.forEach((rec: any) => {
-              const month = new Date(rec.date).getMonth(); // 0-11
-              monthMap[month] = (monthMap[month] || 0) + 1;
-            });
-
-            const dynamicHistory = Object.keys(monthMap)
-              .sort((a, b) => Number(a) - Number(b))
-              .map(monthIdx => ({
-                month: monthNames[Number(monthIdx)],
-                used: monthMap[Number(monthIdx)]
-              }));
-
-            if (dynamicHistory.length > 0) {
-              setBloodHistory(dynamicHistory);
-            }
-          }
-          // If no donation data, keep the static fallback
-        } catch (histErr) {
-          console.warn('Gagal memuat riwayat pemakaian darah:', histErr);
-        }
-      } catch (e) {
-        console.warn('HospitalDashboard Supabase fetch error:', e);
-      }
+      // Menggunakan data static (mock) untuk mode offline
+      return;
     }
     fetchHospitalData();
   }, [user]);
   // Supabase Realtime — auto-refresh orders saat driver update status pengiriman
+  // Supabase Realtime dihapus
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    const channel = supabase
-      .channel('hospital_orders_realtime')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'blood_orders' },
-        (payload) => {
-          const updated = payload.new as any;
-          setOrders(prev => prev.map(o =>
-            o.id === updated.id
-              ? {
-                  ...o,
-                  status: updated.status || o.status,
-                  eta: updated.eta || o.eta,
-                  trackingPct: updated.tracking_pct ?? o.trackingPct,
-                  updatedAt: 'Baru saja'
-                }
-              : o
-          ));
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return;
   }, []);
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
   const [showAllBatches, setShowAllBatches] = useState<Record<string, boolean>>({});
@@ -391,63 +226,12 @@ export default function HospitalDashboard() {
   const expiringSoon = stocks.reduce((sum, s) => sum + s.expiringSoon, 0);
   const totalStock = stocks.reduce((sum, s) => sum + s.stock, 0);
 
-  // Fetch daftar PMI dengan stok NYATA per blood type saat user masuk step AI
   const fetchDynamicPMIList = async (bloodType: string, reqQty: number) => {
-    if (!isSupabaseConfigured) return;
     setIsLoadingPMI(true);
-    try {
-      const { data: pmiData, error } = await supabase
-        .from('pmi_units')
-        .select(`
-          id, name, address, latitude, longitude, response_rate, avg_delivery_mins,
-          blood_stock!blood_stock_owner_pmi_id_fkey(blood_type, stock_qty)
-        `);
-
-      if (!error && pmiData && pmiData.length > 0) {
-        const rsLat = hospitalCoords.lat;
-        const rsLng = hospitalCoords.lng;
-
-        const mapped: PMIOption[] = pmiData.map((p: any) => {
-          const dLat = p.latitude - rsLat;
-          const dLng = p.longitude - rsLng;
-          const distKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
-          const travelMin = Math.round(distKm * 2.5 + 4);
-
-          // Stok nyata untuk blood type yang dipilih
-          const stockEntry = (p.blood_stock || []).find((bs: any) => bs.blood_type === bloodType);
-          const stockQty = stockEntry ? (stockEntry.stock_qty ?? 0) : 0;
-
-          // Skor AI sama seperti di BloodSearch
-          const score = Math.max(50, Math.min(99, Math.round(
-            (100 - distKm * 4) +
-            (stockQty >= reqQty ? 30 : stockQty > 0 ? 10 : 0) +
-            (p.response_rate * 0.3)
-          )));
-
-          return {
-            id: p.id,
-            name: p.name,
-            address: p.address,
-            distance: `${distKm.toFixed(1)} km`,
-            stock: stockQty,
-            capacity: stockQty + 30,
-            score,
-            travelTime: `${travelMin} mnt`
-          };
-        });
-
-        // Urutkan by skor tertinggi
-        mapped.sort((a, b) => b.score - a.score);
-        setPmiList(mapped);
-        if (mapped.length > 0 && !selectedPMI) {
-          setSelectedPMI(mapped[0].name);
-        }
-      }
-    } catch (e) {
-      console.warn('Gagal memuat PMI list dinamis:', e);
-    } finally {
+    // Menggunakan timeout kecil untuk simulasi delay AI
+    setTimeout(() => {
       setIsLoadingPMI(false);
-    }
+    }, 1000);
   };
 
   const handleSubmitOrder = () => {
@@ -475,62 +259,7 @@ export default function HospitalDashboard() {
       // Optimistic UI update
       setOrders(prev => [newOrder, ...prev]);
 
-      if (isSupabaseConfigured) {
-        (async () => {
-          try {
-            const orgName = user?.org || 'Rumah Sakit A';
-
-            const { data: hData } = await supabase
-              .from('hospitals')
-              .select('id')
-              .eq('name', orgName)
-              .single();
-            const hId = hData?.id;
-
-            const { data: pData } = await supabase
-              .from('pmi_units')
-              .select('id')
-              .eq('name', newOrder.pmi)
-              .single();
-            const pId = pData?.id;
-
-            if (hId) {
-              // 1. Simpan ke blood_orders
-              const { data: ordRes, error: ordError } = await supabase.from('blood_orders').insert({
-                hospital_id: hId,
-                pmi_id: pId,
-                blood_type: newOrder.bloodType,
-                quantity: newOrder.qty,
-                urgency: newOrder.urgency,
-                status: 'pending'
-              }).select('*').single();
-
-              if (ordError) throw ordError;
-
-              // 2. Simpan ke blood_requests dengan ID yang sama
-              const { error: reqError } = await supabase.from('blood_requests').insert({
-                id: ordRes.id,
-                hospital_id: hId,
-                pmi_id: pId,
-                blood_type: newOrder.bloodType,
-                quantity: newOrder.qty,
-                urgency: newOrder.urgency,
-                status: 'pending'
-              });
-
-              if (reqError) throw reqError;
-
-              // 3. Update state dengan ID asli dari database
-              if (ordRes) {
-                setOrders(prev => prev.map(o => o.id === tempId ? { ...o, id: ordRes.id } : o));
-              }
-            }
-          } catch (e) {
-            console.warn('Gagal menyimpan pesanan ke Supabase:', e);
-            toast.error('Gagal menyimpan pesanan ke database.');
-          }
-        })();
-      }
+      // Supabase insert dihapus untuk mode offline
 
       setOrderStep('done');
     }
@@ -568,68 +297,7 @@ export default function HospitalDashboard() {
         return s;
       }));
 
-      if (isSupabaseConfigured) {
-        (async () => {
-          try {
-            await supabase
-              .from('blood_orders')
-              .update({ status: 'selesai', updated_at: new Date().toISOString() })
-              .eq('id', id);
-
-            await supabase
-              .from('blood_requests')
-              .update({ status: 'selesai', updated_at: new Date().toISOString() })
-              .eq('id', id);
-
-            // Nama hospitals.name sudah konsisten dengan users.org
-            const orgName = user?.org || 'Rumah Sakit A';
-
-            // Cari delivery aktif untuk order ini menggunakan ID order yang tertaut
-            const { data: matchedDels } = await supabase
-              .from('deliveries')
-              .select('id')
-              .eq('order_id', id)
-              .neq('status', 'selesai')
-              .limit(1);
-
-            if (matchedDels && matchedDels.length > 0) {
-              await supabase
-                .from('deliveries')
-                .update({ status: 'selesai', updated_at: new Date().toISOString() })
-                .eq('id', matchedDels[0].id);
-            }
-
-            const { data: hData } = await supabase
-              .from('hospitals')
-              .select('id')
-              .eq('name', orgName)
-              .single();
-            
-            if (hData) {
-              const { data: stockRow } = await supabase
-                .from('blood_stock')
-                .select('*')
-                .eq('owner_hospital_id', hData.id)
-                .eq('blood_type', order.bloodType)
-                .single();
-
-              if (stockRow) {
-                const newQty = stockRow.stock_qty + order.qty;
-                await supabase
-                  .from('blood_stock')
-                  .update({
-                    stock_qty: newQty,
-                    status: newQty > 10 ? 'available' : newQty > 3 ? 'low' : 'critical',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', stockRow.id);
-              }
-            }
-          } catch (e) {
-            console.warn('Gagal update status & stok di Supabase:', e);
-          }
-        })();
-      }
+      // Sync Supabase dihapus untuk offline
       toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
     } else {
       toast.error('Order tidak ditemukan!');
@@ -705,62 +373,9 @@ export default function HospitalDashboard() {
   };
 
   const saveStocksToDatabase = async () => {
-    if (!isSupabaseConfigured) {
-      toast.info('Perubahan disimpan lokal (Supabase belum terhubung)');
-      setIsDirty(false);
-      return;
-    }
-    setIsSaving(true);
-    const toastId = toast.loading('Menyimpan perubahan stok ke database...');
-    try {
-      const orgName = user?.org || 'Rumah Sakit A';
-      const { data: hData } = await supabase
-        .from('hospitals')
-        .select('id')
-        .eq('name', orgName)
-        .single();
-      
-      const hId = hData?.id;
-      if (!hId) throw new Error('Rumah Sakit tidak ditemukan di database.');
-
-      const promises = stocks.map(async (s) => {
-        const { data: stockRow } = await supabase
-          .from('blood_stock')
-          .select('id')
-          .eq('owner_hospital_id', hId)
-          .eq('blood_type', s.type)
-          .single();
-
-        if (stockRow) {
-          return supabase
-            .from('blood_stock')
-            .update({
-              stock_qty: s.stock,
-              status: s.status === 'good' ? 'available' : s.status,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', stockRow.id);
-        } else {
-          return supabase
-            .from('blood_stock')
-            .insert({
-              owner_hospital_id: hId,
-              blood_type: s.type,
-              stock_qty: s.stock,
-              status: s.status === 'good' ? 'available' : s.status
-            });
-        }
-      });
-
-      await Promise.all(promises);
-      setIsDirty(false);
-      toast.success('Semua perubahan stok berhasil disimpan ke database!', { id: toastId });
-    } catch (e: any) {
-      console.error(e);
-      toast.error(`Gagal menyimpan stok: ${e.message || e}`, { id: toastId });
-    } finally {
-      setIsSaving(false);
-    }
+    toast.info('Perubahan disimpan lokal (Mode Offline)');
+    setIsDirty(false);
+    return;
   };
 
   // Register to AutoSaveContext for auto-save during logout

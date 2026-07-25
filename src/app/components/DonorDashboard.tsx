@@ -8,7 +8,7 @@ import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -201,97 +201,34 @@ export default function DonorDashboard() {
   useEffect(() => {
     async function loadDonorData() {
       setLoading(true);
-      try {
-        if (!isSupabaseConfigured || !user?.email) {
-          // Use mock data if Supabase not configured
-          setDonorStats({
-            totalDonations: 12,
-            totalPoints: 1200,
-            currentStreak: 3,
-            ranking: 45,
-            badgeLevel: 'bronze',
-          });
+      // Use mock data untuk mode offline
+      setDonorStats({
+        totalDonations: 12,
+        totalPoints: 1200,
+        currentStreak: 3,
+        ranking: 45,
+        badgeLevel: 'bronze',
+      });
 
-          setActiveTickets([
-            {
-              id: 'T001',
-              eventName: 'Donor Darah PMI Jakarta',
-              eventDate: '12 Agustus 2025',
-              status: 'ready',
-              qrCode: 'QR_001_READY',
-              points: 100,
-            },
-            {
-              id: 'T002',
-              eventName: 'Donor Darah Kampus',
-              eventDate: '5 Agustus 2025',
-              status: 'completed',
-              qrCode: 'QR_002_DONE',
-              points: 100,
-            },
-          ]);
-          setLoading(false);
-          return;
-        }
-
-        // Fetch from Supabase
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (userData) {
-          // Get donor profile
-          let { data: donorProfile } = await supabase
-            .from('donor_profiles')
-            .select('*')
-            .eq('user_id', userData.id)
-            .maybeSingle();
-
-          if (!donorProfile) {
-            // Pengguna belum punya profil, tampilkan peringatan untuk setup
-            setNeedsProfileSetup(true);
-            setDisplayAchievements(getDynamicAchievements(0));
-          } else {
-            setNeedsProfileSetup(false);
-            const tDonations = donorProfile.total_donations || 0;
-            setDonorStats({
-              totalDonations: tDonations,
-              totalPoints: donorProfile.points || 0,
-              currentStreak: donorProfile.streak || 0,
-              ranking: donorProfile.ranking || 0,
-              badgeLevel: determineBadgeLevel(tDonations),
-            });
-            setDisplayAchievements(getDynamicAchievements(tDonations));
-          }
-
-
-
-          // Get active tickets
-          const { data: tickets } = await supabase
-            .from('event_bookings')
-            .select('*, events(*)')
-            .eq('donor_id', userData.id)
-            .limit(5);
-
-          if (tickets && tickets.length > 0) {
-            const activeTicketsList = tickets.map((ticket: any) => ({
-              id: ticket.id,
-              eventName: ticket.events.name,
-              eventDate: new Date(ticket.events.date).toLocaleDateString('id-ID'),
-              status: ticket.status || 'ready',
-              qrCode: ticket.ticket_id || `QR_${ticket.id}`,
-              points: ticket.points || 100,
-            }));
-            setActiveTickets(activeTicketsList);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading donor dashboard:', error);
-      } finally {
-        setLoading(false);
-      }
+      setActiveTickets([
+        {
+          id: 'T001',
+          eventName: 'Donor Darah PMI Jakarta',
+          eventDate: '12 Agustus 2025',
+          status: 'ready',
+          qrCode: 'QR_001_READY',
+          points: 100,
+        },
+        {
+          id: 'T002',
+          eventName: 'Donor Darah Kampus',
+          eventDate: '5 Agustus 2025',
+          status: 'completed',
+          qrCode: 'QR_002_DONE',
+          points: 100,
+        },
+      ]);
+      setLoading(false);
     }
 
     loadDonorData();

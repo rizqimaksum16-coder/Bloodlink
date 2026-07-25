@@ -7,7 +7,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 type DeliveryStatus = 'disiapkan' | 'dijemput' | 'perjalanan' | 'tiba';
 
@@ -152,95 +152,17 @@ export default function GPSTracking() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
     const fetchDeliveries = async () => {
-      try {
-        const { data, error } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false }).limit(50);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          const locationCoords: Record<string, [number, number]> = {
-            'PMI A': [-7.2657, 112.7445],
-            'PMI B': [-7.2709, 112.7505],
-            'PMI C': [-7.4475, 112.7025],
-            'Rumah Sakit A': [-7.2678, 112.7584],
-            'Rumah Sakit B': [-7.2435, 112.7538],
-            'Rumah Sakit C': [-7.3117, 112.7364],
-            'Rumah Sakit D': [-7.2847, 112.7845],
-            'Rumah Sakit E': [-7.2745, 112.7490],
-            'Rumah Sakit F': [-7.2890, 112.7378],
-            'Rumah Sakit G': [-7.3062, 112.7349],
-            'Rumah Sakit H': [-7.2668, 112.6913],
-          };
-          const mapped: Delivery[] = data.map(d => ({
-            id: d.id,
-            orderId: d.order_id,
-            bloodType: d.blood_type,
-            qty: d.qty,
-            from: d.from_name,
-            to: d.to_name,
-            driver: d.driver_name,
-            driverPhone: d.driver_phone,
-            status: d.status as DeliveryStatus,
-            eta: d.eta,
-            distance: d.distance_km,
-            pct: d.pct,
-            urgent: d.urgent,
-            updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            fromCoords: locationCoords[d.from_name] || [-7.2657, 112.7445],
-            toCoords: locationCoords[d.to_name] || [-7.2678, 112.7584],
-          }));
-          setDeliveryList(mapped);
-          setSelected(prev => mapped.find(item => item.id === prev.id) || mapped[0]);
-        }
-      } catch (e) {
-        console.warn('Gagal fetch deliveries di GPSTracking:', e);
-      }
+      // Menggunakan data mock initialDeliveries
+      return;
     };
     fetchDeliveries();
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    if (isSupabaseConfigured) {
-      try {
-        const { data } = await supabase.from('deliveries').select('*').order('created_at', { ascending: false }).limit(50);
-        if (data && data.length > 0) {
-          const locationCoords: Record<string, [number, number]> = {
-            'PMI A': [-7.2657, 112.7445],
-            'PMI B': [-7.2709, 112.7505],
-            'PMI C': [-7.4475, 112.7025],
-            'Rumah Sakit A': [-7.2678, 112.7584],
-            'Rumah Sakit B': [-7.2435, 112.7538],
-            'Rumah Sakit C': [-7.3117, 112.7364],
-            'Rumah Sakit D': [-7.2847, 112.7845],
-            'Rumah Sakit E': [-7.2745, 112.7490],
-            'Rumah Sakit F': [-7.2890, 112.7378],
-            'Rumah Sakit G': [-7.3062, 112.7349],
-            'Rumah Sakit H': [-7.2668, 112.6913],
-          };
-          const mapped: Delivery[] = data.map(d => ({
-            id: d.id,
-            orderId: d.order_id,
-            bloodType: d.blood_type,
-            qty: d.qty,
-            from: d.from_name,
-            to: d.to_name,
-            driver: d.driver_name,
-            driverPhone: d.driver_phone,
-            status: d.status as DeliveryStatus,
-            eta: d.eta,
-            distance: d.distance_km,
-            pct: d.pct,
-            urgent: d.urgent,
-            updatedAt: new Date(d.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            fromCoords: locationCoords[d.from_name] || [-7.2657, 112.7445],
-            toCoords: locationCoords[d.to_name] || [-7.2678, 112.7584],
-          }));
-          setDeliveryList(mapped);
-          setSelected(prev => mapped.find(item => item.id === prev.id) || mapped[0]);
-        }
-      } catch (e) { console.warn(e); }
-    }
+    // Simulasi refresh offline
+    setTimeout(() => setRefreshing(false), 500);
     setRefreshing(false);
   };
 

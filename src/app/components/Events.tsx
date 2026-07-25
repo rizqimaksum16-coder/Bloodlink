@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 interface Event {
   id: any;
@@ -50,64 +50,8 @@ export default function Events() {
   // Sync registered events from Supabase for the current donor
   useEffect(() => {
     async function loadRegisteredEvents() {
-      if (!isSupabaseConfigured || !user) return;
-      try {
-        let donorProfileId = user.donorProfileId;
-
-        if (!donorProfileId) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', user.email)
-            .single();
-
-          if (userData) {
-            // Dapatkan ID donor_profile terlebih dahulu
-            let { data: donorProfile } = await supabase
-              .from('donor_profiles')
-              .select('id')
-              .eq('user_id', userData.id)
-              .maybeSingle();
-
-            if (!donorProfile) {
-              const { data: newProfile } = await supabase
-                .from('donor_profiles')
-                .insert({
-                  user_id: userData.id,
-                  blood_type: 'O-',
-                  dob: '1995-01-01',
-                  phone: '081234567890',
-                  address: 'Surabaya',
-                  points: 200,
-                  level: 'Pemula',
-                  streak: 0,
-                })
-                .select('id')
-                .single();
-              donorProfile = newProfile;
-            }
-
-            if (donorProfile) {
-              donorProfileId = donorProfile.id;
-            }
-          }
-        }
-
-        if (donorProfileId) {
-          const { data: bookings, error } = await supabase
-            .from('event_bookings')
-            .select('event_id')
-            .eq('donor_id', donorProfileId);
-
-          if (error) throw error;
-          if (bookings) {
-            const bookedIds = bookings.map((b: any) => b.event_id);
-            setRegisteredEvents(bookedIds);
-          }
-        }
-      } catch (err) {
-        console.warn('Gagal memuat event terdaftar dari Supabase:', err);
-      }
+      // Offline Mode Fallback
+      return;
     }
     loadRegisteredEvents();
   }, [user]);
@@ -173,46 +117,8 @@ export default function Events() {
   // Load events from Supabase if configured
   useEffect(() => {
     async function fetchSupabaseEvents() {
-      if (!isSupabaseConfigured) return;
-      try {
-        const { data, error } = await supabase
-          .from('events')
-          .select('id, name, organizer, organizer_type, date, time, location, address, capacity, registered, description, status')
-          .order('date', { ascending: true });
-        if (error) throw error;
-        if (data) {
-          const mapped: Event[] = data.map((e: any) => {
-            let parsedDesc = e.description || '';
-            let parsedReqs = ['Sehat jasmani'];
-            if (e.description && e.description.startsWith('{') && e.description.endsWith('}')) {
-              try {
-                const parsed = JSON.parse(e.description);
-                parsedDesc = parsed.desc || '';
-                parsedReqs = parsed.reqs || parsedReqs;
-              } catch (err) {}
-            }
-
-            return {
-              id: e.id,
-              name: e.name,
-              organizer: e.organizer || 'PMI A',
-              organizerType: (e.organizer_type || (e.organizer?.toLowerCase().includes('rs') || e.organizer?.toLowerCase().includes('siloam') || e.organizer?.toLowerCase().includes('soetomo') ? 'rs' : 'pmi')) as 'pmi' | 'rs',
-              date: e.date,
-              time: e.time || '08:00 - 14:00',
-              location: e.location,
-              address: e.address,
-              capacity: e.capacity || 100,
-              registered: e.registered || 0,
-              description: parsedDesc,
-              requirements: parsedReqs,
-              status: e.status || 'upcoming'
-            };
-          });
-          setEventList(mapped);
-        }
-      } catch (err) {
-        console.warn('Error fetching events from Supabase:', err);
-      }
+      // Offline mode: No Supabase fetch
+      return;
     }
     fetchSupabaseEvents();
   }, []);
@@ -297,74 +203,7 @@ export default function Events() {
   };
 
   const handleCancelRegistration = async (eventId: any) => {
-    if (isSupabaseConfigured && user) {
-      try {
-        let donorProfileId = user.donorProfileId;
-
-        if (!donorProfileId) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', user.email)
-            .single();
-
-          if (userData) {
-            let { data: donorProfile } = await supabase
-              .from('donor_profiles')
-              .select('id')
-              .eq('user_id', userData.id)
-              .maybeSingle();
-
-            if (!donorProfile) {
-              const { data: newProfile } = await supabase
-                .from('donor_profiles')
-                .insert({
-                  user_id: userData.id,
-                  blood_type: 'O-',
-                  dob: '1995-01-01',
-                  phone: '081234567890',
-                  address: 'Surabaya',
-                  points: 200,
-                  level: 'Pemula',
-                  konsistensi: 0,
-                })
-                .select('id')
-                .single();
-              donorProfile = newProfile;
-            }
-
-            if (donorProfile) {
-              donorProfileId = donorProfile.id;
-            }
-          }
-        }
-
-        if (donorProfileId) {
-          const { error: deleteError } = await supabase
-            .from('event_bookings')
-            .delete()
-            .eq('event_id', eventId)
-            .eq('donor_id', donorProfileId);
-
-            if (deleteError) {
-               console.warn('Gagal delete event_bookings dari Supabase:', deleteError);
-            } else {
-              // Hitung jumlah pendaftar real-time setelah penghapusan
-              const { count } = await supabase
-                .from('event_bookings')
-                .select('*', { count: 'exact', head: true })
-                .eq('event_id', eventId);
-
-              await supabase
-                .from('events')
-                .update({ registered: count || 0 })
-                .eq('id', eventId);
-            }
-          }
-        } catch (err) {
-          console.error('Gagal membatalkan registrasi di Supabase:', err);
-        }
-      }
+    // Supabase event booking cancel dihapus untuk offline mode
 
     setEventList(prev => {
       const updated = prev.map(ev => {
@@ -387,24 +226,7 @@ export default function Events() {
   };
 
   const handleResetAllRegistrations = async () => {
-    if (isSupabaseConfigured && user) {
-      try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (userData) {
-          await supabase
-            .from('event_bookings')
-            .delete()
-            .eq('donor_id', userData.id);
-        }
-      } catch (err) {
-        console.error('Gagal me-reset bookings di Supabase:', err);
-      }
-    }
+    // Supabase reset bookings dihapus untuk offline mode
 
     setRegisteredEvents([]);
 
@@ -427,81 +249,7 @@ export default function Events() {
     const ticketId = `EVT-SUB-${eventId}-${randomTicketNum}`;
     const registeredAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
-    if (isSupabaseConfigured && user) {
-      try {
-        let donorProfileId = user.donorProfileId;
-
-        if (!donorProfileId) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', user.email)
-            .single();
-
-          if (userData) {
-            let { data: donorProfile } = await supabase
-              .from('donor_profiles')
-              .select('id')
-              .eq('user_id', userData.id)
-              .maybeSingle();
-
-            if (!donorProfile) {
-              const { data: newProfile } = await supabase
-                .from('donor_profiles')
-                .insert({
-                  user_id: userData.id,
-                  blood_type: 'O-',
-                  dob: '1995-01-01',
-                  phone: '081234567890',
-                  address: 'Surabaya',
-                  points: 200,
-                  level: 'Pemula',
-                  konsistensi: 0,
-                })
-                .select('id')
-                .single();
-              donorProfile = newProfile;
-            }
-
-            if (donorProfile) {
-              donorProfileId = donorProfile.id;
-            }
-          }
-        }
-
-        if (donorProfileId) {
-          const { error: insertError } = await supabase
-            .from('event_bookings')
-            .insert({
-              event_id: eventId,
-              donor_id: donorProfileId,
-                event_name: selectedEventForReg.name,
-                event_date: selectedEventForReg.date,
-                location: selectedEventForReg.location,
-                status: 'terdaftar',
-                qr_code: ticketId,
-                checked_in: false
-              });
-
-            if (insertError) {
-              console.warn('Gagal insert event_bookings ke Supabase:', insertError);
-            } else {
-              // Hitung jumlah pendaftar real-time dari database
-              const { count } = await supabase
-                .from('event_bookings')
-                .select('*', { count: 'exact', head: true })
-                .eq('event_id', eventId);
-
-              await supabase
-                .from('events')
-                .update({ registered: count || 1 })
-                .eq('id', eventId);
-            }
-          }
-        } catch (err) {
-          console.error('Gagal menyimpan booking event ke Supabase:', err);
-        }
-      }
+    // Supabase insert bookings dihapus untuk offline mode
 
     // Update registration stats
     setEventList(prev => {
@@ -595,26 +343,12 @@ export default function Events() {
   };
 
   const handleDeleteEvent = async (eventId: any, eventName: string) => {
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from('events')
-          .delete()
-          .eq('id', eventId);
-        if (error) throw error;
-        setEventList(prev => prev.filter(e => e.id !== eventId));
-        toast.success('Event berhasil dihapus dari database!');
-      } catch (err: any) {
-        console.error('Gagal menghapus event dari Supabase:', err);
-        toast.error(`Gagal menghapus event: ${err.message || JSON.stringify(err)}`);
-      }
-    } else {
+      // Mode Offline
       setEventList(prev => {
         const updated = prev.filter(e => e.id !== eventId);
         return updated;
       });
       toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus.` });
-    }
   };
 
   const handleCreateEvent = (e: React.FormEvent) => {
@@ -659,81 +393,7 @@ export default function Events() {
       status: status
     };
 
-    if (isSupabaseConfigured) {
-      (async () => {
-        try {
-          // Serialize description and requirements together to bypass PostgREST cache errors on 'requirements' column
-          const combinedDesc = JSON.stringify({
-            desc: newEvent.description,
-            reqs: requirementsList
-          });
-
-          const { data, error } = await supabase
-            .from('events')
-            .insert({
-              name: newEvent.name,
-              organizer: user?.org || 'Institusi Kesehatan',
-              organizer_type: user?.role || 'pmi',
-              date: newEvent.date,
-              time: newEvent.time,
-              location: newEvent.location,
-              address: newEvent.address,
-              capacity: Number(newEvent.capacity),
-              registered: 0,
-              description: combinedDesc,
-              status: status
-            })
-            .select('id, name, organizer, organizer_type, date, time, location, address, capacity, registered, description, status')
-            .single();
-
-          if (error) throw error;
-
-          if (data) {
-            let parsedDesc = data.description || '';
-            let parsedReqs = requirementsList;
-            if (data.description && data.description.startsWith('{') && data.description.endsWith('}')) {
-              try {
-                const parsed = JSON.parse(data.description);
-                parsedDesc = parsed.desc || '';
-                parsedReqs = parsed.reqs || parsedReqs;
-              } catch (err) {}
-            }
-
-            const mappedNew: Event = {
-              id: data.id,
-              name: data.name,
-              organizer: data.organizer,
-              organizerType: data.organizer_type,
-              date: data.date,
-              time: data.time || '08:00 - 14:00',
-              location: data.location,
-              address: data.address,
-              capacity: data.capacity,
-              registered: data.registered,
-              description: parsedDesc,
-              requirements: parsedReqs,
-              status: data.status as 'upcoming' | 'ongoing' | 'completed'
-            };
-            setEventList(prev => [mappedNew, ...prev]);
-            toast.success('Event berhasil dibuat di database!');
-            setShowCreateModal(false);
-            setNewEvent({
-              name: '',
-              date: '',
-              time: '',
-              location: '',
-              address: '',
-              capacity: 100,
-              description: '',
-              requirements: '',
-            });
-          }
-        } catch (err: any) {
-          console.error('Gagal membuat event di Supabase:', err);
-          toast.error(`Gagal menyimpan ke database: ${err.message || JSON.stringify(err)}`);
-        }
-      })();
-    } else {
+      // Mode Offline
       setEventList(prev => {
         const updated = [created, ...prev];
         return updated;
@@ -750,7 +410,6 @@ export default function Events() {
         description: '',
         requirements: '',
       });
-    }
   };
 
   const pmiEvents = filtered.filter((e) => {

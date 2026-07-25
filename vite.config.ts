@@ -8,6 +8,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    // Paksa Vite listen di semua interface (IPv4 & IPv6)
+    // Sehingga Nmap dan tools monitoring bisa mendeteksi port 5173 di 127.0.0.1
+    host: '0.0.0.0',
+    port: 5173,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

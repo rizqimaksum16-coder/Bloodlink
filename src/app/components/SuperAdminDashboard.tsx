@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import {
   Shield, Users, Building2, HeartPulse, MapPin, Plus, Edit2, Trash2,
   CheckCircle, AlertCircle, Eye, EyeOff, X, Save,
@@ -10,7 +9,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 import { hashPassword } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -172,71 +171,7 @@ export default function SuperAdminDashboard() {
 
   // Load and sync real accounts from Supabase on mount
   useEffect(() => {
-    async function syncFromSupabase() {
-      if (!isSupabaseConfigured) return;
-      try {
-        // Fetch users, pmi_units, and hospitals in parallel
-        const [usersResult, pmisResult, hospitalsResult] = await Promise.all([
-          supabase.from('users').select('*').in('role', ['pmi', 'rs']).limit(100),
-          supabase.from('pmi_units').select('*'),
-          supabase.from('hospitals').select('*')
-        ]);
-
-        if (usersResult.error) throw usersResult.error;
-        if (pmisResult.error) throw pmisResult.error;
-        if (hospitalsResult.error) throw hospitalsResult.error;
-
-        const users = usersResult.data;
-        const pmis = pmisResult.data;
-        const hospitals = hospitalsResult.data;
-
-        const merged: OrgAccount[] = [];
-
-        users?.forEach((u: any) => {
-          if (u.role === 'pmi') {
-            const pmiDetail = pmis?.find((p: any) => p.name === u.org);
-            if (pmiDetail) {
-              merged.push({
-                id: u.id,
-                name: pmiDetail.name,
-                type: 'pmi',
-                email: u.email,
-                address: pmiDetail.address,
-                phone: pmiDetail.phone,
-                coords: [pmiDetail.latitude, pmiDetail.longitude],
-                status: 'active',
-                adminName: u.name,
-                createdAt: new Date(u.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-              });
-            }
-          } else if (u.role === 'rs') {
-            const rsDetail = hospitals?.find((h: any) => h.name === u.org);
-            if (rsDetail) {
-              merged.push({
-                id: u.id,
-                name: rsDetail.name,
-                type: 'rs',
-                email: u.email,
-                address: rsDetail.address,
-                phone: rsDetail.phone,
-                coords: [rsDetail.latitude, rsDetail.longitude],
-                status: 'active',
-                adminName: u.name,
-                createdAt: new Date(u.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-              });
-            }
-          }
-        });
-
-        if (merged.length > 0) {
-          setOrgs(merged);
-        }
-      } catch (e) {
-        console.warn('Gagal sinkronisasi data Super Admin dari Supabase:', e);
-      }
-    }
-
-    syncFromSupabase();
+    // Mode Offline
   }, []);
 
   // Modal states
@@ -292,182 +227,7 @@ export default function SuperAdminDashboard() {
       return;
     }
 
-    if (isSupabaseConfigured) {
-      try {
-        if (editingOrg) {
-          // Update in Supabase
-          // 1. Update user
-          await supabase
-            .from('users')
-            .update({
-              name: orgForm.adminName,
-              email: safeEmail,
-              org: orgForm.name,
-              avatar: orgForm.adminName.slice(0, 2).toUpperCase()
-            })
-            .eq('id', editingOrg.id);
-
-          // 2. Update details
-          if (orgForm.type === 'pmi') {
-            await supabase
-              .from('pmi_units')
-              .update({
-                name: orgForm.name,
-                address: orgForm.address,
-                phone: orgForm.phone,
-                latitude: orgForm.coords[0],
-                longitude: orgForm.coords[1]
-              })
-              .eq('name', editingOrg.name);
-          } else {
-            await supabase
-              .from('hospitals')
-              .update({
-                name: orgForm.name,
-                address: orgForm.address,
-                phone: orgForm.phone,
-                latitude: orgForm.coords[0],
-                longitude: orgForm.coords[1]
-              })
-              .eq('name', editingOrg.name);
-          }
-        } else {
-          // Insert in Supabase
-          if (!newPassword || newPassword.length < 6) {
-            toast.error('Kata sandi harus minimal 6 karakter');
-            return;
-          }
-
-          // Gunakan ghost client (tempClient) agar sesi Super Admin saat ini tidak ter-logout saat signUp
-          const rawUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
-          const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '').trim();
-          const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
-          
-          const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-            auth: { persistSession: false }
-          });
-
-          // 1. Coba Insert user login credentials using Temp Client
-          let userId: any = crypto.randomUUID(); // Valid UUID untuk fallback
-          
-          try {
-            const { data: authData, error: authErr } = await tempClient.auth.signUp({
-              email: safeEmail,
-              password: newPassword,
-            });
-
-            if (!authErr && authData?.user) {
-              userId = authData.user.id as string;
-            } else {
-              console.warn('Supabase Auth signUp skipped/failed:', authErr?.message);
-            }
-          } catch (e: any) {
-            console.warn('Exception saat Supabase Auth signUp:', e.message);
-          }
-
-          // 2. Insert metadata ke tabel public.users (baik Auth berhasil atau tidak)
-          const hashedPwd = await hashPassword(newPassword);
-          const { data: newUser, error: uErr } = await supabase
-            .from('users')
-            .insert({
-              id: userId,
-              email: safeEmail,
-              password_hash: hashedPwd,
-              name: orgForm.adminName,
-              role: orgForm.type,
-              org: orgForm.name,
-              avatar: orgForm.adminName.slice(0, 2).toUpperCase()
-            })
-            .select('*')
-            .single();
-
-          if (uErr) throw uErr;
-
-          // 2. Insert pmi_units or hospitals details + seed blood_stock untuk semua 8 golongan darah
-          const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-
-          if (orgForm.type === 'pmi') {
-            const { data: newPmi, error: pErr } = await supabase
-              .from('pmi_units')
-              .insert({
-                name: orgForm.name,
-                address: orgForm.address,
-                phone: orgForm.phone,
-                latitude: orgForm.coords[0],
-                longitude: orgForm.coords[1],
-                response_rate: 90,
-                avg_delivery_mins: 20
-              })
-              .select('*')
-              .single();
-
-            if (pErr) throw pErr;
-
-            // Seed blood_stock dengan 0 kantong untuk semua golongan darah (status: critical)
-            const { error: bsErr } = await supabase.from('blood_stock').insert(
-              bloodTypes.map(bt => ({
-                owner_pmi_id: newPmi.id,
-                blood_type: bt,
-                stock_qty: 0,
-                status: 'critical'
-              }))
-            );
-            if (bsErr) console.warn('Gagal seed blood_stock untuk PMI baru:', bsErr);
-
-            // Update state dengan ID dari Supabase agar konsisten
-            const newOrgWithId: OrgAccount = {
-              ...orgForm,
-              id: newUser.id,  // pakai ID dari users table
-              createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-            };
-            setOrgs(prev => [...prev, newOrgWithId]);
-            toast.success(`Akun ${newOrgWithId.name} berhasil ditambahkan dengan database stok darah!`);
-            setShowOrgModal(false);
-            return; // sudah selesai
-          } else {
-            const { data: newRs, error: hErr } = await supabase
-              .from('hospitals')
-              .insert({
-                name: orgForm.name,
-                address: orgForm.address,
-                district: orgForm.address.toLowerCase().includes('surabaya') ? 'Surabaya' : 'Surabaya',
-                phone: orgForm.phone,
-                latitude: orgForm.coords[0],
-                longitude: orgForm.coords[1]
-              })
-              .select('*')
-              .single();
-
-            if (hErr) throw hErr;
-
-            // Seed blood_stock untuk semua golongan darah (status: critical, stok 0)
-            const { error: bsErr } = await supabase.from('blood_stock').insert(
-              bloodTypes.map(bt => ({
-                owner_hospital_id: newRs.id,
-                blood_type: bt,
-                stock_qty: 0,
-                status: 'critical'
-              }))
-            );
-            if (bsErr) console.warn('Gagal seed blood_stock untuk RS baru:', bsErr);
-
-            // Update state dengan ID dari Supabase
-            const newOrgWithId: OrgAccount = {
-              ...orgForm,
-              id: newUser.id,
-              createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-            };
-            setOrgs(prev => [...prev, newOrgWithId]);
-            toast.success(`Akun ${newOrgWithId.name} berhasil ditambahkan dengan database stok darah!`);
-            setShowOrgModal(false);
-            return; // sudah selesai
-          }
-        }
-      } catch (err: any) {
-        console.error('Gagal menyimpan ke database Supabase:', err);
-        toast.error(`Gagal menyimpan: ${err?.message || 'Cek koneksi database'}`);
-      }
-    }
+    // Supabase save logic dihapus untuk offline mode
     setShowOrgModal(false);
   };
 
@@ -481,21 +241,7 @@ export default function SuperAdminDashboard() {
   };
 
   const handleDeleteOrg = async (id: string, name: string) => {
-    if (isSupabaseConfigured) {
-      try {
-        const targetOrg = orgs.find(o => o.id === id);
-        if (targetOrg) {
-          if (targetOrg.type === 'pmi') {
-            await supabase.from('pmi_units').delete().eq('name', targetOrg.name);
-          } else {
-            await supabase.from('hospitals').delete().eq('name', targetOrg.name);
-          }
-          await supabase.from('users').delete().eq('email', targetOrg.email);
-        }
-      } catch (err) {
-        console.error('Gagal menghapus dari Supabase:', err);
-      }
-    }
+    // Supabase delete dihapus
     setOrgs(prev => prev.filter(o => o.id !== id));
     toast.success(`Akun ${name} dihapus dari sistem`);
   };

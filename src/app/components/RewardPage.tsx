@@ -6,7 +6,7 @@ import {
 import { Progress } from './ui/progress';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 import { toast } from 'sonner';
 
 interface RewardItem {
@@ -64,50 +64,8 @@ export default function RewardPage() {
 
   useEffect(() => {
     async function loadData() {
-      if (!isSupabaseConfigured) return;
-      try {
-        const { data: rData } = await supabase.from('rewards').select('*');
-        if (rData && rData.length > 0) {
-          setRewardsList(rData as any);
-        }
-
-        const { data: dpData } = await supabase.from('donor_profiles').select('*, users(name, email)').order('total_donations', { ascending: false }).limit(10);
-        if (dpData && dpData.length > 0) {
-          const mappedLb = dpData.map((dp: any, idx: number) => ({
-            rank: idx + 1,
-            name: dp.users?.name || 'Pendonor Surabaya',
-            donations: dp.total_donations || 1,
-            isMe: dp.users?.email === user?.email
-          }));
-          setLeaderboardList(mappedLb);
-        }
-
-        if (user?.email) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', user.email)
-            .single();
-
-          if (userData) {
-            const { data: dp } = await supabase
-              .from('donor_profiles')
-              .select('*')
-              .eq('user_id', userData.id)
-              .single();
-
-            if (dp) {
-              setDonorProfile({
-                points: dp.points || 0,
-                totalDonations: dp.total_donations || 0,
-                streak: dp.streak || 0
-              });
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Error loading RewardPage data from Supabase:', e);
-      }
+      // Mock mode
+      return;
     }
     loadData();
   }, [user?.email]);
@@ -122,40 +80,8 @@ export default function RewardPage() {
 
     setClaimAnim(id);
 
-    if (isSupabaseConfigured && donorProfile && user?.email) {
-      (async () => {
-        try {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', user.email)
-            .single();
-
-          if (userData) {
-            const { data: dp } = await supabase
-              .from('donor_profiles')
-              .select('id, points')
-              .eq('user_id', userData.id)
-              .single();
-
-            if (dp) {
-              const newPoints = Math.max(0, dp.points - cost);
-              await supabase
-                .from('donor_profiles')
-                .update({ points: newPoints })
-                .eq('id', dp.id);
-              
-              setDonorProfile(p => p ? { ...p, points: newPoints } : null);
-              toast.success('Poin berhasil ditukarkan!');
-            }
-          }
-        } catch (e) {
-          console.warn('Gagal memotong poin di Supabase:', e);
-        }
-      })();
-    } else if (!isSupabaseConfigured) {
-      toast.success('Poin berhasil ditukarkan (Simulasi)!');
-    }
+    // Local points simulasi untuk offline mode
+    toast.success('Poin berhasil ditukarkan (Simulasi)!');
 
     setTimeout(() => {
       setClaimed(prev => [...prev, id]);

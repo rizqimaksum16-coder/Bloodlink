@@ -28,21 +28,7 @@ export class AuditLogger {
       timestamp: entry.timestamp || new Date().toISOString()
     };
 
-    try {
-      const { supabase } = await import('@/lib/supabase/client');
-      await (supabase
-        .from('activity_logs')
-        .insert({
-          action: logEntry.action,
-          user_name: logEntry.userEmail || 'system',
-          details: logEntry.details || {},
-          created_at: logEntry.timestamp
-        }) as any);
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('📋 [AUDIT LOG]', logEntry);
-      }
-    }
+    console.log('📋 [AUDIT LOG]', logEntry);
   }
 
   async logLoginAttempt(email: string, success: boolean, details?: any): Promise<void> {

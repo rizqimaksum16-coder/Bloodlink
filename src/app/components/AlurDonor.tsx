@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
+import { api } from '../utils/api';
 
 interface TicketItem {
   id: string;
@@ -46,130 +46,15 @@ export default function AlurDonor() {
   // Load registered events from Supabase on mount
   useEffect(() => {
     async function loadTicketsFromSupabase() {
-      if (!isSupabaseConfigured || !user) return;
-      try {
-        let donorProfileId = user.donorProfileId;
-
-        if (!donorProfileId) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', user.email)
-            .single();
-
-          if (userData) {
-            let { data: donorProfile } = await supabase
-              .from('donor_profiles')
-              .select('id')
-              .eq('user_id', userData.id)
-              .maybeSingle();
-
-            if (!donorProfile) {
-              const { data: newProfile } = await supabase
-                .from('donor_profiles')
-                .insert({
-                  user_id: userData.id,
-                  blood_type: 'O-',
-                  dob: '1995-01-01',
-                  phone: '081234567890',
-                  address: 'Surabaya',
-                  points: 200,
-                  level: 'Pemula',
-                  streak: 0,
-                })
-                .select('id')
-                .single();
-              donorProfile = newProfile;
-            }
-
-            if (donorProfile) {
-              donorProfileId = donorProfile.id;
-            }
-          }
-        }
-
-        if (donorProfileId) {
-          const { data: bookings, error } = await supabase
-            .from('event_bookings')
-            .select('*, events(*)')
-            .eq('donor_id', donorProfileId);
-
-            if (error) throw error;
-            if (bookings && bookings.length > 0) {
-              const mapped: TicketItem[] = bookings.map((b: any) => {
-                const event = b.events;
-                return {
-                  id: `EVT-TICKET-${b.event_id}`,
-                  ticketId: b.qr_code || `EVT-SUB-${b.event_id}-8841`,
-                  eventId: b.event_id,
-                  eventName: event ? event.name : (b.event_name || 'Event Donor Darah Surabaya'),
-                  organizer: event ? event.organizer : 'PMI Kota Surabaya',
-                  location: event ? event.location : (b.location || 'Lokasi PMI Surabaya'),
-                  address: event ? event.address : (b.location || 'Kota Surabaya'),
-                  date: event ? event.date : (b.event_date || '2026-07-15'),
-                  time: event ? event.time : '08:00 - 12:00 WIB',
-                  registeredAt: new Date(b.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-                  donorName: user?.name || 'Rizky Pratama',
-                  nik: '3578012409950003',
-                  bloodType: 'O',
-                  rhesus: '+',
-                  status: b.status === 'checked_in' ? 'checked_in' : 'ready',
-                  points: 200,
-                };
-              });
-              setTicketList(mapped);
-              return;
-            }
-          }
-        // Fallback to sample or empty if no active profile or bookings found
-        setTicketList([]);
-      } catch (err) {
-        console.warn('Gagal memuat tiket donor dari Supabase:', err);
-      }
+      // Mock data atau fallback untuk offline mode
+      setTicketList([]);
     }
     loadTicketsFromSupabase();
   }, [user]);
 
   const handleCancelTicket = async (ticket: TicketItem) => {
     // If associated with an event
-    if (ticket.eventId && isSupabaseConfigured && user) {
-      try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (userData) {
-          const { data: donorProfile } = await supabase
-            .from('donor_profiles')
-            .select('id')
-            .eq('user_id', userData.id)
-            .single();
-
-          if (donorProfile) {
-            await supabase
-              .from('event_bookings')
-              .delete()
-              .eq('event_id', ticket.eventId)
-              .eq('donor_id', donorProfile.id);
-            
-            // Also update event registration count
-            const { count } = await supabase
-              .from('event_bookings')
-              .select('*', { count: 'exact', head: true })
-              .eq('event_id', ticket.eventId);
-
-            await supabase
-              .from('events')
-              .update({ registered: count || 0 })
-              .eq('id', ticket.eventId);
-          }
-        }
-      } catch (err) {
-        console.error('Gagal membatalkan tiket di Supabase:', err);
-      }
-    }
+    // Supabase cancel dihapus untuk offline mode
 
     setTicketList((prev) => prev.filter((t) => t.id !== ticket.id));
     if (selectedTicketForModal?.id === ticket.id) {
