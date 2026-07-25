@@ -102,29 +102,32 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
 
   // ── 1. Coba Supabase Edge Function proxy ──────────────────────────────────
   if (isSupabaseConfigured) {
-    try {
-      const { data, error } = await supabase.functions.invoke('grok-proxy', {
-        body: {
-          ...payload,
-          model: payload.model || 'grok-3-mini',
-          max_tokens: payload.max_tokens ?? 500,
-        },
-      });
+    // Coba grok-proxy dulu, kalau gagal fallback ke gemini-proxy (nama lama)
+    for (const fnName of ['grok-proxy', 'gemini-proxy']) {
+      try {
+        const { data, error } = await supabase.functions.invoke(fnName, {
+          body: {
+            ...payload,
+            model: payload.model || 'grok-3-mini',
+            max_tokens: payload.max_tokens ?? 500,
+          },
+        });
 
-      if (!error && data) {
-        const response = data as GrokProxyResponse;
-        const text = response?.choices?.[0]?.message?.content;
-        if (text && text.trim().length > 0) {
-          if (lastUserMsg) setCachedAIResponse(lastUserMsg, text.trim());
-          return text.trim();
+        if (!error && data) {
+          const response = data as GrokProxyResponse;
+          const text = response?.choices?.[0]?.message?.content;
+          if (text && text.trim().length > 0) {
+            if (lastUserMsg) setCachedAIResponse(lastUserMsg, text.trim());
+            console.info(`[Diana] Jawaban dari edge function: ${fnName}`);
+            return text.trim();
+          }
+          console.warn(`[Diana] ${fnName} mengembalikan data kosong:`, JSON.stringify(data));
+        } else if (error) {
+          console.warn(`[Diana] ${fnName} error:`, error.message ?? JSON.stringify(error));
         }
-        // Data ada tapi konten kosong — log detailnya
-        console.warn('[Diana] Edge Function mengembalikan data kosong:', JSON.stringify(data));
-      } else if (error) {
-        console.warn('[Diana] Edge Function error:', error.message ?? JSON.stringify(error));
+      } catch (proxyErr) {
+        console.warn(`[Diana] ${fnName} tidak dapat dijangkau:`, proxyErr);
       }
-    } catch (proxyErr) {
-      console.warn('[Diana] Edge Function tidak dapat dijangkau:', proxyErr);
     }
   }
 
