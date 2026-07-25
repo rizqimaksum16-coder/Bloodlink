@@ -80,11 +80,21 @@ Jawablah dengan ramah, santai, ringkas, dan informatif menggunakan bahasa Indone
 
       setMessages(prev => [...prev, { sender: 'ai', text: reply }]);
       setGeminiHistory([...updatedHistory, { role: 'assistant', content: reply }]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Diana] Grok proxy error:', error);
+      
+      let errorMessage = 'Maaf, sepertinya koneksi saya sedang terganggu. Boleh diulang pertanyaannya? 🙏';
+      const errorStr = String(error?.message || error).toUpperCase();
+      
+      if (errorStr.includes('429') || errorStr.includes('KUOTA') || errorStr.includes('LIMIT')) {
+        errorMessage = 'Maaf, limit penggunaan API harian (kuota AI) telah habis. 😢 Silakan coba lagi nanti atau perbarui API Key Anda.';
+      } else if (errorStr.includes('401') || errorStr.includes('API KEY') || errorStr.includes('API_KEY')) {
+        errorMessage = 'Maaf, API Key yang digunakan tidak valid atau sudah kedaluwarsa. 🔑 Mohon periksa pengaturan API Key Anda.';
+      }
+
       setMessages(prev => [...prev, { 
         sender: 'ai', 
-        text: 'Maaf, sepertinya koneksi saya sedang terganggu. Boleh diulang pertanyaannya? 🙏',
+        text: errorMessage,
         source: 'error'
       }]);
       setLastFailedInput(userText);
