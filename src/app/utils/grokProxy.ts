@@ -145,37 +145,55 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
   const baseEndpoint = (import.meta as any).env?.VITE_GROK_API_URL || 'https://api.x.ai/v1/chat/completions';
   const model = payload.model || (import.meta as any).env?.VITE_GROK_MODEL || 'grok-3-mini';
 
-  // Menggunakan corsproxy.io agar request dari browser tidak diblokir CORS!
-  const endpoint = `https://corsproxy.io/?${encodeURIComponent(baseEndpoint)}`;
+  // Daftar Public CORS Proxy untuk mencegah blokir dari browser (High Availability)
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent(baseEndpoint)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(baseEndpoint)}`,
+    `https://thingproxy.freeboard.io/fetch/${baseEndpoint}`
+  ];
 
   console.info(`[Diana] Memanggil Grok API via CORS Proxy — model: ${model}`);
 
-  let response: Response;
-  try {
-    response = await fetchWithTimeout(
-      endpoint,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          // Tambahkan header x-requested-with untuk proxy
-          'x-requested-with': 'XMLHttpRequest'
+  let response: Response | null = null;
+  let lastError: any = null;
+
+  for (const endpoint of proxies) {
+    try {
+      response = await fetchWithTimeout(
+        endpoint,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+            'x-requested-with': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            model,
+            messages: payload.messages,
+            temperature: payload.temperature ?? 0.35,
+            max_tokens: payload.max_tokens ?? 300,
+          }),
         },
-        body: JSON.stringify({
-          model,
-          messages: payload.messages,
-          temperature: payload.temperature ?? 0.35,
-          max_tokens: payload.max_tokens ?? 300,
-        }),
-      },
-      15000 // 15 detik timeout
-    );
-  } catch (fetchErr: any) {
-    if (fetchErr?.name === 'AbortError') {
-      throw new Error('TIMEOUT: Grok API tidak merespons dalam 15 detik.');
+        15000 // 15 detik timeout per proxy
+      );
+
+      // Jika berhasil merespons (bahkan jika 400/401/429), kita keluar dari loop proxy
+      // Kita hanya mencoba proxy lain jika proxy-nya sendiri yang mati (500/502/503/timeout)
+      if (response && response.status < 500) {
+        break;
+      }
+    } catch (fetchErr: any) {
+      console.warn(`[Diana] Proxy ${endpoint} gagal:`, fetchErr?.message);
+      lastError = fetchErr;
     }
-    throw new Error(`NETWORK_ERROR: Tidak dapat terhubung ke Grok API — ${fetchErr?.message}`);
+  }
+
+  if (!response) {
+    if (lastError?.name === 'AbortError') {
+      throw new Error('TIMEOUT: Semua proxy Grok API tidak merespons dalam 15 detik.');
+    }
+    throw new Error(`NETWORK_ERROR: Semua jalur proxy terputus — ${lastError?.message}`);
   }
 
   if (!response.ok) {
