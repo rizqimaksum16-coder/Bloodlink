@@ -19,12 +19,23 @@ export interface GrokProxyResponse {
 // ─── LocalStorage AI Cache ─────────────────────────────────────────────────────
 
 const AI_CACHE_PREFIX = 'bl_grok_cache_';
-const AI_CACHE_TTL_MS = 30 * 60 * 1000; // Cache 30 menit
+const AI_CACHE_TTL_MS = 2 * 60 * 60 * 1000; // Cache 2 jam (lebih hemat, AI jarang ubah jawaban medis)
+
+// Normalisasi prompt agar variasi pertanyaan yang sama berbagi cache
+// Contoh: "Apa itu darah?" dan "apa itu darah" → hash yang sama
+function normalizePrompt(prompt: string): string {
+  return prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // Hapus tanda baca
+    .replace(/\s+/g, ' ')         // Hapus spasi ganda
+    .trim();
+}
 
 function getCacheKey(prompt: string): string {
+  const normalized = normalizePrompt(prompt);
   let hash = 0;
-  for (let i = 0; i < prompt.length; i++) {
-    const chr = prompt.charCodeAt(i);
+  for (let i = 0; i < normalized.length; i++) {
+    const chr = normalized.charCodeAt(i);
     hash = ((hash << 5) - hash) + chr;
     hash |= 0;
   }
@@ -150,8 +161,8 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
         body: JSON.stringify({
           model,
           messages: payload.messages,
-          temperature: payload.temperature ?? 0.4,
-          max_tokens: payload.max_tokens ?? 500,
+          temperature: payload.temperature ?? 0.35,
+          max_tokens: payload.max_tokens ?? 300,
         }),
       },
       15000 // 15 detik timeout
