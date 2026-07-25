@@ -1,0 +1,12 @@
+{
+  "extends": ["plugin:security/recommended"],
+  "plugins": ["security"],
+  "rules": {
+    "security/detect-unsafe-regex": "error",
+    "security/detect-eval-with-expression": "error",
+    "security/detect-non-literal-fs-filename": "warn",
+    "security/detect-object-injection": "warn",
+    "no-implied-eval": "error",
+    "no-script-url": "error"
+  }
+}

@@ -348,7 +348,7 @@ export default function SuperAdminDashboard() {
           });
 
           // 1. Coba Insert user login credentials using Temp Client
-          let userId = crypto.randomUUID(); // Valid UUID untuk fallback
+          let userId: any = crypto.randomUUID(); // Valid UUID untuk fallback
           
           try {
             const { data: authData, error: authErr } = await tempClient.auth.signUp({
@@ -357,7 +357,7 @@ export default function SuperAdminDashboard() {
             });
 
             if (!authErr && authData?.user) {
-              userId = authData.user.id;
+              userId = authData.user.id as string;
             } else {
               console.warn('Supabase Auth signUp skipped/failed:', authErr?.message);
             }
