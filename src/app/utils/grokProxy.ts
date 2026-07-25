@@ -131,7 +131,7 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
     }
   }
 
-  // ── 2. Direct Fallback ke xAI Grok API ────────────────────────────────────
+  // ── 2. Direct Fallback ke xAI Grok API (via Public CORS Proxy) ───────────
   const rawKey =
     (import.meta as any).env?.VITE_GROK_API_KEY ||
     (import.meta as any).env?.VITE_XAI_API_KEY ||
@@ -142,14 +142,13 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
     throw new Error('API_KEY_MISSING: Konfigurasi VITE_GROK_API_KEY di file .env.');
   }
 
-  const endpoint =
-    (import.meta as any).env?.VITE_GROK_API_URL || 'https://api.x.ai/v1/chat/completions';
-  const model =
-    payload.model ||
-    (import.meta as any).env?.VITE_GROK_MODEL ||
-    'grok-3-mini';
+  const baseEndpoint = (import.meta as any).env?.VITE_GROK_API_URL || 'https://api.x.ai/v1/chat/completions';
+  const model = payload.model || (import.meta as any).env?.VITE_GROK_MODEL || 'grok-3-mini';
 
-  console.info(`[Diana] Memanggil Grok API langsung — model: ${model}`);
+  // Menggunakan corsproxy.io agar request dari browser tidak diblokir CORS!
+  const endpoint = `https://corsproxy.io/?${encodeURIComponent(baseEndpoint)}`;
+
+  console.info(`[Diana] Memanggil Grok API via CORS Proxy — model: ${model}`);
 
   let response: Response;
   try {
@@ -160,6 +159,8 @@ export async function callGrokProxy(payload: GrokProxyPayload): Promise<string> 
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
+          // Tambahkan header x-requested-with untuk proxy
+          'x-requested-with': 'XMLHttpRequest'
         },
         body: JSON.stringify({
           model,
