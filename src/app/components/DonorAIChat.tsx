@@ -642,9 +642,10 @@ export default function DonorAIChat() {
       return;
     }
 
-    // ── Step 3: Grok AI — hanya untuk pertanyaan yang benar-benar tidak dikenali
-    const systemPrompt = `Kamu adalah "Diana", asisten AI medis Blood Link Surabaya. Jawab pertanyaan seputar donor darah, ilmu darah, dan kesehatan umum.
-Aturan: jawab LANGSUNG & SPESIFIK dalam bahasa Indonesia. Gunakan bullet/emoji. Maks 5 poin ringkas. Tolak sopan jika di luar topik medis & kesehatan.`;
+    // ── Step 3: Grok AI — menjawab segala macam pertanyaan layaknya AI umum
+    const systemPrompt = `Kamu adalah "Diana", asisten AI Blood Link. 
+Meskipun fokus utamamu adalah donor darah, kamu BEBAS dan MAMPU menjawab pertanyaan APAPUN dari pengguna, layaknya AI umum (seperti ChatGPT/Grok). 
+Jawablah dengan ramah, santai, namun informatif menggunakan bahasa Indonesia. Gunakan emoji secukupnya.`;
 
     try {
       const reply = await callGrokProxy({
