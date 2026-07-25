@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router';
-import { Bot, Send, X, MessageSquare, AlertTriangle, Sparkles, Database } from 'lucide-react';
+import { Bot, Send, X, MessageSquare, AlertTriangle, Sparkles, Database, RefreshCw } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import { callGrokProxy } from '../utils/grokProxy';
 
 interface ChatMessage {
   sender: 'user' | 'ai';
   text: string;
-  source?: 'database' | 'ai' | 'mock'; // Untuk indikator asal jawaban
+  source?: 'database' | 'ai' | 'mock' | 'error';
 }
 
 interface GeminiMessage {
@@ -15,56 +14,165 @@ interface GeminiMessage {
   content: string;
 }
 
-// ─── Sliding Window: Batasi riwayat pesan yang dikirim ke AI ──────────────────
-const MAX_HISTORY_MESSAGES = 8;
-
+// ─── Sliding Window ────────────────────────────────────────────────────────────
+const MAX_HISTORY_MESSAGES = 10;
 function trimHistory(history: GeminiMessage[]): GeminiMessage[] {
   if (history.length <= MAX_HISTORY_MESSAGES) return history;
   return history.slice(-MAX_HISTORY_MESSAGES);
 }
 
-// ─── Local Mock Fallback (ketika tidak ada Supabase maupun Gemini) ────────────
+// ─── Mock Response yang Komprehensif ─────────────────────────────────────────
 const getMockResponse = (inputMsg: string): string => {
-  const query = inputMsg.toLowerCase();
+  const q = inputMsg.toLowerCase();
 
-  if (query.includes('diminum') || query.includes('minum darah')) {
-    return 'Secara medis, darah manusia TIDAK boleh diminum. Meminum darah berbahaya bagi tubuh karena darah kaya akan zat besi yang dapat menyebabkan penumpukan racun (hemochromatosis) serta berisiko menularkan infeksi atau bakteri.';
+  // ── Sapaan ──────────────────────────────────────────────────────────────────
+  if (/\b(halo|hai|hello|hi|pagi|siang|sore|malam|assalamualaikum|selamat)\b/.test(q)) {
+    return 'Halo! Saya Diana, asisten AI medis Blood Link. Silakan tanyakan apa saja seputar donor darah, ilmu darah, atau kesehatan umum — saya siap membantu! 😊';
   }
 
-  if (query.includes('syarat') || query.includes('kriteria') || query.includes('kondisi') || query.includes('tensi') || query.includes('hemoglobin') || query.includes('hb')) {
-    return 'Syarat utama mendonorkan darah di Blood Link:\n1. Usia 17-60 tahun.\n2. Berat badan minimal 45 kg.\n3. Tekanan darah normal (Sistole 100-140 mmHg, Diastole 60-90 mmHg).\n4. Hemoglobin (Hb) aman: 12.5 - 17.0 g/dL.\n5. Tidak mengonsumsi obat/antibiotik dalam 3 hari terakhir.\n6. Istirahat/tidur minimal 5 jam sebelum donor.';
+  // ── Apresiasi ────────────────────────────────────────────────────────────────
+  if (/\b(terima kasih|makasih|thanks|thx|mantap|bagus|hebat|keren)\b/.test(q)) {
+    return 'Sama-sama! Senang bisa membantu. Jangan ragu bertanya lagi kalau ada yang ingin diketahui seputar kesehatan atau donor darah ya! 🩸';
   }
 
-  if (query.includes('alur') || query.includes('cara') || query.includes('proses') || query.includes('prosedur') || query.includes('tahap')) {
-    return 'Alur pelaksanaan donor darah di lokasi event:\n1. Pendaftaran: Mengisi formulir data diri dan riwayat kesehatan.\n2. Pemeriksaan Fisik: Cek berat badan, tensi darah, dan kadar Hb oleh petugas.\n3. Konsultasi Dokter: Wawancara singkat mengenai kondisi kesehatan Anda.\n4. Pengambilan Darah: Proses donor darah berlangsung 5-10 menit.\n5. Pemulihan: Istirahat sejenak, nikmati suplemen dan makanan ringan gratis yang disediakan.';
+  // ── Pengertian Darah ─────────────────────────────────────────────────────────
+  if (/\b(apa itu darah|pengertian darah|definisi darah|darah adalah|darah itu apa|tentang darah)\b/.test(q) ||
+      (q.includes('darah') && /\b(apa|apakah|jelaskan|ceritakan|apa fungsi|fungsinya)\b/.test(q) && !q.includes('donor') && !q.includes('golongan'))) {
+    return 'Darah adalah cairan vital berwarna merah yang beredar di seluruh tubuh melalui sistem peredaran darah.\n\nKomponen darah:\n• 🔴 Eritrosit (sel darah merah) — membawa oksigen ke seluruh tubuh\n• ⚪ Leukosit (sel darah putih) — melawan infeksi dan penyakit\n• 🟡 Trombosit (keping darah) — membantu pembekuan darah saat luka\n• 💛 Plasma darah — cairan kuning yang membawa nutrisi, hormon & protein\n\nFungsi utama darah: mengangkut oksigen & nutrisi, membuang sisa metabolisme, dan melindungi tubuh dari infeksi.';
   }
 
-  if (query.includes('lokasi') || query.includes('event') || query.includes('pmi') || query.includes('tempat') || query.includes('surabaya')) {
-    return 'Anda dapat melihat daftar event donor darah aktif di Kota Surabaya melalui menu "Event" di navbar atas. Selain itu, Anda bisa mengunjungi PMI A secara langsung di Jl. Embong Ploso No. 7-15.';
+  // ── Golongan Darah ───────────────────────────────────────────────────────────
+  if (/\b(golongan darah|tipe darah|blood type|golongan a|golongan b|golongan o|golongan ab|rhesus|rh positif|rh negatif)\b/.test(q)) {
+    return 'Golongan darah manusia dibagi berdasarkan sistem ABO dan Rhesus:\n\n🅰️ Golongan A — bisa menerima dari A & O\n🅱️ Golongan B — bisa menerima dari B & O\n🅾️ Golongan O — donor universal (bisa menyumbang ke semua), hanya menerima dari O\n🆎 Golongan AB — penerima universal (bisa menerima dari semua golongan)\n\nRhesus (Rh):\n• Rh+ (positif) — paling umum\n• Rh- (negatif) — langka, sangat dibutuhkan untuk transfusi khusus\n\nGolongan darah ditentukan oleh genetik dan tidak bisa berubah seumur hidup.';
   }
 
-  if (query.includes('manfaat') || query.includes('tujuan') || query.includes('kegunaan') || query.includes('kenapa')) {
-    return 'Manfaat luar biasa mendonorkan darah secara rutin:\n1. Membantu menjaga kesehatan jantung dan aliran darah.\n2. Mengurangi risiko penyakit kanker.\n3. Merangsang sumsum tulang untuk memproduksi sel darah merah baru.\n4. Mendapatkan pemeriksaan tensi & Hb gratis secara berkala.\n5. Menyelamatkan nyawa orang lain yang membutuhkan transfusi.';
+  // ── Eritrosit / Sel Darah Merah ──────────────────────────────────────────────
+  if (/\b(eritrosit|sel darah merah|sdm|red blood cell|rbc)\b/.test(q)) {
+    return 'Eritrosit (sel darah merah) adalah komponen darah yang bertugas membawa oksigen dari paru-paru ke seluruh jaringan tubuh, lalu membawa CO₂ kembali ke paru-paru.\n\nFakta penting:\n• Mengandung hemoglobin (protein pembawa oksigen)\n• Berumur sekitar 120 hari\n• Diproduksi di sumsum tulang\n• Orang dewasa punya ±5 juta eritrosit per mm³ darah';
   }
 
-  if (query.includes('halo') || query.includes('hai') || query.includes('pagi') || query.includes('siang') || query.includes('sore') || query.includes('malam') || query.includes('assalamualaikum')) {
-    return 'Halo! Saya Diana, asisten AI medis Blood Link. Ada yang bisa saya bantu seputar donor darah, ilmu darah, atau kesehatan Anda hari ini?';
+  // ── Leukosit / Sel Darah Putih ───────────────────────────────────────────────
+  if (/\b(leukosit|sel darah putih|sdp|white blood cell|wbc|imun|kekebalan)\b/.test(q)) {
+    return 'Leukosit (sel darah putih) adalah sel yang bertugas melindungi tubuh dari infeksi, bakteri, virus, dan penyakit.\n\nJenis leukosit:\n• Neutrofil — melawan bakteri\n• Limfosit — membentuk antibodi\n• Monosit — memakan kuman\n• Eosinofil — melawan alergi & parasit\n• Basofil — respons peradangan\n\nJumlah normal: 4.000–11.000 sel/mm³. Bila tinggi (leukositosis) bisa tanda infeksi; bila rendah (leukopenia) bisa tanda gangguan imun.';
   }
 
-  return 'Saya Diana, asisten medis Blood Link. Saya dapat membantu menjawab berbagai pertanyaan seputar kesehatan umum, medis, ilmu darah, dan donor darah. Ada yang ingin Anda tanyakan seputar kesehatan?';
+  // ── Trombosit / Platelet ────────────────────────────────────────────────────
+  if (/\b(trombosit|platelet|keping darah|pembekuan|beku|donor trombosit)\b/.test(q)) {
+    return 'Trombosit (keping darah/platelet) berperan penting dalam pembekuan darah saat terjadi luka.\n\nFakta trombosit:\n• Jumlah normal: 150.000–400.000 /µL darah\n• Trombosit rendah (trombositopenia) → bahaya pendarahan, sering terjadi pada DBD\n• Trombosit tinggi (trombositosis) → risiko gumpalan darah\n\nDonor trombosit (aferesis) berbeda dengan donor darah biasa — prosesnya 1–2 jam karena trombosit diambil dan darah dikembalikan ke tubuh donor.';
+  }
+
+  // ── Plasma ──────────────────────────────────────────────────────────────────
+  if (/\b(plasma darah|plasma|cairan darah)\b/.test(q)) {
+    return 'Plasma darah adalah komponen cair berwarna kuning yang membentuk sekitar 55% dari total volume darah.\n\nKandungan plasma:\n• Air (90%)\n• Protein (albumin, globulin, fibrinogen)\n• Hormon, nutrisi, garam mineral\n• Antibodi\n\nFungsi: mengangkut sel darah, nutrisi, hormon, dan sisa metabolisme. Plasma juga bisa didonorkan secara terpisah (donor plasma) untuk pasien luka bakar, hemofilia, atau syok.';
+  }
+
+  // ── Hemoglobin ─────────────────────────────────────────────────────────────
+  if (/\b(hemoglobin|hb|kadar hb|cek hb)\b/.test(q)) {
+    return 'Hemoglobin (Hb) adalah protein dalam eritrosit yang bertugas mengikat dan mengangkut oksigen.\n\nNilai normal Hb:\n• Pria: 13,5 – 17,5 g/dL\n• Wanita: 12,0 – 15,5 g/dL\n\nUntuk donor darah, syarat Hb minimal:\n• Pria: ≥ 13,0 g/dL\n• Wanita: ≥ 12,5 g/dL\n\nHb rendah = anemia → tidak diperbolehkan donor. Pemeriksaan Hb dilakukan gratis saat pendaftaran donor di Blood Link.';
+  }
+
+  // ── Anemia ──────────────────────────────────────────────────────────────────
+  if (/\b(anemia|kurang darah|darah rendah|lemas|pucat|pusing terus|lelah terus)\b/.test(q)) {
+    return 'Anemia adalah kondisi di mana jumlah sel darah merah atau kadar hemoglobin (Hb) di bawah normal, sehingga tubuh kekurangan oksigen.\n\nGejala anemia:\n• Lemas, mudah lelah\n• Pucat di wajah, kuku, dan kelopak mata\n• Pusing dan sesak napas\n• Jantung berdebar\n\nPenyebab umum: kekurangan zat besi, vitamin B12, asam folat, atau pendarahan.\n\n⚠️ Penderita anemia TIDAK diperbolehkan mendonorkan darah sampai Hb kembali normal. Konsultasikan ke dokter untuk pengobatan yang tepat.';
+  }
+
+  // ── Transfusi ───────────────────────────────────────────────────────────────
+  if (/\b(transfusi|transfer darah|butuh darah|kebutuhan darah)\b/.test(q)) {
+    return 'Transfusi darah adalah prosedur medis memasukkan darah dari donor ke penerima melalui infus.\n\nKapan transfusi diperlukan?\n• Kehilangan darah besar (operasi, kecelakaan)\n• Anemia berat\n• Gangguan pembekuan darah\n• Pasien kanker yang menjalani kemoterapi\n• Bayi dengan kondisi darah tertentu\n\nPenting: Golongan darah donor dan penerima harus cocok untuk mencegah reaksi transfusi yang berbahaya. Untuk kebutuhan darah darurat di Surabaya, hubungi PMI di menu "Cari Stok" di Blood Link.';
+  }
+
+  // ── Syarat Donor ────────────────────────────────────────────────────────────
+  if (/\b(syarat|kriteria|persyaratan|boleh donor|bisa donor|layak donor|eligible)\b/.test(q)) {
+    return 'Syarat utama donor darah di Blood Link:\n\n✅ Usia 17–60 tahun\n✅ Berat badan minimal 45 kg\n✅ Tekanan darah normal (Sistole 100–140 mmHg, Diastole 60–90 mmHg)\n✅ Hemoglobin (Hb): Pria ≥13 g/dL, Wanita ≥12,5 g/dL\n✅ Tidak mengonsumsi antibiotik dalam 3 hari terakhir\n✅ Tidur minimal 5 jam sebelum donor\n✅ Tidak sedang menstruasi, hamil, atau menyusui (untuk wanita)\n\n❌ Tidak boleh donor jika: baru operasi, HIV/hepatitis, diabetes dengan insulin, atau sedang sakit.';
+  }
+
+  // ── Alur / Prosedur ─────────────────────────────────────────────────────────
+  if (/\b(alur|cara|proses|prosedur|tahap|langkah|registrasi|daftar donor)\b/.test(q)) {
+    return 'Alur pelaksanaan donor darah di event Blood Link:\n\n1️⃣ Pendaftaran — Isi formulir data diri & riwayat kesehatan\n2️⃣ Pemeriksaan Fisik — Cek berat badan, tensi, & kadar Hb oleh petugas\n3️⃣ Konsultasi Dokter — Wawancara singkat kondisi kesehatan\n4️⃣ Pengambilan Darah — Berlangsung ±10 menit, terasa sedikit cubitan\n5️⃣ Pemulihan — Istirahat 10–15 menit, nikmati suplemen & snack gratis\n6️⃣ QR Check-in & Poin — Scan QR untuk dapatkan reward poin di Blood Link 🎁';
+  }
+
+  // ── Manfaat Donor ───────────────────────────────────────────────────────────
+  if (/\b(manfaat|tujuan|kegunaan|kenapa donor|mengapa donor|untung|keuntungan)\b/.test(q)) {
+    return 'Manfaat luar biasa dari donor darah rutin:\n\n💪 Untuk kesehatan donor:\n• Merangsang produksi sel darah merah baru\n• Membantu menjaga kesehatan jantung\n• Membakar ±650 kalori per donasi\n• Mengurangi risiko kanker hati, paru & usus\n• Mendapat pemeriksaan Hb & tensi GRATIS\n\n❤️ Untuk masyarakat:\n• 1 donasi dapat menyelamatkan hingga 3 nyawa\n• Stok darah rumah sakit terjaga\n• Membantu pasien operasi, kecelakaan & penyakit kronis';
+  }
+
+  // ── Frekuensi / Jeda Donor ──────────────────────────────────────────────────
+  if (/\b(berapa kali|seberapa sering|jeda|interval|kapan lagi|donor lagi|setelah donor berapa|frekuensi)\b/.test(q)) {
+    return 'Frekuensi yang aman untuk donor darah:\n\n🔴 Donor darah lengkap: minimal setiap 3 bulan (12 minggu) sekali\n🟡 Donor plasma: setiap 2 minggu sekali\n🟠 Donor trombosit: setiap 2 minggu sekali\n\nDalam setahun, donor darah lengkap maksimal 4–5 kali untuk pria, dan 3–4 kali untuk wanita. Tubuh butuh waktu untuk memproduksi sel darah merah baru setelah donasi.';
+  }
+
+  // ── Setelah Donor ───────────────────────────────────────────────────────────
+  if (/\b(setelah donor|pasca donor|sehabis donor|efek samping|akibat donor|sesudah donor)\b/.test(q)) {
+    return 'Yang perlu dilakukan setelah donor darah:\n\n✅ Minum air putih minimal 2 liter hari itu\n✅ Hindari aktivitas berat 12 jam setelah donor\n✅ Konsumsi makanan kaya zat besi (daging merah, bayam, kacang)\n✅ Jaga luka bekas jarum tetap bersih\n\n⚠️ Efek samping yang normal:\n• Sedikit pusing — duduk atau berbaring sebentar\n• Memar kecil di bekas suntikan — hilang sendiri dalam beberapa hari\n\n🚨 Segera hubungi petugas jika: pingsan, pendarahan tidak berhenti, atau nyeri hebat.';
+  }
+
+  // ── Makanan & Nutrisi Sebelum Donor ─────────────────────────────────────────
+  if (/\b(makan|makanan|nutrisi|gizi|sebelum donor|persiapan donor|minum|hidrasi|air putih)\b/.test(q)) {
+    return 'Persiapan sebelum donor darah:\n\n🍽️ Makanan yang dianjurkan:\n• Nasi, roti, atau pasta (karbohidrat kompleks)\n• Daging, ikan, atau tahu/tempe (protein)\n• Sayuran hijau (zat besi)\n• Buah-buahan (vitamin C membantu penyerapan zat besi)\n\n🥤 Minuman:\n• Minum air putih minimal 500 ml sebelum donor\n• Hindari alkohol 24 jam sebelum donor\n\n❌ Hindari makanan berlemak tinggi 4 jam sebelum donor (bisa mempengaruhi hasil pemeriksaan darah).';
+  }
+
+  // ── Efek / Rasa Sakit ───────────────────────────────────────────────────────
+  if (/\b(sakit|nyeri|takut|jarum|ngeri|bahaya|berbahaya|aman)\b/.test(q)) {
+    return 'Donor darah sangat AMAN dan hampir tidak menyakitkan! 😊\n\nProses pengambilan darah hanya terasa seperti cubitan kecil saat jarum masuk, kemudian tidak terasa apa-apa.\n\nKeamanan yang dijamin:\n• Jarum steril sekali pakai — tidak mungkin tertular penyakit dari jarum\n• Dilakukan tenaga medis terlatih\n• Diawasi dokter\n• Pemeriksaan kesehatan dilakukan sebelum donor\n\nRasa takut adalah normal, tapi banyak orang menjadi rutin donor setelah mencoba pertama kali! 💪';
+  }
+
+  // ── Volume Darah yang Diambil ───────────────────────────────────────────────
+  if (/\b(berapa banyak|volume|cc|ml|liter|jumlah darah|berapa darah)\b/.test(q)) {
+    return 'Volume darah yang diambil saat donor:\n\n• Standar: 350 – 450 ml per donasi\n• Sekitar 8% dari total volume darah tubuh\n• Tubuh orang dewasa memiliki total ±5 liter darah\n\nTubuh Anda akan menggantikan cairan darah dalam 24–48 jam, dan sel darah merah penuh kembali dalam 4–6 minggu. Tidak perlu khawatir — tubuh sangat mampu mengatasinya! 💪';
+  }
+
+  // ── Lokasi / Event ──────────────────────────────────────────────────────────
+  if (/\b(lokasi|event|pmi|tempat|surabaya|jadwal|dimana|di mana|kapan ada)\b/.test(q)) {
+    return 'Untuk melihat event donor darah aktif di Surabaya:\n\n📅 Buka menu "Event" di navbar atas untuk melihat jadwal lengkap\n🗺️ PMI Kota Surabaya: Jl. Embong Ploso No. 7–15, Surabaya\n📞 Telepon PMI: (031) 535–3433 (24 jam)\n\nEvent donor darah di Blood Link tersebar di berbagai titik Surabaya. Daftar melalui tombol event untuk mendapatkan poin reward! 🎁';
+  }
+
+  // ── Reward & Poin ───────────────────────────────────────────────────────────
+  if (/\b(reward|poin|hadiah|point|voucher|benefit|keuntungan donor|bonus)\b/.test(q)) {
+    return 'Sistem Reward di Blood Link:\n\n🎁 Setiap donor darah = poin reward\n📱 Scan QR Check-In saat event untuk klaim poin otomatis\n🏆 Kumpulkan poin untuk ditukarkan dengan hadiah menarik\n\nCek menu "Reward" di navbar atas untuk melihat katalog hadiah dan saldo poin Anda. Semakin sering donor, semakin banyak poin terkumpul! ❤️';
+  }
+
+  // ── Darah Langka / Golongan Langka ─────────────────────────────────────────
+  if (/\b(darah langka|langka|rhesus negatif|rh negatif|golongan langka|stok langka)\b/.test(q)) {
+    return 'Golongan darah langka di Indonesia:\n\n🩸 Rhesus negatif (Rh–): Hanya sekitar 1–3% populasi Indonesia. Golongan B Rh–, AB Rh–, dan O Rh– sangat langka.\n🩸 Bombay Blood: Sangat langka, hanya bisa menerima darah dari golongan yang sama.\n\nJika Anda bergolongan darah langka:\n• Pertimbangkan untuk mendonorkan darah secara rutin\n• Daftarkan diri di PMI agar bisa dihubungi saat ada kebutuhan darurat\n• Simpan kartu golongan darah Anda\n\nCek stok darah langka di menu "Cari Stok" Blood Link.';
+  }
+
+  // ── Darurat Darah ───────────────────────────────────────────────────────────
+  if (/\b(darurat|emergency|butuh segera|mendesak|kritis|gawat|cepat)\b/.test(q)) {
+    return '🚨 DARURAT DARAH — Langkah cepat:\n\n1. Cek stok darah via menu "Cari Stok" di Blood Link\n2. Hubungi PMI Surabaya: (031) 535–3433 (24 JAM)\n3. Hubungi UDD RSUD Dr. Soetomo: (031) 5501111\n4. Hubungi palang merah terdekat\n\nInformasikan: nama pasien, golongan darah, jumlah kantong yang dibutuhkan, dan rumah sakit tujuan. Jangan panik — stok selalu dijaga!';
+  }
+
+  // ── Hipertensi / Tekanan Darah ──────────────────────────────────────────────
+  if (/\b(hipertensi|tekanan darah|tensi|darah tinggi|darah rendah|hipotensi|sistolik|diastolik)\b/.test(q)) {
+    return 'Tekanan darah dan donor darah:\n\n✅ Syarat tekanan darah untuk donor:\n• Sistolik: 100–140 mmHg\n• Diastolik: 60–90 mmHg\n\n⚠️ Tekanan darah tinggi (hipertensi >140/90):\n• Tidak diperbolehkan donor sementara\n• Konsultasi dokter dulu untuk pengendalian\n\n⚠️ Tekanan darah rendah (hipotensi <100/60):\n• Tidak diperbolehkan donor\n• Makan dan minum cukup sebelum dicek ulang\n\nPemeriksaan tensi dilakukan GRATIS di setiap event donor Blood Link.';
+  }
+
+  // ── Diabetes ─────────────────────────────────────────────────────────────────
+  if (/\b(diabetes|gula darah|dm|insulin|kencing manis)\b/.test(q)) {
+    return 'Penderita diabetes dan donor darah:\n\n✅ Boleh donor JIKA:\n• Diabetes terkontrol dengan diet atau obat oral (bukan insulin)\n• Kadar gula darah dalam batas normal saat pemeriksaan\n• Tidak ada komplikasi serius\n\n❌ TIDAK boleh donor JIKA:\n• Menggunakan suntikan insulin\n• Diabetes dengan komplikasi (gagal ginjal, neuropati berat)\n• Gula darah tidak terkontrol\n\nSebaiknya konsultasikan kondisi Anda ke dokter atau petugas medis di lokasi donor sebelum mendaftar.';
+  }
+
+  // ── Donor Pertama Kali ──────────────────────────────────────────────────────
+  if (/\b(pertama kali|baru mau donor|mau donor|ingin donor|rencana donor|belum pernah donor)\b/.test(q)) {
+    return 'Selamat atas keputusan mulia Anda untuk donor pertama kali! 🎉\n\nTips untuk donor pemula:\n1. Tidur yang cukup (minimal 7 jam) malam sebelumnya\n2. Makan makanan bergizi 2–3 jam sebelum donor\n3. Minum air putih yang banyak\n4. Pakai baju lengan pendek atau lengan yang mudah dilipat\n5. Beritahu petugas bahwa ini donor pertama Anda — mereka sangat memahami!\n6. Relaks dan tarik napas dalam — jarum hanya sedetik!\n\nSetelah selesai, tunggu 10–15 menit dan nikmati snack gratis. Anda sudah menyelamatkan nyawa! ❤️';
+  }
+
+  // ── Platform Blood Link ─────────────────────────────────────────────────────
+  if (/\b(blood link|bloodlink|aplikasi|platform|fitur|cara pakai|website)\b/.test(q)) {
+    return 'Blood Link adalah platform digital kolaborasi PMI dan Rumah Sakit Surabaya untuk mempermudah akses donor darah.\n\n🔧 Fitur utama:\n• 🔍 Cari Stok Darah — cek ketersediaan darah real-time\n• 📅 Event Donor — lihat & daftar event donor aktif\n• 📱 QR Check-In — absen otomatis dan klaim poin reward\n• 🎁 Reward — tukar poin dengan hadiah\n• 🤖 Diana AI — asisten medis 24 jam (itu saya! 😊)\n• 📊 Dashboard — kelola data donor Anda\n\nPlatform ini gratis untuk semua pengguna dan tersedia di Surabaya dan sekitarnya.';
+  }
+
+  // ── Default (tidak dikenali) ─────────────────────────────────────────────────
+  return 'Saya Diana, asisten AI medis Blood Link. Saya siap menjawab pertanyaan seputar:\n\n🩸 Ilmu darah (eritrosit, leukosit, trombosit, plasma, golongan darah)\n💉 Donor darah (syarat, alur, manfaat, frekuensi)\n❤️ Kesehatan umum (anemia, hipertensi, diabetes, nutrisi)\n📱 Platform Blood Link (fitur, reward, event, stok darah)\n\nSilakan tanyakan topik di atas, saya akan bantu dengan senang hati!';
 };
 
-// ─── Hybrid Lookup: Query bot_dictionary terlebih dahulu ───────────────────────
+// ─── Hybrid Lookup: Query bot_dictionary terlebih dahulu ──────────────────────
 async function lookupBotDictionary(userText: string): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
-
   try {
     const { data, error } = await supabase
       .from('bot_dictionary')
       .select('keywords, response');
-
     if (error || !data) return null;
-
     const queryLower = userText.toLowerCase();
     for (const entry of data) {
       const keywords: string[] = entry.keywords || [];
@@ -72,90 +180,117 @@ async function lookupBotDictionary(userText: string): Promise<string | null> {
         return entry.response;
       }
     }
-    return null; // Tidak ada kecocokan
+    return null;
   } catch {
     return null;
   }
 }
 
+// ─── Quick Suggestions ────────────────────────────────────────────────────────
+const QUICK_SUGGESTIONS = [
+  'Apa itu darah?',
+  'Syarat donor',
+  'Alur donor',
+  'Manfaat donor',
+  'Golongan darah',
+  'Setelah donor',
+];
+
 export default function DonorAIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar persyaratan, alur, atau manfaat donor darah hari ini?', source: 'mock' }
+    {
+      sender: 'ai',
+      text: 'Halo! Saya **Diana**, asisten AI medis Blood Link 🩸\n\nSaya bisa menjawab pertanyaan seputar:\n• Ilmu darah & kesehatan umum\n• Syarat, alur & manfaat donor darah\n• Informasi platform Blood Link\n\nAda yang bisa saya bantu?',
+      source: 'mock',
+    },
   ]);
   const [geminiHistory, setGeminiHistory] = useState<GeminiMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || loading) return;
-
-    const userText = input.trim();
+  const sendMessage = async (userText: string) => {
+    if (!userText.trim() || loading) return;
     setInput('');
+    setLastFailedInput(null);
     setMessages(prev => [...prev, { sender: 'user', text: userText }]);
     setLoading(true);
 
-    // ─── Step 1: Cari di bot_dictionary (Supabase) ────────────────────────────
+    const updatedHistory: GeminiMessage[] = [
+      ...geminiHistory,
+      { role: 'user', content: userText },
+    ];
+
+    // ── Step 1: bot_dictionary (Supabase, gratis) ─────────────────────────
     const dictResponse = await lookupBotDictionary(userText);
     if (dictResponse) {
       setMessages(prev => [...prev, { sender: 'ai', text: dictResponse, source: 'database' }]);
-      setGeminiHistory(prev => [
-        ...prev,
-        { role: 'user', content: userText },
-        { role: 'assistant', content: dictResponse }
-      ]);
+      setGeminiHistory([...updatedHistory, { role: 'assistant', content: dictResponse }]);
       setLoading(false);
       return;
     }
 
-    // ─── Step 2: Kirim ke Gemini via Edge Function proxy ──────────────────────
-    const updatedHistory: GeminiMessage[] = [
-      ...geminiHistory,
-      { role: 'user', content: userText }
-    ];
+    // ── Step 2: Local smart response (gratis, ~80% pertanyaan umum) ───────
+    // Hanya panggil Grok jika lokal TIDAK punya jawaban spesifik.
+    // Ini menghemat hampir semua API call untuk pertanyaan umum tentang darah.
+    const localReply = getMockResponse(userText);
+    const isGenericLocalReply = localReply.startsWith('Saya Diana, asisten AI medis Blood Link. Saya siap');
 
-    const systemPrompt = `Kamu adalah "Diana", asisten AI medis dan kesehatan resmi untuk platform Blood Link Surabaya.
-Tugasmu adalah membantu pengguna dengan menjawab pertanyaan seputar donor darah, ilmu darah, kesehatan umum, nutrisi, pertolongan pertama, serta informasi medis dasar.
+    if (!isGenericLocalReply) {
+      // Lokal punya jawaban spesifik → langsung pakai, tidak perlu bayar API
+      setMessages(prev => [...prev, { sender: 'ai', text: localReply, source: 'mock' }]);
+      setGeminiHistory([...updatedHistory, { role: 'assistant', content: localReply }]);
+      setLoading(false);
+      return;
+    }
 
-ATURAN UTAMA:
-- Jawablah secara ramah, akurat, edukatif, dan SANGAT RINGKAS (maksimal 2-4 kalimat/poin) agar hemat token & mudah dipahami.
-- Kamu BERHAK dan BEBAS menjawab SELURUH pertanyaan mengenai topik kesehatan, medis, penyakit, darah, gizi, gaya hidup sehat, maupun fitur platform Blood Link.
-- Jika ada pertanyaan berbahaya (misal: "apakah darah bisa diminum?"), jelaskan secara edukatif medis singkat mengapa hal tersebut tidak disarankan/berbahaya.
-- Tolak secara sopan HANYA pertanyaan yang benar-benar di luar dunia medis & kesehatan (seperti pemrograman komputer, matematika, politik, atau gaming).`;
+    // ── Step 3: Grok AI — hanya untuk pertanyaan yang benar-benar tidak dikenali ──
+    // System prompt dipersingkat untuk hemat input token
+    const systemPrompt = `Kamu adalah "Diana", asisten AI medis Blood Link Surabaya. Jawab pertanyaan seputar donor darah, ilmu darah, dan kesehatan umum.
+Aturan: jawab LANGSUNG & SPESIFIK dalam bahasa Indonesia. Gunakan bullet/emoji. Maks 5 poin ringkas. Tolak sopan jika di luar topik medis & kesehatan.`;
 
     try {
       const reply = await callGrokProxy({
         messages: [
           { role: 'system', content: systemPrompt },
-          ...trimHistory(updatedHistory)
+          ...trimHistory(updatedHistory),
         ],
-        temperature: 0.3
+        temperature: 0.35,
+        max_tokens: 350, // Hemat token output
       });
 
       setMessages(prev => [...prev, { sender: 'ai', text: reply, source: 'ai' }]);
-      setGeminiHistory([
-        ...updatedHistory,
-        { role: 'assistant', content: reply }
-      ]);
+      setGeminiHistory([...updatedHistory, { role: 'assistant', content: reply }]);
     } catch (error) {
-      console.warn('Gemini proxy call failed, using mock:', error);
-      // ─── Step 3: Fallback ke mock response lokal ────────────────────────────
-      const mockReply = getMockResponse(userText);
-      setMessages(prev => [...prev, { sender: 'ai', text: mockReply, source: 'mock' }]);
-      setGeminiHistory([
-        ...updatedHistory,
-        { role: 'assistant', content: mockReply }
-      ]);
+      console.error('[Diana] Grok gagal:', error);
+      // ── Step 4: Error informatif (bukan diam-diam fallback) ────────────
+      const errMsg =
+        String(error).includes('API_KEY_MISSING')
+          ? '⚙️ API Key belum dikonfigurasi. Hubungi administrator Blood Link.'
+          : String(error).includes('TIMEOUT')
+          ? '⏱️ Server AI sedang sibuk. Coba lagi sebentar, atau tanyakan topik umum seperti "syarat donor" atau "golongan darah".'
+          : String(error).includes('429') || String(error).includes('kuota')
+          ? '⚠️ Kuota AI sementara habis. Coba tanyakan topik umum — saya masih bisa bantu seputar syarat donor, manfaat donor, atau golongan darah!'
+          : '🔄 Koneksi ke AI terputus. Coba lagi, atau tanyakan pertanyaan umum tentang donor darah & kesehatan!';
+      setMessages(prev => [...prev, { sender: 'ai', text: errMsg, source: 'error' }]);
+      setLastFailedInput(userText);
+      setGeminiHistory([...updatedHistory, { role: 'assistant', content: errMsg }]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSendMessage = () => sendMessage(input.trim());
+
+  const handleRetry = () => {
+    if (lastFailedInput) sendMessage(lastFailedInput);
   };
 
   return (
@@ -177,7 +312,7 @@ ATURAN UTAMA:
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="w-80 sm:w-96 h-[480px] bg-white rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="w-80 sm:w-96 h-[520px] bg-white rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-5 duration-200">
           {/* Header */}
           <div className="bg-[#C0392B] text-white px-5 py-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-2.5">
@@ -186,7 +321,7 @@ ATURAN UTAMA:
               </div>
               <div>
                 <p className="font-bold text-xs flex items-center gap-1">
-                  Diana - Asisten AI <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
+                  Diana — Asisten AI <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
                 </p>
                 <p className="text-[10px] text-red-200">Hybrid AI — Database + Grok AI</p>
               </div>
@@ -195,7 +330,7 @@ ATURAN UTAMA:
               onClick={() => setIsOpen(false)}
               className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition-colors"
             >
-              <X className="w-4.5 h-4.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
@@ -203,22 +338,42 @@ ATURAN UTAMA:
           <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#F8F9FA]">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className="flex flex-col gap-0.5 max-w-[85%]">
-                  <div className={`rounded-2xl px-4 py-2.5 text-xs whitespace-pre-line shadow-sm leading-relaxed ${
-                    msg.sender === 'user'
-                      ? 'bg-[#C0392B] text-white rounded-tr-none'
-                      : 'bg-white text-[#1A1A2E] border border-border rounded-tl-none'
-                  }`}>
+                <div className="flex flex-col gap-0.5 max-w-[88%]">
+                  <div
+                    className={`rounded-2xl px-4 py-2.5 text-xs whitespace-pre-line shadow-sm leading-relaxed ${
+                      msg.sender === 'user'
+                        ? 'bg-[#C0392B] text-white rounded-tr-none'
+                        : msg.source === 'error'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-tl-none'
+                        : 'bg-white text-[#1A1A2E] border border-border rounded-tl-none'
+                    }`}
+                  >
                     {msg.text}
                   </div>
-                  {/* Source indicator for AI messages */}
-                  {msg.sender === 'ai' && msg.source && (
-                    <span className={`text-[9px] font-semibold px-2 flex items-center gap-0.5 ${
-                      msg.source === 'database' ? 'text-blue-500' : msg.source === 'ai' ? 'text-purple-500' : 'text-gray-400'
-                    }`}>
+                  {/* Source indicator */}
+                  {msg.sender === 'ai' && msg.source && msg.source !== 'error' && (
+                    <span
+                      className={`text-[9px] font-semibold px-2 flex items-center gap-0.5 ${
+                        msg.source === 'database'
+                          ? 'text-blue-500'
+                          : msg.source === 'ai'
+                          ? 'text-purple-500'
+                          : 'text-gray-400'
+                      }`}
+                    >
                       {msg.source === 'database' && <><Database className="w-2.5 h-2.5" /> Jawaban Database</>}
                       {msg.source === 'ai' && <><Sparkles className="w-2.5 h-2.5" /> Grok AI</>}
+                      {msg.source === 'mock' && <><AlertTriangle className="w-2.5 h-2.5" /> Offline Mode</>}
                     </span>
+                  )}
+                  {/* Retry button for error messages */}
+                  {msg.sender === 'ai' && msg.source === 'error' && idx === messages.length - 1 && lastFailedInput && (
+                    <button
+                      onClick={handleRetry}
+                      className="text-[10px] text-amber-700 hover:text-[#C0392B] flex items-center gap-1 px-2 mt-0.5 font-semibold transition-colors"
+                    >
+                      <RefreshCw className="w-2.5 h-2.5" /> Coba lagi
+                    </button>
                   )}
                 </div>
               </div>
@@ -236,17 +391,14 @@ ATURAN UTAMA:
             <div ref={chatEndRef} />
           </div>
 
-          {/* Quick Questions suggestion */}
-          <div className="px-4 py-2 bg-white border-t border-border/60 flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
-            {[
-              'Syarat donor',
-              'Alur donor',
-              'Manfaat donor'
-            ].map((suggest, idx) => (
+          {/* Quick Suggestions */}
+          <div className="px-4 py-2 bg-white border-t border-border/60 flex flex-wrap gap-1.5 max-h-[72px] overflow-y-auto">
+            {QUICK_SUGGESTIONS.map((suggest, idx) => (
               <button
                 key={idx}
-                onClick={() => setInput(suggest)}
-                className="text-[10px] bg-[#F4F4F8] hover:bg-[#C0392B]/10 hover:text-[#C0392B] px-2.5 py-1 rounded-full border border-border text-[#4A4A6A] font-semibold transition-colors"
+                onClick={() => sendMessage(suggest)}
+                disabled={loading}
+                className="text-[10px] bg-[#F4F4F8] hover:bg-[#C0392B]/10 hover:text-[#C0392B] disabled:opacity-40 px-2.5 py-1 rounded-full border border-border text-[#4A4A6A] font-semibold transition-colors"
               >
                 {suggest}
               </button>
@@ -257,7 +409,7 @@ ATURAN UTAMA:
           <div className="p-3 bg-white border-t border-border flex gap-2">
             <input
               type="text"
-              placeholder="Tanyakan syarat donor, alur, manfaat..."
+              placeholder="Tanya tentang darah, donor, atau kesehatan..."
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
