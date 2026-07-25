@@ -30,14 +30,14 @@ export class AuditLogger {
 
     try {
       const { supabase } = await import('@/lib/supabase/client');
-      await supabase
+      await (supabase
         .from('activity_logs')
         .insert({
           action: logEntry.action,
           user_name: logEntry.userEmail || 'system',
           details: logEntry.details || {},
           created_at: logEntry.timestamp
-        });
+        }) as any);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.log('📋 [AUDIT LOG]', logEntry);
