@@ -659,18 +659,12 @@ Aturan: jawab LANGSUNG & SPESIFIK dalam bahasa Indonesia. Gunakan bullet/emoji. 
       setMessages(prev => [...prev, { sender: 'ai', text: reply, source: 'ai' }]);
       setGeminiHistory([...updatedHistory, { role: 'assistant', content: reply }]);
     } catch (error) {
-      console.error('[Diana] Grok gagal:', error);
-      const errMsg =
-        String(error).includes('API_KEY_MISSING')
-          ? '⚙️ API Key belum dikonfigurasi. Hubungi administrator Blood Link.'
-          : String(error).includes('TIMEOUT')
-          ? '⏱️ Server AI sedang sibuk. Coba lagi sebentar, atau tanyakan topik umum seperti "syarat donor" atau "golongan darah".'
-          : String(error).includes('429') || String(error).includes('kuota')
-          ? '⚠️ Kuota AI sementara habis. Coba tanyakan topik umum — saya masih bisa bantu seputar syarat donor, manfaat donor, atau golongan darah!'
-          : '🔄 Koneksi ke AI terputus. Coba lagi, atau tanyakan pertanyaan umum tentang donor darah & kesehatan!';
-      setMessages(prev => [...prev, { sender: 'ai', text: errMsg, source: 'error' }]);
+      console.error('[Diana] Grok proxy error:', error);
+      // Jika Grok gagal, tampilkan jawaban lokal terbaik agar chat TIDAK MOGOK
+      const fallbackReply = localReply;
+      setMessages(prev => [...prev, { sender: 'ai', text: fallbackReply, source: 'mock' }]);
       setLastFailedInput(userText);
-      setGeminiHistory([...updatedHistory, { role: 'assistant', content: errMsg }]);
+      // JANGAN simpan error ke history agar percakapan berikutnya tidak rusak
     } finally {
       setLoading(false);
     }
