@@ -12,7 +12,7 @@ if (!JWT_SECRET) {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-  const { name, email, password, role = 'donor', blood_type = 'O-' } = req.body;
+  const { name, email, password, role = 'donor', blood_type = 'O-', org = '-', address = null, phone = null, latitude = null, longitude = null } = req.body;
 
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Nama, email, dan password wajib diisi' });
@@ -25,20 +25,26 @@ router.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role]
+    const userId = require('crypto').randomUUID();
+    const avatar = name.substring(0, 2).toUpperCase();
+
+    await pool.query(
+      'INSERT INTO users (id, name, email, password_hash, role, org, avatar, address, phone, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, name, email, hashedPassword, role, org, avatar, address, phone, latitude, longitude]
     );
 
     if (role === 'donor') {
+      const profileId = 'DP-' + userId.substring(0, 8) + '-' + Date.now();
       await pool.query(
-        'INSERT INTO donors (email, name, blood_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name)',
-        [email, name, blood_type]
+        `INSERT INTO donor_profiles (id, user_id, blood_type)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE blood_type = VALUES(blood_type)`,
+        [profileId, userId, blood_type]
       );
     }
 
-    const token = jwt.sign({ id: result.insertId, email, role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Registrasi berhasil', token, user: { id: result.insertId, email, name, role } });
+    const token = jwt.sign({ id: userId, email, role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ message: 'Registrasi berhasil', token, user: { id: userId, email, name, role } });
   } catch (err) {
     console.error('Error register:', err);
     res.status(500).json({ error: 'Gagal melakukan registrasi' });
@@ -61,7 +67,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = users[0];
-    const isValid = await bcrypt.compare(password, user.password).catch(() => false);
+    const isValid = await bcrypt.compare(password, user.password_hash).catch(() => false);
 
     if (!isValid) {
       return res.status(401).json({ error: 'Email atau password salah' });

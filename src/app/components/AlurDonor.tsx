@@ -43,24 +43,56 @@ export default function AlurDonor() {
   // Tickets State
   const [ticketList, setTicketList] = useState<TicketItem[]>([]);
 
-  // Load registered events from Supabase on mount
+  // Load registered events from MySQL on mount
   useEffect(() => {
-    async function loadTicketsFromSupabase() {
-      // Mock data atau fallback untuk offline mode
-      setTicketList([]);
+    async function loadTicketsFromDB() {
+      try {
+        const bookingsData = await api.events.getMyBookings([]);
+        if (bookingsData && bookingsData.length > 0) {
+          const mappedTickets: TicketItem[] = bookingsData.map((b: any) => ({
+            id: b.id,
+            ticketId: b.id,
+            eventId: b.event_id,
+            eventName: b.event_name,
+            organizer: b.organizer || 'PMI',
+            location: b.location,
+            address: b.address || '',
+            date: b.event_date.split('T')[0], // format date if it's ISO
+            time: b.time || '08:00',
+            registeredAt: b.created_at,
+            donorName: user?.name || 'Pendonor',
+            nik: '-', // Not strictly needed
+            bloodType: (user as any)?.bloodType || 'O',
+            rhesus: (user as any)?.rhesus || '+',
+            status: b.checked_in ? 'checked_in' : 'ready',
+            points: b.checked_in ? 50 : 0
+          }));
+          setTicketList(mappedTickets);
+        } else {
+          setTicketList([]);
+        }
+      } catch (err) {
+        console.error('Gagal mengambil tiket:', err);
+        setTicketList([]);
+      }
     }
-    loadTicketsFromSupabase();
+    if (user && user.role === 'donor') {
+      loadTicketsFromDB();
+    }
   }, [user]);
 
   const handleCancelTicket = async (ticket: TicketItem) => {
-    // If associated with an event
-    // Supabase cancel dihapus untuk offline mode
-
-    setTicketList((prev) => prev.filter((t) => t.id !== ticket.id));
-    if (selectedTicketForModal?.id === ticket.id) {
-      setSelectedTicketForModal(null);
+    try {
+      await api.events.cancelBooking(ticket.id);
+      setTicketList((prev) => prev.filter((t) => t.id !== ticket.id));
+      if (selectedTicketForModal?.id === ticket.id) {
+        setSelectedTicketForModal(null);
+      }
+      toast.info('Tiket pendaftaran berhasil dibatalkan.');
+    } catch (err) {
+      console.error('Gagal membatalkan tiket:', err);
+      toast.error('Gagal membatalkan tiket pendaftaran.');
     }
-    toast.info('Tiket pendaftaran berhasil dibatalkan.');
   };
 
   const handleDownloadQR = (ticketId: string, eventName: string) => {

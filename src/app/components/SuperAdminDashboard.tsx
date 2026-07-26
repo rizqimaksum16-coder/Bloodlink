@@ -9,7 +9,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api } from '../utils/api';
+import { api, apiFetch } from '../utils/api';
 import { hashPassword } from '../context/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -169,9 +169,46 @@ export default function SuperAdminDashboard() {
   const [orgs, setOrgs] = useState<OrgAccount[]>(initialOrgs);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Load and sync real accounts from Supabase on mount
+  // Load akun RS dan PMI dari MySQL API
   useEffect(() => {
-    // Mode Offline
+    async function loadOrgs() {
+      try {
+        const [pmiUsers, rsUsers] = await Promise.all([
+          api.users.getAll('pmi', []),
+          api.users.getAll('rs', [])
+        ]);
+        const mapped = [
+          ...(pmiUsers || []).map((u: any) => ({
+            id: String(u.id),
+            type: 'pmi' as OrgType,
+            name: u.name,
+            email: u.email,
+            address: 'Belum diatur',
+            phone: '-',
+            coords: [-7.265, 112.744] as [number, number],
+            status: 'active' as const,
+            adminName: u.name,
+            createdAt: u.created_at || new Date().toISOString(),
+          })),
+          ...(rsUsers || []).map((u: any) => ({
+            id: String(u.id),
+            type: 'rs' as OrgType,
+            name: u.name,
+            email: u.email,
+            address: 'Belum diatur',
+            phone: '-',
+            coords: [-7.267, 112.758] as [number, number],
+            status: 'active' as const,
+            adminName: u.name,
+            createdAt: u.created_at || new Date().toISOString(),
+          }))
+        ];
+        if (mapped.length > 0) setOrgs(mapped);
+      } catch (err) {
+        console.warn('Gagal memuat akun dari API, menggunakan data lokal.');
+      }
+    }
+    loadOrgs();
   }, []);
 
   // Modal states
@@ -227,7 +264,39 @@ export default function SuperAdminDashboard() {
       return;
     }
 
-    // Supabase save logic dihapus untuk offline mode
+    // Simpan akun ke MySQL API
+    try {
+      if (editingOrg) {
+        // Update user di backend (nama & role)
+        await apiFetch(`/users/${editingOrg.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: orgForm.adminName, role: orgForm.type })
+        }).catch(() => null);
+        toast.info('Data akun berhasil diperbarui.');
+      } else {
+        await api.users.create({
+          name: orgForm.adminName,
+          email: safeEmail,
+          password: newPassword || 'password123',
+          role: orgForm.type
+        });
+        toast.success(`Akun ${orgForm.type.toUpperCase()} "${orgForm.name}" berhasil dibuat!`);
+      }
+    } catch (e: any) {
+      toast.warning('Akun tersimpan lokal (backend error): ' + e.message);
+    }
+
+    if (editingOrg) {
+      setOrgs(prev => prev.map(o => o.id === editingOrg.id ? { ...o, ...orgForm } : o));
+    } else {
+      const newOrg: OrgAccount = {
+        id: `org_${Date.now()}`,
+        ...orgForm,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      };
+      setOrgs(prev => [...prev, newOrg]);
+    }
     setShowOrgModal(false);
   };
 
@@ -241,7 +310,10 @@ export default function SuperAdminDashboard() {
   };
 
   const handleDeleteOrg = async (id: string, name: string) => {
-    // Supabase delete dihapus
+    // Hapus akun dari MySQL API
+    try {
+      await api.users.delete(id);
+    } catch (e) { console.warn('Gagal hapus dari API:', e); }
     setOrgs(prev => prev.filter(o => o.id !== id));
     toast.success(`Akun ${name} dihapus dari sistem`);
   };

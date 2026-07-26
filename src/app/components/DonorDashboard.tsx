@@ -197,38 +197,46 @@ export default function DonorDashboard() {
     ];
   };
 
-  // Load donor data from Supabase
+  // Load donor data dari MySQL API
   useEffect(() => {
     async function loadDonorData() {
+      if (!user?.email) return;
       setLoading(true);
-      // Use mock data untuk mode offline
-      setDonorStats({
-        totalDonations: 12,
-        totalPoints: 1200,
-        currentStreak: 3,
-        ranking: 45,
-        badgeLevel: 'bronze',
-      });
+      try {
+        const [profileData, historyData] = await Promise.all([
+          api.donors.getProfile(user.email, null),
+          api.donors.getHistory(user.email, [])
+        ]);
 
-      setActiveTickets([
-        {
-          id: 'T001',
-          eventName: 'Donor Darah PMI Jakarta',
-          eventDate: '12 Agustus 2025',
-          status: 'ready',
-          qrCode: 'QR_001_READY',
-          points: 100,
-        },
-        {
-          id: 'T002',
-          eventName: 'Donor Darah Kampus',
-          eventDate: '5 Agustus 2025',
-          status: 'completed',
-          qrCode: 'QR_002_DONE',
-          points: 100,
-        },
-      ]);
-      setLoading(false);
+        if (profileData) {
+          setDonorStats({
+            totalDonations: profileData.total_donations || 0,
+            totalPoints: profileData.points || 0,
+            currentStreak: profileData.streak || 0,
+            ranking: 45,
+            badgeLevel: determineBadgeLevel(profileData.total_donations || 0),
+          });
+        } else {
+          // Fallback jika belum ada profil donor
+          setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
+        }
+
+        if (historyData?.length) {
+          setActiveTickets(historyData.slice(0, 3).map((h: any) => ({
+            id: h.id,
+            eventName: h.location || 'PMI Kota Surabaya',
+            eventDate: h.date,
+            status: 'completed' as const,
+            qrCode: `QR_${h.id}`,
+            points: h.points_earned || 50
+          })));
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data donor dari API, menggunakan data lokal.');
+        setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadDonorData();

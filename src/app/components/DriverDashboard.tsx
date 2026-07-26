@@ -55,9 +55,44 @@ export default function DriverDashboard() {
   const [filterMode, setFilterMode] = useState<'my' | 'all'>('my');
   const [selectedDeliveryDetail, setSelectedDeliveryDetail] = useState<Delivery | null>(null);
 
-  // Fetch deliveries from Supabase on mount
+  // Fetch deliveries dari MySQL API
   useEffect(() => {
-    // Mock mode, tidak mengambil data dari Supabase
+    async function loadDeliveries() {
+      try {
+        const data: any[] = await api.orders.getDeliveries(initialDeliveries);
+        if (data?.length) {
+          // Filter hanya pengiriman milik driver ini jika ada nama driver
+          const myName = user?.name || '';
+          const filtered = myName
+            ? data.filter((d: any) => d.driver?.toLowerCase().includes(myName.split(' ')[0].toLowerCase()))
+            : data;
+          const mapped = (filtered.length ? filtered : data).map((d: any) => ({
+            id: d.id,
+            orderId: d.order_id,
+            bloodType: d.blood_type,
+            qty: d.quantity,
+            from: d.pmi_name || 'PMI Kota',
+            to: d.hospital_name || 'RS Tujuan',
+            driver: d.driver_name,
+            driverPhone: d.driver_phone || '',
+            status: d.status as DeliveryStatus,
+            eta: d.eta || '15 mnt',
+            distance: d.distance || '3 km',
+            pct: d.pct || 0,
+            urgent: d.urgent || false,
+            fromLat: d.from_lat || -7.2657,
+            fromLng: d.from_lng || 112.7445,
+            toLat: d.to_lat || -7.2678,
+            toLng: d.to_lng || 112.7584,
+            updatedAt: d.updated_at ? new Date(d.updated_at).toLocaleString('id-ID') : 'Baru saja'
+          }));
+          setDeliveryList(mapped);
+        }
+      } catch (err) {
+        console.warn('Gagal memuat pengiriman dari API, menggunakan data lokal.');
+      }
+    }
+    loadDeliveries();
   }, []);
 
   // Mapping status delivery driver → status pesanan di RS/PMI
@@ -77,7 +112,14 @@ export default function DriverDashboard() {
     const newList = deliveryList.map(d => d.id === updated.id ? updated : d);
     setDeliveryList(newList);
 
-    // Supabase sync dihapus untuk mode offline
+    // Sync status pengiriman ke MySQL API
+    try {
+      await api.orders.updateDeliveryStatus(updated.id, {
+        status: updated.status,
+        pct: updated.pct,
+        eta: updated.eta
+      });
+    } catch (e) { console.warn('Gagal sync status ke API:', e); }
   };
 
   const handleNextStatus = (d: Delivery) => {

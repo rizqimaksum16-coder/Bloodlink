@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 
 // GET /api/events — Publik (daftar event bisa dilihat tanpa login)
 router.get('/', async (req, res) => {
@@ -17,35 +17,105 @@ router.get('/', async (req, res) => {
 // POST /api/events/register — 🔒 Harus login + Ambil data donor dari JWT
 router.post('/register', authMiddleware, async (req, res) => {
   const { event_id, blood_type } = req.body;
-  const donor_email = req.user.email;
+  const userId = req.user.id;
 
   if (!event_id) {
     return res.status(400).json({ error: 'ID event wajib diisi' });
   }
 
-  // Ambil nama donor dari database berdasarkan email di JWT
-  let donor_name = req.user.name || 'Pendonor';
   try {
-    const [donors] = await pool.query('SELECT name FROM donors WHERE email = ?', [donor_email]);
-    if (donors.length > 0) donor_name = donors[0].name;
-  } catch (e) { /* fallback ke nama dari token */ }
+    // Ambil event untuk dapatkan nama, tanggal, lokasi
+    const [events] = await pool.query('SELECT * FROM events WHERE id = ?', [event_id]);
+    if (events.length === 0) {
+      return res.status(404).json({ error: 'Event tidak ditemukan' });
+    }
+    const event = events[0];
 
-  const booking_id = 'EVT-' + Date.now();
-  const qr_code = JSON.stringify({ booking_id, event_id, donor_email, timestamp: new Date().toISOString() });
+    // Ambil donor_profiles.id berdasarkan user_id dari JWT
+    const [profiles] = await pool.query(
+      'SELECT dp.id FROM donor_profiles dp WHERE dp.user_id = ?',
+      [userId]
+    );
+    if (profiles.length === 0) {
+      return res.status(404).json({ error: 'Profil donor tidak ditemukan. Pastikan Anda terdaftar sebagai donor.' });
+    }
+    const donorProfileId = profiles[0].id;
 
-  try {
+    // Cek apakah sudah terdaftar di event ini
+    const [existing] = await pool.query(
+      'SELECT id FROM event_bookings WHERE donor_id = ? AND event_id = ?',
+      [donorProfileId, event_id]
+    );
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Anda sudah terdaftar di event ini' });
+    }
+
+    const booking_id = 'BK-' + Date.now();
+    const qr_code = 'QR-' + booking_id;
+
     await pool.query(
-      'INSERT INTO event_bookings (id, event_id, donor_name, donor_email, blood_type, qr_code) VALUES (?, ?, ?, ?, ?, ?)',
-      [booking_id, event_id, donor_name, donor_email, blood_type || 'O-', qr_code]
+      `INSERT INTO event_bookings (id, donor_id, event_id, event_name, event_date, location, status, qr_code)
+       VALUES (?, ?, ?, ?, ?, ?, 'terdaftar', ?)`,
+      [booking_id, donorProfileId, event_id, event.name, event.date, event.location, qr_code]
     );
 
-    // Update registered count in events
+    // Update jumlah terdaftar di tabel events
     await pool.query('UPDATE events SET registered = registered + 1 WHERE id = ?', [event_id]);
 
     res.json({ message: 'Pendaftaran event berhasil', booking_id, qr_code });
   } catch (err) {
     console.error('Error event register:', err);
     res.status(500).json({ error: 'Gagal mendaftar event donor' });
+  }
+});
+
+// GET /api/events/my-bookings — 🔒 Hanya donor yang login
+router.get('/my-bookings', authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT eb.*, e.time, e.address, e.description, e.organizer
+       FROM event_bookings eb
+       JOIN events e ON e.id = eb.event_id
+       JOIN donor_profiles dp ON dp.id = eb.donor_id
+       WHERE dp.user_id = ?
+       ORDER BY eb.created_at DESC`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetch my bookings:', err);
+    res.status(500).json({ error: 'Gagal mengambil tiket pendaftaran' });
+  }
+});
+
+// DELETE /api/events/bookings/:id — 🔒 Donor bisa batalkan tiket sendiri
+router.delete('/bookings/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  try {
+    // Pastikan booking milik donor yang sedang login
+    const [rows] = await pool.query(
+      `SELECT eb.id, eb.event_id FROM event_bookings eb
+       JOIN donor_profiles dp ON dp.id = eb.donor_id
+       WHERE eb.id = ? AND dp.user_id = ?`,
+      [id, userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Tiket tidak ditemukan atau bukan milik Anda' });
+    }
+
+    const eventId = rows[0].event_id;
+    await pool.query('DELETE FROM event_bookings WHERE id = ?', [id]);
+    // Kurangi jumlah terdaftar
+    await pool.query('UPDATE events SET registered = GREATEST(registered - 1, 0) WHERE id = ?', [eventId]);
+
+    res.json({ message: 'Tiket berhasil dibatalkan' });
+  } catch (err) {
+    console.error('Error cancel booking:', err);
+    res.status(500).json({ error: 'Gagal membatalkan tiket' });
   }
 });
 
@@ -83,6 +153,70 @@ router.post('/checkin', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Error checkin event:', err);
     res.status(500).json({ error: 'Gagal memproses check-in' });
+  }
+});
+
+// POST /api/events — 🔒 Hanya PMI/superadmin bisa buat event
+router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+  const { name, date, time, location, address, description, capacity, organizer } = req.body;
+
+  if (!name || !date || !location) {
+    return res.status(400).json({ error: 'Nama event, tanggal, dan lokasi wajib diisi' });
+  }
+
+  const id = 'EVT-' + Date.now();
+  const organizerName = organizer || req.user.org || 'PMI';
+
+  try {
+    await pool.query(
+      `INSERT INTO events (id, name, organizer, organizer_type, date, time, location, address, description, capacity, registered, status)
+       VALUES (?, ?, ?, 'pmi', ?, ?, ?, ?, ?, ?, 0, 'open')`,
+      [id, name, organizerName, date, time || '', location, address || '', description || '', capacity || 100]
+    );
+
+    const [created] = await pool.query('SELECT * FROM events WHERE id = ?', [id]);
+    res.json({ message: 'Event donor berhasil dibuat', event: created[0] });
+  } catch (err) {
+    console.error('Error create event:', err);
+    res.status(500).json({ error: 'Gagal membuat event donor' });
+  }
+});
+
+// PUT /api/events/:id — 🔒 PMI/superadmin bisa update event
+router.put('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+  const { id } = req.params;
+  const { name, date, time, location, address, description, capacity, status } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE events SET
+        name = COALESCE(?, name),
+        date = COALESCE(?, date),
+        time = COALESCE(?, time),
+        location = COALESCE(?, location),
+        address = COALESCE(?, address),
+        description = COALESCE(?, description),
+        capacity = COALESCE(?, capacity),
+        status = COALESCE(?, status)
+       WHERE id = ?`,
+      [name, date, time, location, address, description, capacity, status, id]
+    );
+    res.json({ message: 'Event berhasil diperbarui' });
+  } catch (err) {
+    console.error('Error update event:', err);
+    res.status(500).json({ error: 'Gagal memperbarui event' });
+  }
+});
+
+// DELETE /api/events/:id — 🔒 PMI/superadmin bisa hapus event
+router.delete('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM events WHERE id = ?', [id]);
+    res.json({ message: 'Event berhasil dihapus' });
+  } catch (err) {
+    console.error('Error delete event:', err);
+    res.status(500).json({ error: 'Gagal menghapus event' });
   }
 });
 

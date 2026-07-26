@@ -190,17 +190,66 @@ export default function HospitalDashboard() {
   ];
   const [bloodHistory, setBloodHistory] = useState<{ month: string; used: number }[]>(staticBloodHistory);
 
-  // Load data from Supabase if configured
+  // Load data dari MySQL API
   useEffect(() => {
     if (!user) return;
     async function fetchHospitalData() {
-      // Menggunakan data static (mock) untuk mode offline
-      return;
+      try {
+        const [stockData, orderData, deliveryData] = await Promise.all([
+          api.stock.getHospitalStock([]),
+          api.bloodOrders.getAll([]),
+          api.orders.getDeliveries([])
+        ]);
+
+        const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        const myStocks = stockData?.filter((s: any) => s.hospital_id === user.id) || [];
+        const mergedStocks = baseTypes.map(type => {
+          const found = myStocks.find((s: any) => s.blood_type === type);
+          if (found) {
+            return {
+              type: found.blood_type, stock: found.stock, target: 40,
+              status: found.status, expiringSoon: 0, batches: []
+            };
+          }
+          return { type, stock: 0, target: 40, status: 'critical', expiringSoon: 0, batches: [] };
+        });
+        setStocks(mergedStocks);
+
+        if (orderData?.length) {
+          setOrders(orderData.map((o: any) => ({
+            id: o.id, bloodType: o.blood_type, qty: o.qty,
+            urgency: o.urgency, status: o.status, pmi: o.pmi,
+            driver: o.driver, eta: o.eta, trackingPct: o.tracking_pct || 0,
+            createdAt: o.created_at ? new Date(o.created_at).toLocaleString('id-ID') : 'Baru saja',
+            updatedAt: o.updated_at ? new Date(o.updated_at).toLocaleString('id-ID') : 'Baru saja'
+          })));
+        }
+
+        if (deliveryData?.length) {
+          // Group by month and sum quantities for completed deliveries
+          const monthlyUsage: Record<string, number> = {};
+          deliveryData.forEach((d: any) => {
+            if (d.status === 'selesai' && d.completed_at) {
+              const date = new Date(d.completed_at);
+              const month = date.toLocaleString('id-ID', { month: 'short' });
+              monthlyUsage[month] = (monthlyUsage[month] || 0) + 15; // Estimasi 15 per pengiriman
+            }
+          });
+          
+          if (Object.keys(monthlyUsage).length > 0) {
+            const computedHistory = Object.entries(monthlyUsage)
+              .map(([month, used]) => ({ month, used }))
+              .slice(-6); // Ambil 6 bulan terakhir
+            setBloodHistory(computedHistory);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data RS dari API, menggunakan data lokal.');
+      }
     }
     fetchHospitalData();
   }, [user]);
-  // Supabase Realtime — auto-refresh orders saat driver update status pengiriman
-  // Supabase Realtime dihapus
+  // Realtime dihapus
   useEffect(() => {
     return;
   }, []);
@@ -234,7 +283,7 @@ export default function HospitalDashboard() {
     }, 1000);
   };
 
-  const handleSubmitOrder = () => {
+  const handleSubmitOrder = async () => {
     if (orderStep === 'form') {
       // Fetch PMI list dinamis dengan stok nyata sebelum masuk ke AI step
       fetchDynamicPMIList(selectedBlood, Number(selectedQty) || 1);
@@ -259,13 +308,23 @@ export default function HospitalDashboard() {
       // Optimistic UI update
       setOrders(prev => [newOrder, ...prev]);
 
-      // Supabase insert dihapus untuk mode offline
+      // Submit pesanan ke MySQL API
+      try {
+        await api.bloodOrders.create({
+          blood_type: selectedBlood,
+          qty: Number(selectedQty) || 1,
+          urgency: selectedUrgency,
+          pmi: selectedPMI || pmiList[0]?.name || 'PMI Kota Surabaya'
+        });
+      } catch (e: any) {
+        toast.warning('Pesanan tersimpan lokal (backend offline): ' + e.message);
+      }
 
       setOrderStep('done');
     }
   };
 
-  const handleConfirmReceive = (id: string) => {
+  const handleConfirmReceive = async (id: string) => {
     const order = orders.find(o => o.id === id);
     if (order) {
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'selesai', updatedAt: 'Baru saja' } : o));
@@ -297,7 +356,13 @@ export default function HospitalDashboard() {
         return s;
       }));
 
-      // Sync Supabase dihapus untuk offline
+      // Sync penerimaan ke API MySQL
+      try {
+        await api.orders.updateDeliveryStatus(
+          order.id.replace('ORD-', 'DEL-'),
+          { status: 'tiba' }
+        );
+      } catch (e) { console.warn('Gagal sync konfirmasi ke API:', e); }
       toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
     } else {
       toast.error('Order tidak ditemukan!');
@@ -373,9 +438,17 @@ export default function HospitalDashboard() {
   };
 
   const saveStocksToDatabase = async () => {
-    toast.info('Perubahan disimpan lokal (Mode Offline)');
-    setIsDirty(false);
-    return;
+    try {
+      // Panggil API update untuk masing-masing golongan darah
+      const updatePromises = stocks.map(s => 
+        api.stock.updateHospitalStock(s.type, s.stock)
+      );
+      await Promise.all(updatePromises);
+      setIsDirty(false);
+      toast.success('Stok RS berhasil disimpan ke database!');
+    } catch (err: any) {
+      toast.error('Gagal menyimpan stok RS: ' + err.message);
+    }
   };
 
   // Register to AutoSaveContext for auto-save during logout

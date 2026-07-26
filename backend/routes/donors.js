@@ -3,13 +3,20 @@ const router = express.Router();
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
-// GET /api/donors/profile — 🔒 Dilindungi JWT + Ambil email dari TOKEN (bukan query string)
+// GET /api/donors/profile — 🔒 Dilindungi JWT + Ambil ID dari TOKEN (bukan query string)
 router.get('/profile', authMiddleware, async (req, res) => {
-  // Ambil email dari JWT token, BUKAN dari query string (mencegah IDOR)
-  const email = req.user.email;
+  // Ambil user_id dari JWT token, BUKAN dari query string (mencegah IDOR)
+  const userId = req.user.id;
 
   try {
-    const [rows] = await pool.query('SELECT * FROM donors WHERE email = ?', [email]);
+    // donor_profiles tidak memiliki kolom email — JOIN ke users lewat user_id
+    const [rows] = await pool.query(
+      `SELECT dp.*, u.name, u.email
+       FROM donor_profiles dp
+       JOIN users u ON u.id = dp.user_id
+       WHERE dp.user_id = ?`,
+      [userId]
+    );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Profil pendonor tidak ditemukan' });
     }
@@ -20,12 +27,20 @@ router.get('/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/donors/history — 🔒 Dilindungi JWT + Ambil email dari TOKEN
+// GET /api/donors/history — 🔒 Dilindungi JWT + Ambil dari TOKEN
 router.get('/history', authMiddleware, async (req, res) => {
-  const email = req.user.email;
+  const userId = req.user.id;
 
   try {
-    const [rows] = await pool.query('SELECT * FROM donation_history WHERE donor_email = ? ORDER BY date DESC', [email]);
+    // donation_records menggunakan donor_id (FK ke donor_profiles.id)
+    const [rows] = await pool.query(
+      `SELECT dr.*
+       FROM donation_records dr
+       JOIN donor_profiles dp ON dp.id = dr.donor_id
+       WHERE dp.user_id = ?
+       ORDER BY dr.date DESC`,
+      [userId]
+    );
     res.json(rows);
   } catch (err) {
     console.error('Error fetch donation history:', err);
@@ -35,14 +50,24 @@ router.get('/history', authMiddleware, async (req, res) => {
 
 // PUT /api/donors/profile — 🔒 Dilindungi JWT + Hanya bisa update profil sendiri
 router.put('/profile', authMiddleware, async (req, res) => {
-  const email = req.user.email; // Dari JWT, bukan body
-  const { name, blood_type, phone, address } = req.body;
+  const userId = req.user.id; // Dari JWT, bukan body
+  const { blood_type, phone, address, dob } = req.body;
 
   try {
-    await pool.query(
-      'UPDATE donors SET name = COALESCE(?, name), blood_type = COALESCE(?, blood_type), phone = COALESCE(?, phone), address = COALESCE(?, address) WHERE email = ?',
-      [name, blood_type, phone, address, email]
+    const [result] = await pool.query(
+      `UPDATE donor_profiles
+       SET blood_type = COALESCE(?, blood_type),
+           phone      = COALESCE(?, phone),
+           address    = COALESCE(?, address),
+           dob        = COALESCE(?, dob)
+       WHERE user_id = ?`,
+      [blood_type, phone, address, dob, userId]
     );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Profil donor tidak ditemukan' });
+    }
+
     res.json({ message: 'Profil pendonor berhasil diperbarui' });
   } catch (err) {
     console.error('Error update donor profile:', err);

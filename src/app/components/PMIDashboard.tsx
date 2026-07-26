@@ -248,20 +248,119 @@ export default function PMIDashboard() {
   const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
   const [chosenDriverId, setChosenDriverId] = useState<string>('');
 
-  // Load from Supabase if configured
+  // Load data dari MySQL API
   useEffect(() => {
     if (!user) return;
     async function loadPMIData() {
-      // Mock mode aktif, data diambil dari state default (bloodRequests, bloodStocks, dll)
-      return;
+      try {
+        const [reqData, stockData, driverData, eventsData] = await Promise.all([
+          api.orders.getRequests([]),
+          api.stock.getPMIStock([]),
+          api.users.getAll('driver', []),
+          api.events.getAll([])
+        ]);
+        if (reqData?.length) {
+          setRequests(reqData.map((r: any) => ({
+            id: r.id, hospital: r.hospital, bloodType: r.blood_type,
+            qty: r.qty, priority: r.priority, status: r.status,
+            time: r.time_ago || 'Baru saja', address: r.address || '-',
+            contact: r.contact || '-'
+          })));
+        }
+        const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        const myStocks = stockData?.filter((s: any) => s.pmi_id === user.id) || [];
+        const mergedStocks = baseTypes.map(type => {
+          const found = myStocks.find((s: any) => s.blood_type === type);
+          if (found) {
+            return {
+              type: found.blood_type, stock: found.stock, target: found.target || 50,
+              status: found.status, expiringSoon: found.expiring_soon || 0,
+              predictedShortfall: found.stock < (found.target || 50) * 0.3,
+              lastUpdated: found.updated_at ? new Date(found.updated_at).toLocaleString('id-ID') : undefined,
+              batches: []
+            };
+          }
+          return { type, stock: 0, target: 50, status: 'critical', expiringSoon: 0, predictedShortfall: true, batches: [] };
+        });
+        setStocks(mergedStocks);
+        if (driverData?.length) {
+          setDrivers(driverData.map((d: any) => ({
+            id: String(d.id), name: d.name, email: d.email,
+            phone: '-', vehicleNo: '-', org: user?.org || 'PMI'
+          })));
+        }
+        if (eventsData?.length) {
+          setEventsList(eventsData.map((e: any) => ({
+            id: e.id, name: e.name,
+            date: e.date, location: e.location,
+            target: e.capacity || 100, registered: e.registered || 0
+          })));
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data PMI dari API, menggunakan data lokal.');
+      }
     }
     loadPMIData();
-  }, []);
+  }, [user]);
 
-  // Supabase Realtime dihapus untuk mode offline
-  useEffect(() => {
-    return;
-  }, []);
+  // Realtime refresh tidak digunakan (polling opsional jika diperlukan)
+  useEffect(() => { return; }, []);
+
+  // ─── State & Handler: Buat Event ──────────────────────────────────────────
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [newEventName, setNewEventName] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventTime, setNewEventTime] = useState('');
+  const [newEventLocation, setNewEventLocation] = useState('');
+  const [newEventCapacity, setNewEventCapacity] = useState(100);
+  const [newEventDescription, setNewEventDescription] = useState('');
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEventName || !newEventDate || !newEventLocation) {
+      toast.error('Nama event, tanggal, dan lokasi wajib diisi!');
+      return;
+    }
+    try {
+      const res: any = await api.events.create({
+        name: newEventName,
+        date: newEventDate,
+        time: newEventTime,
+        location: newEventLocation,
+        capacity: newEventCapacity,
+        description: newEventDescription,
+        organizer: user?.org || 'PMI'
+      });
+      const created = res?.event;
+      if (created) {
+        setEventsList(prev => [...prev, {
+          id: created.id,
+          name: created.name,
+          date: created.date,
+          location: created.location,
+          target: created.capacity,
+          registered: 0
+        }]);
+      }
+      toast.success(`Event "${newEventName}" berhasil dibuat!`);
+      setShowAddEventModal(false);
+      setNewEventName(''); setNewEventDate(''); setNewEventTime('');
+      setNewEventLocation(''); setNewEventCapacity(100); setNewEventDescription('');
+    } catch (err: any) {
+      toast.error('Gagal membuat event: ' + err.message);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      await api.events.delete(id);
+      setEventsList(prev => prev.filter(ev => ev.id !== id));
+      toast.success('Event berhasil dihapus.');
+    } catch (err: any) {
+      toast.error('Gagal menghapus event: ' + err.message);
+    }
+  };
+
   const [searchDonor, setSearchDonor] = useState('');
   const [filterBlood, setFilterBlood] = useState('Semua');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -380,7 +479,10 @@ export default function PMIDashboard() {
       updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Supabase sync dihapus
+    // Sync ke API MySQL
+    try {
+      await api.users.updateRequestStatus(approvingRequestId, 'diproses');
+    } catch (e) { console.warn('Gagal sync status ke API:', e); }
 
     // 4. Beri feedback sukses
     toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
@@ -406,7 +508,17 @@ export default function PMIDashboard() {
     const orgName = user?.org || 'PMI Kota Surabaya';
     let newId = `drv_${Date.now()}`;
 
-    // Logika Supabase dihilangkan, update state lokal saja.
+    // Tambah ke API MySQL
+    try {
+      const res: any = await api.users.create({
+        name: newDriverName, email: newDriverEmail,
+        password: newDriverPassword || 'driver123',
+        role: 'driver', phone: newDriverPhone
+      });
+      if (res?.user?.id) newId = String(res.user.id);
+    } catch (e: any) {
+      toast.warning('Akun driver tersimpan lokal (backend offline): ' + e.message);
+    }
 
     const addedDriver = {
       id: newId,
@@ -430,7 +542,10 @@ export default function PMIDashboard() {
   };
 
   const handleDeleteDriver = async (id: string) => {
-    // Logika hapus Supabase dihapus
+    // Hapus dari API MySQL
+    try {
+      await api.users.delete(id);
+    } catch (e) { console.warn('Gagal hapus driver dari API:', e); }
 
     setDrivers(prev => prev.filter(d => d.id !== id));
 
@@ -504,9 +619,17 @@ export default function PMIDashboard() {
   };
 
   const saveStocksToDatabase = async () => {
-    toast.info('Perubahan disimpan lokal (Mode Offline)');
-    setIsDirty(false);
-    return;
+    try {
+      // Panggil API update untuk masing-masing golongan darah
+      const updatePromises = stocks.map(s => 
+        api.stock.updatePMIStock(myPmiName, s.type, s.stock)
+      );
+      await Promise.all(updatePromises);
+      setIsDirty(false);
+      toast.success('Stok berhasil disimpan ke database!');
+    } catch (err: any) {
+      toast.error('Gagal menyimpan stok: ' + err.message);
+    }
   };
 
   // Register to AutoSaveContext for auto-save during logout
@@ -585,6 +708,7 @@ export default function PMIDashboard() {
               { value: 'stock', label: 'Manajemen Stok', icon: Package },
               { value: 'donors', label: 'Database Donor', icon: Users },
               { value: 'drivers', label: 'Kelola Driver', icon: Truck },
+              { value: 'events', label: 'Event Donor', icon: Calendar },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-sm data-[state=active]:bg-[#C0392B] data-[state=active]:text-white flex items-center gap-1.5">
                 <Icon className="w-3.5 h-3.5" />
@@ -967,8 +1091,136 @@ export default function PMIDashboard() {
               );
             })()}
           </TabsContent>
+
+          {/* ── Tab: Event Donor ─────────────────────────────── */}
+          <TabsContent value="events" className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-border shadow-xs">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Event Donor Darah</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">{eventsList.length} event tersedia</p>
+              </div>
+              <button
+                onClick={() => setShowAddEventModal(true)}
+                className="bg-[#C0392B] hover:bg-[#A93226] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> Buat Event Baru
+              </button>
+            </div>
+
+            {eventsList.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-border p-12 text-center">
+                <p className="text-3xl mb-2">📅</p>
+                <p className="text-sm font-bold text-[#1A1A2E]">Belum ada event</p>
+                <p className="text-xs text-[#9B9BB5] mt-1">Klik "Buat Event Baru" untuk membuat event donor darah pertama Anda.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {eventsList.map(ev => (
+                  <div key={ev.id} className="bg-white rounded-2xl border border-border p-4 hover:shadow-md transition-all">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-sm text-[#1A1A2E] truncate">{ev.name}</h4>
+                        <p className="text-xs text-[#9B9BB5] mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />{ev.location}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[#EAFAF1] text-[#1E8449] whitespace-nowrap">✓ Open</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-[#4A4A6A] mb-4">
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{ev.date}</span>
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{ev.registered}/{ev.target} peserta</span>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex justify-end">
+                      <button
+                        onClick={() => handleDeleteEvent(ev.id)}
+                        className="p-1.5 rounded-lg border border-border hover:border-red-200 text-slate-400 hover:text-[#C0392B] hover:bg-red-50/50 transition-all flex items-center gap-1 text-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Modal: Buat Event ─────────────────────────────── */}
+      {showAddEventModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Buat Event Donor Baru</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Event akan langsung tampil di halaman donor</p>
+              </div>
+              <button onClick={() => setShowAddEventModal(false)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nama Event *</label>
+                <input
+                  type="text" placeholder="Contoh: Donor Darah Hari Pahlawan"
+                  value={newEventName} onChange={e => setNewEventName(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Tanggal *</label>
+                  <input
+                    type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Waktu</label>
+                  <input
+                    type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Lokasi *</label>
+                <input
+                  type="text" placeholder="Contoh: Mall Galaxy Surabaya"
+                  value={newEventLocation} onChange={e => setNewEventLocation(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Kapasitas Peserta</label>
+                <input
+                  type="number" min={1} value={newEventCapacity} onChange={e => setNewEventCapacity(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Deskripsi (opsional)</label>
+                <textarea
+                  rows={2} placeholder="Deskripsi singkat event..."
+                  value={newEventDescription} onChange={e => setNewEventDescription(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors resize-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddEventModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
+                  Batal
+                </button>
+                <button type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#C0392B] text-white text-sm font-bold hover:bg-[#A93226] transition-colors">
+                  Buat Event
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Broadcast Modal ─────────────────────────────────── */}
       {showBroadcastModal && (

@@ -45,24 +45,33 @@ export default function Navigation() {
 
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  // Reload notifications when user changes with role validation and Supabase integration
+  // Reload notifications when user changes — sekarang dari DB MySQL
   useEffect(() => {
     if (!user) {
       setNotifications([]);
       return;
     }
-    const userKey = `sb_notifications_${user.email}`;
-    const rolePrefixes: Record<string, string> = {
-      pmi: 'N_PMI',
-      rs: 'N_RS',
-      driver: 'N_DRV',
-      donor: 'N00'
-    };
-    const expectedPrefix = rolePrefixes[user.role] || 'N00';
 
     async function loadNotifications() {
-      // Mock notifications kosong untuk mode offline
-      setNotifications([]);
+      // Hanya donor yang punya tabel donor_notifications
+      if (user?.role !== 'donor') {
+        setNotifications([]);
+        return;
+      }
+      try {
+        const data: any[] = await api.notifications.getAll([]);
+        const mapped = (data || []).map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          read: n.read_status,
+          createdAt: n.created_at,
+        }));
+        setNotifications(mapped);
+      } catch {
+        setNotifications([]);
+      }
     }
 
     loadNotifications();
@@ -73,7 +82,10 @@ export default function Navigation() {
     setNotifications(updated);
     setNotifOpen(false);
 
-    // Fitur Supabase dihapus untuk mode offline
+    // Tandai sudah dibaca di DB
+    try {
+      await api.notifications.markRead(notifId);
+    } catch { /* silent */ }
 
     const role = user?.role;
     const targetPath = getNotifAction(role).to;
@@ -87,12 +99,16 @@ export default function Navigation() {
     e.stopPropagation();
     const updated = notifications.filter(n => n.id !== notifId);
     setNotifications(updated);
+
+    // Hapus dari DB
+    api.notifications.delete(notifId).catch(() => { /* silent */ });
   };
 
   // Sync notifications across tabs (now only using in-memory state, sync removed as requested to avoid localStorage)
   useEffect(() => {
     // Logic for cross-tab sync removed to comply with "No LocalStorage" policy for business data
   }, [user]);
+
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRefDesktop = useRef<HTMLDivElement>(null);
@@ -298,8 +314,8 @@ export default function Navigation() {
                                   onClick={async () => {
                                     const updated = notifications.map(n => ({ ...n, read: true }));
                                     setNotifications(updated);
-                                    
-                                    // Update baca lokal saja
+                                    // Tandai semua dibaca di DB
+                                    api.notifications.markAllRead().catch(() => {});
                                   }}
                                   className="text-[10px] text-[#C0392B] font-semibold hover:underline cursor-pointer"
                                 >
@@ -311,6 +327,8 @@ export default function Navigation() {
                             <button
                               onClick={() => {
                                 setNotifications([]);
+                                // Hapus semua dari DB
+                                api.notifications.deleteAll().catch(() => {});
                               }}
                               className="text-[10px] text-[#4A4A6A] font-semibold hover:underline cursor-pointer"
                             >

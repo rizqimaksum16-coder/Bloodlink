@@ -10,6 +10,9 @@ const eventsRoutes = require('./routes/events');
 const stockRoutes = require('./routes/stock');
 const ordersRoutes = require('./routes/orders');
 const rewardsRoutes = require('./routes/rewards');
+const usersRoutes = require('./routes/users');
+const notificationsRoutes = require('./routes/notifications');
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,7 +44,8 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// 🔒 Security: Rate Limiter Ketat untuk Login (10 percobaan per 15 menit per IP)
+// 🔒 Security: Rate Limiter Ketat untuk Login (DINONAKTIFKAN SEMENTARA SESUAI PERMINTAAN)
+/*
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -49,6 +53,7 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Terlalu banyak percobaan login. Coba lagi 15 menit lagi.' }
 });
+*/
 
 // Payload Body Limit (Proteksi DoS Payload Flood)
 app.use(express.json({ limit: '1mb' }));
@@ -60,7 +65,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 🔒 Terapkan rate limiter ketat ke endpoint login
-app.use('/api/auth/login', loginLimiter);
+// app.use('/api/auth/login', loginLimiter); // Dinonaktifkan sementara
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -69,6 +74,9 @@ app.use('/api/events', eventsRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/rewards', rewardsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/notifications', notificationsRoutes);
+
 
 // 🔒 Security: Global Error Handler — JANGAN kirim detail error ke client
 app.use((err, req, res, next) => {

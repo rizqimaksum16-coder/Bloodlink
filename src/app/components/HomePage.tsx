@@ -223,9 +223,62 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchLiveStats() {
-      // Mode offline (menggunakan mock data) tanpa Supabase
-      setIsOffline(true);
-      return;
+      try {
+        const [pmiStock, rsStock, usersData, eventsData] = await Promise.allSettled([
+          api.stock.getPMIStock([]),
+          api.stock.getHospitalStock([]),
+          api.users.getAll(),
+          api.events.getAll([])
+        ]);
+
+        let totalKantong = 0;
+        let popularBloodTypes: Record<string, number> = { 'A+': 0, 'B+': 0, 'O+': 0, 'AB+': 0 };
+
+        if (pmiStock.status === 'fulfilled' && pmiStock.value) {
+          pmiStock.value.forEach((s: any) => {
+            totalKantong += s.quantity;
+            if (s.blood_type in popularBloodTypes) {
+              popularBloodTypes[s.blood_type] += s.quantity;
+            }
+          });
+        }
+        if (rsStock.status === 'fulfilled' && rsStock.value) {
+          rsStock.value.forEach((s: any) => {
+            totalKantong += s.stock; // Hospital stock schema uses stock instead of quantity currently
+            if (s.blood_type in popularBloodTypes) {
+              popularBloodTypes[s.blood_type] += s.stock;
+            }
+          });
+        }
+
+        const rsCount = usersData.status === 'fulfilled' && usersData.value ? usersData.value.filter((u: any) => u.role === 'rs').length : 0;
+        const donorCount = usersData.status === 'fulfilled' && usersData.value ? usersData.value.filter((u: any) => u.role === 'donor').length : 0;
+        const activeEventsCount = eventsData.status === 'fulfilled' && eventsData.value ? eventsData.value.filter((e: any) => e.status === 'open').length : 0;
+
+        const newBloodTypes = defaultBloodTypes.map(bt => {
+          const stock = popularBloodTypes[bt.type] || 0;
+          return {
+            ...bt,
+            stock,
+            status: stock > 50 ? 'available' : stock > 20 ? 'low' : 'critical'
+          };
+        });
+
+        const newGlobalStats = defaultGlobalStats.map(stat => {
+          if (stat.id === 'stock') return { ...stat, value: totalKantong.toString() };
+          if (stat.id === 'rs') return { ...stat, value: rsCount.toString() };
+          if (stat.id === 'users') return { ...stat, value: donorCount.toString() };
+          if (stat.id === 'events') return { ...stat, value: activeEventsCount.toString() };
+          return stat;
+        });
+
+        setLiveBloodTypes(newBloodTypes);
+        setLiveGlobalStats(newGlobalStats);
+        setIsOffline(false);
+      } catch (err) {
+        console.warn('Gagal fetch live stats:', err);
+        setIsOffline(true);
+      }
     }
     fetchLiveStats();
   }, []);

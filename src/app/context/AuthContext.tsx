@@ -132,26 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCookie(JSON.stringify(loggedUser), COOKIE_DAYS);
       return role;
     } catch (err: any) {
-      // Demo Fallback login jika backend belum running
-      console.warn('Backend Auth Fallback:', err.message);
-      let detectedRole: UserRole = 'donor';
-      if (email.includes('pmi')) detectedRole = 'pmi';
-      else if (email.includes('rs') || email.includes('soetomo')) detectedRole = 'rs';
-      else if (email.includes('driver')) detectedRole = 'driver';
-      else if (email.includes('admin')) detectedRole = 'superadmin';
-
-      const fallbackUser: AuthUser = {
-        id: 'usr_demo',
-        name: email.split('@')[0],
-        email,
-        role: detectedRole,
-        org: roleDefaults[detectedRole].org,
-        avatar: email.slice(0, 2).toUpperCase()
-      };
-
-      setUser(fallbackUser);
-      setCookie(JSON.stringify(fallbackUser), COOKIE_DAYS);
-      return detectedRole;
+      console.error('Login error:', err.message);
+      // Lempar error ke komponen Login agar pesan salah password bisa ditampilkan
+      throw err;
     }
   };
 
@@ -163,23 +146,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.token) {
         localStorage.setItem('bloodlink_token', res.token);
       }
+
+      // Auto-login setelah register sukses
+      const resolvedRole = role || 'donor';
+      const avatar = name.slice(0, 2).toUpperCase();
+      const newUser: AuthUser = {
+        id: res.user?.id || Date.now(),
+        name,
+        email,
+        role: resolvedRole,
+        org: org || roleDefaults[resolvedRole].org,
+        avatar
+      };
+
+      setUser(newUser);
+      setCookie(JSON.stringify(newUser), COOKIE_DAYS);
     } catch (err: any) {
-      console.warn('Register fallback:', err.message);
+      console.error('Register error:', err.message);
+      throw err;
     }
-
-    const resolvedRole = role || 'donor';
-    const avatar = name.slice(0, 2).toUpperCase();
-    const newUser: AuthUser = {
-      id: Date.now(),
-      name,
-      email,
-      role: resolvedRole,
-      org: org || roleDefaults[resolvedRole].org,
-      avatar
-    };
-
-    setUser(newUser);
-    setCookie(JSON.stringify(newUser), COOKIE_DAYS);
   };
 
   const registerDonor = async (name: string, email: string, bloodType: string, phone: string, address: string) => {
