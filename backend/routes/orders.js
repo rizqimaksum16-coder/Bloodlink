@@ -6,7 +6,25 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 // GET /api/orders/requests (Blood Requests) — 🔒 Harus login
 router.get('/requests', authMiddleware, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM blood_requests ORDER BY created_at DESC');
+    const query = `
+      SELECT 
+        r.id, 
+        r.blood_type, 
+        r.quantity AS qty, 
+        r.urgency AS priority, 
+        r.status, 
+        r.created_at, 
+        u.org AS hospital,
+        u.address AS address, 
+        u.phone AS contact,
+        p.org AS pmi,
+        r.hospital_id
+      FROM blood_requests r
+      JOIN users u ON u.id = r.hospital_id
+      LEFT JOIN users p ON p.id = r.pmi_id
+      ORDER BY r.created_at DESC
+    `;
+    const [rows] = await pool.query(query);
     res.json(rows);
   } catch (err) {
     console.error('Error fetch blood requests:', err);
@@ -16,9 +34,9 @@ router.get('/requests', authMiddleware, async (req, res) => {
 
 // POST /api/orders/requests — 🔒 Hanya role rs/superadmin bisa request darah
 router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async (req, res) => {
-  // Terima hospital_id atau hospital (nama) untuk kompatibilitas frontend
+  // Gunakan hospital_id jika ada (dari admin), jika tidak gunakan ID user yang login
   const { hospital_id, hospital, blood_type, qty, quantity, priority, urgency = priority || 'normal', address, contact } = req.body;
-  const hospitalRef = hospital_id || hospital;
+  const hospitalRef = hospital_id || req.user.id;
   const qtyVal = quantity || qty;
 
   if (!hospitalRef || !blood_type || !qtyVal) {
@@ -41,11 +59,41 @@ router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async 
 // GET /api/orders/deliveries — 🔒 Harus login
 router.get('/deliveries', authMiddleware, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM deliveries ORDER BY updated_at DESC');
+    const query = `
+      SELECT 
+        id, order_id, blood_type, qty AS quantity, 
+        from_name AS pmi_name, to_name AS hospital_name, 
+        driver_name, driver_phone, 
+        status, eta, distance_km AS distance, pct, urgent, 
+        updated_at, created_at
+      FROM deliveries 
+      ORDER BY updated_at DESC
+    `;
+    const [rows] = await pool.query(query);
     res.json(rows);
   } catch (err) {
     console.error('Error fetch deliveries:', err);
     res.status(500).json({ error: 'Gagal mengambil data pengiriman' });
+  }
+});
+
+// POST /api/orders/deliveries — 🔒 Hanya pmi/superadmin
+router.post('/deliveries', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+  const { id, orderId, bloodType, qty, from, to, driver, driverPhone, status, eta, distance, pct, urgent } = req.body;
+  if (!id || !orderId || !bloodType || !qty || !from || !to || !driver) {
+    return res.status(400).json({ error: 'Data pengiriman tidak lengkap' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO deliveries (id, order_id, blood_type, qty, from_name, to_name, driver_name, driver_phone, status, eta, distance_km, pct, urgent) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, orderId, bloodType, qty, from, to, driver, driverPhone || '-', status || 'disiapkan', eta || '-', distance || '-', pct || 0, urgent ? 1 : 0]
+    );
+    res.json({ message: 'Tugas pengiriman berhasil dibuat', id });
+  } catch (err) {
+    console.error('Error create delivery:', err);
+    res.status(500).json({ error: 'Gagal membuat tugas pengiriman' });
   }
 });
 
@@ -103,7 +151,15 @@ router.post('/blood', authMiddleware, requireRole('rs', 'superadmin'), async (re
 // GET /api/orders/blood — Ambil semua pesanan darah
 router.get('/blood', authMiddleware, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM blood_orders ORDER BY created_at DESC');
+    const query = `
+      SELECT 
+        o.id, o.blood_type, o.quantity AS qty, o.urgency, o.status, o.created_at, o.updated_at,
+        p.org AS pmi
+      FROM blood_orders o
+      LEFT JOIN users p ON p.id = o.pmi_id
+      ORDER BY o.created_at DESC
+    `;
+    const [rows] = await pool.query(query);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Gagal mengambil pesanan darah' });

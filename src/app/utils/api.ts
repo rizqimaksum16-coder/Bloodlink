@@ -160,6 +160,12 @@ export const api = {
 
     getDeliveries: (fallback?: any[]) => apiFetch('/orders/deliveries', {}, fallback),
 
+    createDelivery: (data: any) =>
+      apiFetch('/orders/deliveries', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+
     updateDeliveryStatus: (id: string, data: { status?: string; pct?: number; eta?: string }) =>
       apiFetch(`/orders/deliveries/${id}/status`, {
         method: 'PUT',

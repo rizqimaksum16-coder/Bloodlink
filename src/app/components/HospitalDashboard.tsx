@@ -197,7 +197,7 @@ export default function HospitalDashboard() {
       try {
         const [stockData, orderData, deliveryData] = await Promise.all([
           api.stock.getHospitalStock([]),
-          api.bloodOrders.getAll([]),
+          api.orders.getRequests([]),
           api.orders.getDeliveries([])
         ]);
 
@@ -216,13 +216,23 @@ export default function HospitalDashboard() {
         setStocks(mergedStocks);
 
         if (orderData?.length) {
-          setOrders(orderData.map((o: any) => ({
-            id: o.id, bloodType: o.blood_type, qty: o.qty,
-            urgency: o.urgency, status: o.status, pmi: o.pmi,
-            driver: o.driver, eta: o.eta, trackingPct: o.tracking_pct || 0,
-            createdAt: o.created_at ? new Date(o.created_at).toLocaleString('id-ID') : 'Baru saja',
-            updatedAt: o.updated_at ? new Date(o.updated_at).toLocaleString('id-ID') : 'Baru saja'
-          })));
+          const myOrders = orderData.filter((r: any) => r.hospital_id === user.id);
+          setOrders(myOrders.map((o: any) => {
+            const delivery = deliveryData?.find((d: any) => d.orderId === o.id);
+            return {
+              id: o.id, 
+              bloodType: o.bloodType || o.blood_type, 
+              qty: o.qty,
+              urgency: o.priority, // mapped from 'priority' in GET /requests
+              status: delivery?.status || o.status, 
+              pmi: o.pmi || 'PMI',
+              driver: delivery?.driver || '-', 
+              eta: delivery?.eta || '-', 
+              trackingPct: delivery?.pct || 0,
+              createdAt: o.created_at || o.time ? (o.created_at ? new Date(o.created_at).toLocaleString('id-ID') : o.time) : 'Baru saja',
+              updatedAt: delivery?.updatedAt || 'Baru saja'
+            };
+          }));
         }
 
         if (deliveryData?.length) {
@@ -310,11 +320,11 @@ export default function HospitalDashboard() {
 
       // Submit pesanan ke MySQL API
       try {
-        await api.bloodOrders.create({
+        await api.orders.createRequest({
           blood_type: selectedBlood,
           qty: Number(selectedQty) || 1,
           urgency: selectedUrgency,
-          pmi: selectedPMI || pmiList[0]?.name || 'PMI Kota Surabaya'
+          hospital: user?.id
         });
       } catch (e: any) {
         toast.warning('Pesanan tersimpan lokal (backend offline): ' + e.message);

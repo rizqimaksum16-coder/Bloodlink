@@ -233,11 +233,11 @@ CREATE TABLE bot_dictionary (
 -- =============================================================================
 
 INSERT INTO users (id, email, name, role, org, avatar, password_hash, address, phone, latitude, longitude) VALUES
-('usr-superadmin', 'superadmin@suroboyo.id', 'Super Admin', 'superadmin', 'Suroboyo Bloods Pusat', 'SA', '', NULL, NULL, NULL, NULL),
-('usr-pmi',        'pmi@suroboyo.id',        'Admin PMI',   'pmi',        'PMI Kota Surabaya',     'PA', '', 'Jl. Embong Ploso No. 7-15', '(031) 5313289', -7.2657, 112.7445),
-('usr-rs',         'rs@suroboyo.id',         'Admin RS',    'rs',         'RSUD Dr. Soetomo',      'RS', '', 'Jl. Prof. Dr. Moestopo No. 6-8', '(031) 5501001', -7.2678, 112.7584),
-('usr-donor',      'donor@suroboyo.id',      'Pendonor',    'donor',      'Pendonor Aktif',        'PD', '', NULL, NULL, NULL, NULL),
-('usr-driver',     'driver@suroboyo.id',     'Driver',      'driver',     'Logistik PMI',          'DR', '', NULL, NULL, NULL, NULL);
+('usr-superadmin', 'superadmin@suroboyo.id', 'Super Admin', 'superadmin', 'Suroboyo Bloods Pusat', 'SA', '$2b$10$orvrwjXenTmaNcGCASYTx.y.ik99PsRchrgETSzKLEpVtkkoHMqtu', NULL, NULL, NULL, NULL),
+('usr-pmi',        'pmi@suroboyo.id',        'Admin PMI',   'pmi',        'PMI Kota Surabaya',     'PA', '$2b$10$orvrwjXenTmaNcGCASYTx.y.ik99PsRchrgETSzKLEpVtkkoHMqtu', 'Jl. Embong Ploso No. 7-15', '(031) 5313289', -7.2657, 112.7445),
+('usr-rs',         'rs@suroboyo.id',         'Admin RS',    'rs',         'RSUD Dr. Soetomo',      'RS', '$2b$10$orvrwjXenTmaNcGCASYTx.y.ik99PsRchrgETSzKLEpVtkkoHMqtu', 'Jl. Prof. Dr. Moestopo No. 6-8', '(031) 5501001', -7.2678, 112.7584),
+('usr-donor',      'donor@suroboyo.id',      'Pendonor',    'donor',      'Pendonor Aktif',        'PD', '$2b$10$orvrwjXenTmaNcGCASYTx.y.ik99PsRchrgETSzKLEpVtkkoHMqtu', NULL, NULL, NULL, NULL),
+('usr-driver',     'driver@suroboyo.id',     'Driver',      'driver',     'Logistik PMI',          'DR', '$2b$10$orvrwjXenTmaNcGCASYTx.y.ik99PsRchrgETSzKLEpVtkkoHMqtu', NULL, NULL, NULL, NULL);
 
 INSERT INTO blood_stock (id, owner_pmi_id, blood_type, stock_qty, status) VALUES
 ('bs-pmi-1', 'usr-pmi', 'O+', 10, 'available');

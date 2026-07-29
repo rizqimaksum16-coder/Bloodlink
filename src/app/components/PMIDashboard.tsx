@@ -482,7 +482,8 @@ export default function PMIDashboard() {
     // Sync ke API MySQL
     try {
       await api.users.updateRequestStatus(approvingRequestId, 'diproses');
-    } catch (e) { console.warn('Gagal sync status ke API:', e); }
+      await api.orders.createDelivery(newDelivery);
+    } catch (e) { console.warn('Gagal sync status/delivery ke API:', e); }
 
     // 4. Beri feedback sukses
     toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
