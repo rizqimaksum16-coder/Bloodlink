@@ -39,6 +39,7 @@ interface BloodOrder {
   driver?: string;
   eta?: string;
   trackingPct?: number;
+  deliveryId?: string;
 }
 
 interface StockBatch {
@@ -218,7 +219,7 @@ export default function HospitalDashboard() {
         if (orderData?.length) {
           const myOrders = orderData.filter((r: any) => r.hospital_id === user.id);
           setOrders(myOrders.map((o: any) => {
-            const delivery = deliveryData?.find((d: any) => d.orderId === o.id);
+            const delivery = deliveryData?.find((d: any) => d.order_id === o.id);
             return {
               id: o.id, 
               bloodType: o.bloodType || o.blood_type, 
@@ -226,11 +227,12 @@ export default function HospitalDashboard() {
               urgency: o.priority, // mapped from 'priority' in GET /requests
               status: delivery?.status || o.status, 
               pmi: o.pmi || 'PMI',
-              driver: delivery?.driver || '-', 
+              driver: delivery?.driver_name || '-', 
               eta: delivery?.eta || '-', 
               trackingPct: delivery?.pct || 0,
               createdAt: o.created_at || o.time ? (o.created_at ? new Date(o.created_at).toLocaleString('id-ID') : o.time) : 'Baru saja',
-              updatedAt: delivery?.updatedAt || 'Baru saja'
+              updatedAt: delivery?.updated_at ? new Date(delivery.updated_at).toLocaleString('id-ID') : 'Baru saja',
+              deliveryId: delivery?.id
             };
           }));
         }
@@ -313,6 +315,7 @@ export default function HospitalDashboard() {
         createdAt: 'Baru saja',
         updatedAt: 'Baru saja',
         trackingPct: 0,
+        deliveryId: ''
       };
 
       // Optimistic UI update
@@ -368,10 +371,13 @@ export default function HospitalDashboard() {
 
       // Sync penerimaan ke API MySQL
       try {
-        await api.orders.updateDeliveryStatus(
-          order.id.replace('ORD-', 'DEL-'),
-          { status: 'tiba' }
-        );
+        if (order.deliveryId) {
+          await api.orders.updateDeliveryStatus(
+            order.deliveryId,
+            { status: 'selesai', pct: 100 }
+          );
+        }
+        await api.users.updateRequestStatus(order.id, 'selesai');
       } catch (e) { console.warn('Gagal sync konfirmasi ke API:', e); }
       toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
     } else {
@@ -505,8 +511,8 @@ export default function HospitalDashboard() {
       ) : (
         <div className="space-y-4">
           {orders.map(order => {
-            const u = urgencyConfig[order.urgency];
-            const s = orderStatusConfig[order.status];
+            const u = urgencyConfig[order.urgency as OrderUrgency] || { label: order.urgency, bg: '#F4F4F8', text: '#9B9BB5', dot: '#9B9BB5' };
+            const s = orderStatusConfig[order.status as OrderStatus] || orderStatusConfig['menunggu'] || { label: order.status, bg: '#F4F4F8', text: '#9B9BB5', icon: Clock };
             const StatusIcon = s.icon;
             const isActive = order.status === 'dikirim' || order.status === 'diproses' || order.status === 'tiba';
             return (

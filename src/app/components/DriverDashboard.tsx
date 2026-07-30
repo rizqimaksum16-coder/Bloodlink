@@ -254,7 +254,7 @@ export default function DriverDashboard() {
         ) : (
           <div className="space-y-4">
             {displayedDeliveries.map(d => {
-              const s = statusCfg[d.status];
+              const s = statusCfg[d.status] || { label: d.status, color: '#9B9BB5', bg: '#F4F4F8', icon: Clock };
               const Icon = s.icon;
               const isMyJob = d.driver.toLowerCase() === currentDriverName.toLowerCase();
 
@@ -294,7 +294,7 @@ export default function DriverDashboard() {
                   {/* Stepper Status Visual */}
                   <div className="grid grid-cols-4 gap-2 mb-4 relative">
                     {statusSteps.map((step, idx) => {
-                      const cfg = statusCfg[step];
+                      const cfg = statusCfg[step] || { label: step, color: '#9B9BB5', bg: '#F4F4F8', icon: Clock };
                       const stepIcon = cfg.icon;
                       // 'selesai' tidak ada di statusSteps, tapi semua step harus tanda selesai
                       const isCompleted = d.status === 'selesai' || statusSteps.indexOf(d.status) >= idx;

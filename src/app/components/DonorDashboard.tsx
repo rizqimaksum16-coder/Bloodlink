@@ -203,9 +203,10 @@ export default function DonorDashboard() {
       if (!user?.email) return;
       setLoading(true);
       try {
-        const [profileData, historyData] = await Promise.all([
+        const [profileData, historyData, bookingsData] = await Promise.all([
           api.donors.getProfile(user.email, null),
-          api.donors.getHistory(user.email, [])
+          api.donors.getHistory(user.email, []),
+          api.events.getMyBookings([])
         ]);
 
         if (profileData) {
@@ -221,15 +222,17 @@ export default function DonorDashboard() {
           setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
         }
 
-        if (historyData?.length) {
-          setActiveTickets(historyData.slice(0, 3).map((h: any) => ({
-            id: h.id,
-            eventName: h.location || 'PMI Kota Surabaya',
-            eventDate: h.date,
-            status: 'completed' as const,
-            qrCode: `QR_${h.id}`,
-            points: h.points_earned || 50
+        if (bookingsData?.length) {
+          setActiveTickets(bookingsData.slice(0, 3).map((b: any) => ({
+            id: b.id,
+            eventName: b.event_name,
+            eventDate: b.event_date.split('T')[0],
+            status: b.status === 'terdaftar' ? 'ready' : (b.checked_in ? 'checked_in' : 'completed'),
+            qrCode: b.qr_code || `QR_${b.id}`,
+            points: 0
           })));
+        } else {
+          setActiveTickets([]);
         }
       } catch (err) {
         console.warn('Gagal memuat data donor dari API, menggunakan data lokal.');

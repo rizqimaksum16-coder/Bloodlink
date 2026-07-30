@@ -67,6 +67,8 @@ app.get('/api/health', (req, res) => {
 // 🔒 Terapkan rate limiter ketat ke endpoint login
 // app.use('/api/auth/login', loginLimiter); // Dinonaktifkan sementara
 
+const aiRoutes = require('./routes/ai');
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/donors', donorsRoutes);
@@ -76,6 +78,7 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/rewards', rewardsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/ai', aiRoutes);
 
 
 // 🔒 Security: Global Error Handler — JANGAN kirim detail error ke client

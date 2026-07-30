@@ -454,7 +454,7 @@ export default function Events() {
   });
 
   const renderEventCard = (event: Event) => {
-    const s = statusConfig[event.status];
+    const s = statusConfig[event.status] || { label: event.status, bg: '#F4F4F8', text: '#9B9BB5' };
     const pct = Math.round((event.registered / event.capacity) * 100);
     const isFull = event.registered >= event.capacity;
 

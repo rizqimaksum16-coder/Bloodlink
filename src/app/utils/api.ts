@@ -214,5 +214,20 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ status })
       })
+  },
+
+  // AI Integration API
+  ai: {
+    matching: (payload: any) =>
+      apiFetch('/ai/matching', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }),
+
+    chat: (messages: any[]) =>
+      apiFetch('/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({ messages })
+      })
   }
 };

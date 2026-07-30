@@ -6,6 +6,7 @@ import { AutoSaveProvider } from './context/AutoSaveContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AppFooter from './components/AppFooter';
+import ChatBot from './components/ChatBot';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy loading untuk seluruh komponen halaman demi optimasi performa FCP/LCP
@@ -47,11 +48,12 @@ export default function App() {
                   {/* Public */}
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/login" element={<Login />} />
-                  <Route path="/search" element={<BloodSearch />} />
-                  <Route path="/events" element={<Events />} />
 
                   {/* Protected Routes */}
                   <Route element={<ProtectedRoute />}>
+                    <Route path="/search" element={<BloodSearch />} />
+                    <Route path="/events" element={<Events />} />
+                    
                     <Route path="/home" element={<HomePage />} />
                     <Route path="/add-stock" element={
                       <ProtectedRoute allowedRoles={['pmi']}><AddBloodStock /></ProtectedRoute>
@@ -102,6 +104,7 @@ export default function App() {
               </ErrorBoundary>
             </main>
             <AppFooter />
+            <ChatBot />
             <Toaster />
           </div>
         </Router>

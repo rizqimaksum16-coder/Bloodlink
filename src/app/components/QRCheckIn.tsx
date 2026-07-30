@@ -165,10 +165,8 @@ export default function QRCheckIn() {
       const allVideoInputs = devices.filter((d) => d.kind === 'videoinput');
       setAllCameras(allVideoInputs);
 
-      const videoInputs = allVideoInputs.filter((d) => {
-        const lbl = d.label.toLowerCase();
-        return lbl.includes('droidcam') || lbl.includes('droidcamp') || lbl.includes('loopback') || lbl.includes('v4l2') || lbl.includes('dummy') || lbl.includes('truevision');
-      });
+      // Allow all video inputs instead of restricting to DroidCam
+      const videoInputs = allVideoInputs;
 
       setAvailableDevices(videoInputs);
       if (videoInputs.length > 0 && !selectedDeviceId) {
@@ -211,46 +209,19 @@ export default function QRCheckIn() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const allVideoInputs = devices.filter((d) => d.kind === 'videoinput');
     setAllCameras(allVideoInputs);
+    setAvailableDevices(allVideoInputs);
 
-    const droidCamDevices = allVideoInputs.filter((d) => {
-      const lbl = d.label.toLowerCase();
-      return lbl.includes('droidcam') || lbl.includes('droidcamp') || lbl.includes('loopback') || lbl.includes('v4l2') || lbl.includes('dummy') || lbl.includes('truevision');
-    });
-    setAvailableDevices(droidCamDevices);
-
+    setCameraStream(stream);
     const track = stream.getVideoTracks()[0];
     const label = track ? track.label.toLowerCase() : '';
-    const isDroidCam = label.includes('droidcam') || label.includes('droidcamp') || label.includes('loopback') || label.includes('v4l2') || label.includes('dummy') || label.includes('truevision');
-
-    if (!isDroidCam) {
-      if (droidCamDevices.length > 0) {
-        const targetDevice = droidCamDevices[0];
-        stream.getTracks().forEach((t) => t.stop());
-        try {
-          const correctStream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: targetDevice.deviceId } }
-          });
-          setCameraStream(correctStream);
-          setSelectedDeviceId(targetDevice.deviceId);
-          setScanning(true);
-          setCameraError(null);
-        } catch (e) {
-          setCameraStream(stream);
-          setCameraError('Akses ditolak: Kamera tidak diperbolehkan.');
-        }
-      } else {
-        setCameraStream(stream);
-        setCameraError('Akses ditolak: Kamera yang valid tidak terdeteksi.');
-      }
-    } else {
-      setCameraStream(stream);
-      const matchingDevice = droidCamDevices.find(d => d.label.toLowerCase() === label);
-      if (matchingDevice) {
-        setSelectedDeviceId(matchingDevice.deviceId);
-      }
-      setScanning(true);
-      setCameraError(null);
+    const matchingDevice = allVideoInputs.find(d => d.label.toLowerCase() === label);
+    if (matchingDevice) {
+      setSelectedDeviceId(matchingDevice.deviceId);
+    } else if (allVideoInputs.length > 0) {
+      setSelectedDeviceId(allVideoInputs[0].deviceId);
     }
+    setScanning(true);
+    setCameraError(null);
   };
 
   const stopCamera = () => {
@@ -265,10 +236,7 @@ export default function QRCheckIn() {
   const switchCamera = async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoInputs = devices.filter((d) => {
-        const lbl = d.label.toLowerCase();
-        return lbl.includes('droidcam') || lbl.includes('droidcamp') || lbl.includes('loopback') || lbl.includes('v4l2') || lbl.includes('dummy') || lbl.includes('truevision');
-      });
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
       setAvailableDevices(videoInputs);
 
       if (videoInputs.length <= 1) {
@@ -518,7 +486,7 @@ export default function QRCheckIn() {
                 className="w-full py-3 border border-dashed border-[#C0392B] bg-[#FDEDEC]/40 hover:bg-[#FDEDEC] text-[#C0392B] text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all"
               >
                 <ScanLine className="w-4 h-4" />
-                {showScanner ? 'Tutup Kamera Scanner' : 'Buka DroidCam untuk Scan Live'}
+                {showScanner ? 'Tutup Kamera Scanner' : 'Buka Kamera untuk Scan Live'}
               </button>
 
               {cameraError && (
@@ -544,11 +512,11 @@ export default function QRCheckIn() {
                         {availableDevices.length > 0 ? (
                           availableDevices.map((dev, idx) => (
                             <option key={dev.deviceId || idx} value={dev.deviceId}>
-                              {dev.label || `DroidCam ${idx + 1}`}
+                              {dev.label || `Kamera ${idx + 1}`}
                             </option>
                           ))
                         ) : (
-                          <option value="">Tidak ada DroidCam terdeteksi</option>
+                          <option value="">Tidak ada Kamera terdeteksi</option>
                         )}
                       </select>
                     </div>
@@ -570,7 +538,7 @@ export default function QRCheckIn() {
                         <AlertCircle className="w-8 h-8 text-red-500 mb-2 animate-bounce" />
                         <span className="text-xs font-bold text-white uppercase tracking-wider">Perangkat Tidak Valid</span>
                         <p className="text-[11px] text-red-300 mt-1 max-w-[240px] leading-relaxed">
-                          Hanya kamera <strong>DroidCam / DroidCamp</strong> yang diperbolehkan untuk memindai QR Code.
+                          Kamera Anda tidak dapat diakses. Pastikan Anda telah memberikan izin penggunaan kamera.
                         </p>
                       </div>
                     ) : (

@@ -263,7 +263,7 @@ export default function PMIDashboard() {
           setRequests(reqData.map((r: any) => ({
             id: r.id, hospital: r.hospital, bloodType: r.blood_type,
             qty: r.qty, priority: r.priority, status: r.status,
-            time: r.time_ago || 'Baru saja', address: r.address || '-',
+            time: r.created_at ? new Date(r.created_at).toLocaleString('id-ID') : 'Baru saja', address: r.address || '-',
             contact: r.contact || '-'
           })));
         }
@@ -465,17 +465,11 @@ export default function PMIDashboard() {
     const newDelivery = {
       id: `del_${Date.now()}`,
       orderId: req.id, // Menggunakan ID asli dari blood_requests
-      bloodType: req.bloodType,
-      qty: req.qty,
-      from: fromName,
-      to: toName,
-      driver: selectedDriver.name,
-      driverPhone: selectedDriver.phone || '081234567890',
+      driverId: selectedDriver.id,
       status: 'disiapkan',
       eta: calculatedEta,
       distance: calculatedDistance,
       pct: 0,
-      urgent: req.priority === 'darurat' || req.priority === 'mendesak',
       updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     };
 

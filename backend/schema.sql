@@ -18,9 +18,7 @@ DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS activity_logs;
 DROP TABLE IF EXISTS rewards;
 DROP TABLE IF EXISTS events;
-DROP TABLE IF EXISTS pmi_blood_stock;
-DROP TABLE IF EXISTS hospital_blood_stock;
-DROP TABLE IF EXISTS blood_orders;
+
 DROP TABLE IF EXISTS bot_dictionary;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -111,40 +109,6 @@ CREATE TABLE rewards (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE pmi_blood_stock (
-    id         VARCHAR(50) PRIMARY KEY,
-    pmi_id     VARCHAR(50),
-    blood_type VARCHAR(15) NOT NULL,
-    quantity   INT NOT NULL DEFAULT 0,
-    status     ENUM('available', 'low', 'critical') NOT NULL DEFAULT 'available',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (pmi_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE hospital_blood_stock (
-    id          VARCHAR(50) PRIMARY KEY,
-    hospital_id VARCHAR(50),
-    blood_type  VARCHAR(15) NOT NULL,
-    quantity    INT NOT NULL DEFAULT 0,
-    status      ENUM('available', 'low', 'critical') NOT NULL DEFAULT 'available',
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (hospital_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE blood_orders (
-    id          VARCHAR(50) PRIMARY KEY,
-    hospital_id VARCHAR(50),
-    pmi_id      VARCHAR(50),
-    blood_type  VARCHAR(15) NOT NULL,
-    quantity    INT NOT NULL,
-    urgency     ENUM('normal', 'mendesak', 'darurat') NOT NULL DEFAULT 'normal',
-    status      VARCHAR(50) NOT NULL DEFAULT 'pending',
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (hospital_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (pmi_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
 CREATE TABLE donor_profiles (
     id              VARCHAR(50) PRIMARY KEY,
     user_id         VARCHAR(50) NOT NULL UNIQUE,
@@ -206,19 +170,15 @@ CREATE TABLE donor_notifications (
 CREATE TABLE deliveries (
     id           VARCHAR(50) PRIMARY KEY,
     order_id     VARCHAR(50) NOT NULL,
-    blood_type   VARCHAR(15) NOT NULL,
-    qty          INT NOT NULL,
-    from_name    VARCHAR(255) NOT NULL,
-    to_name      VARCHAR(255) NOT NULL,
-    driver_name  VARCHAR(255) NOT NULL,
-    driver_phone VARCHAR(20) NOT NULL,
+    driver_id    VARCHAR(50) NOT NULL,
     status       VARCHAR(20) NOT NULL DEFAULT 'disiapkan',
     eta          VARCHAR(50) NOT NULL DEFAULT '-',
     distance_km  VARCHAR(20) NOT NULL DEFAULT '-',
     pct          INT NOT NULL DEFAULT 0,
-    urgent       BOOLEAN NOT NULL DEFAULT false,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES blood_requests(id) ON DELETE CASCADE,
+    FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE bot_dictionary (

@@ -198,7 +198,7 @@ export default function GPSTracking() {
               {deliveryList.length} pengiriman aktif
             </p>
             {deliveryList.map(d => {
-              const s = statusCfg[d.status];
+              const s = statusCfg[d.status] || { label: d.status, color: '#9B9BB5', bg: '#F4F4F8', icon: Package };
               const Icon = s.icon;
               const isSelected = selected.id === d.id;
               return (
@@ -268,7 +268,7 @@ export default function GPSTracking() {
               </div>
               <div className="flex items-center gap-2 mb-4">
                 {statusSteps.map((step, i) => {
-                  const cfg = statusCfg[step];
+                  const cfg = statusCfg[step] || { label: step, color: '#9B9BB5', bg: '#F4F4F8', icon: Package };
                   const Icon = cfg.icon;
                   const done = i <= activeStep;
                   const current = i === activeStep;

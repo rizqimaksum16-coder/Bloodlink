@@ -61,13 +61,18 @@ router.get('/deliveries', authMiddleware, async (req, res) => {
   try {
     const query = `
       SELECT 
-        id, order_id, blood_type, qty AS quantity, 
-        from_name AS pmi_name, to_name AS hospital_name, 
-        driver_name, driver_phone, 
-        status, eta, distance_km AS distance, pct, urgent, 
-        updated_at, created_at
-      FROM deliveries 
-      ORDER BY updated_at DESC
+        d.id, d.order_id, r.blood_type, r.quantity, 
+        COALESCE(p.org, 'PMI') AS pmi_name, h.org AS hospital_name, 
+        u.name AS driver_name, u.phone AS driver_phone, 
+        d.status, d.eta, d.distance_km AS distance, d.pct, 
+        IF(r.urgency IN ('mendesak', 'darurat'), 1, 0) AS urgent, 
+        d.updated_at, d.created_at
+      FROM deliveries d
+      JOIN blood_requests r ON d.order_id = r.id
+      JOIN users h ON r.hospital_id = h.id
+      LEFT JOIN users p ON r.pmi_id = p.id
+      LEFT JOIN users u ON d.driver_id = u.id
+      ORDER BY d.updated_at DESC
     `;
     const [rows] = await pool.query(query);
     res.json(rows);
@@ -79,16 +84,16 @@ router.get('/deliveries', authMiddleware, async (req, res) => {
 
 // POST /api/orders/deliveries — 🔒 Hanya pmi/superadmin
 router.post('/deliveries', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
-  const { id, orderId, bloodType, qty, from, to, driver, driverPhone, status, eta, distance, pct, urgent } = req.body;
-  if (!id || !orderId || !bloodType || !qty || !from || !to || !driver) {
+  const { id, orderId, driverId, status, eta, distance, pct } = req.body;
+  if (!id || !orderId || !driverId) {
     return res.status(400).json({ error: 'Data pengiriman tidak lengkap' });
   }
 
   try {
     await pool.query(
-      `INSERT INTO deliveries (id, order_id, blood_type, qty, from_name, to_name, driver_name, driver_phone, status, eta, distance_km, pct, urgent) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, orderId, bloodType, qty, from, to, driver, driverPhone || '-', status || 'disiapkan', eta || '-', distance || '-', pct || 0, urgent ? 1 : 0]
+      `INSERT INTO deliveries (id, order_id, driver_id, status, eta, distance_km, pct) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, orderId, driverId, status || 'disiapkan', eta || '-', distance || '-', pct || 0]
     );
     res.json({ message: 'Tugas pengiriman berhasil dibuat', id });
   } catch (err) {
@@ -98,7 +103,7 @@ router.post('/deliveries', authMiddleware, requireRole('pmi', 'superadmin'), asy
 });
 
 // PUT /api/orders/deliveries/:id/status — 🔒 Hanya role driver/pmi/superadmin
-router.put('/deliveries/:id/status', authMiddleware, requireRole('driver', 'pmi', 'superadmin'), async (req, res) => {
+router.put('/deliveries/:id/status', authMiddleware, requireRole('driver', 'pmi', 'superadmin', 'rs'), async (req, res) => {
   const { id } = req.params;
   const { status, pct, eta } = req.body;
 

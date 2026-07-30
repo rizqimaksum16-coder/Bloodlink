@@ -151,13 +151,28 @@ export default function BloodSearch() {
     loadActiveLocation();
   }, [user]);
 
-  // Fungsi AI Matching sementara dinonaktifkan
   const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
-    return []; // Disable AI matching
+    try {
+      const result = await api.ai.matching({ bloodType, qty: requiredQty, lat: rsLat, lng: rsLng });
+      return result.recommendations.map((r: any) => ({
+        id: String(r.id),
+        name: r.name,
+        address: r.address,
+        district: 'Suroboyo', // Default district or mapped from DB
+        distanceKm: r.distance,
+        phone: r.phone || '(031) -',
+        bloodTypes: [{ type: bloodType, stock: r.stock, status: r.status || 'available' }],
+        lat: r.lat,
+        lng: r.lng,
+        aiScore: r.aiScore
+      }));
+    } catch (error) {
+      console.error("AI Matching failed", error);
+      return [];
+    }
   };
 
   const getPMICoords = (pmiId: string | null, pmiName: string): [number, number] => {
-    // 1. Cek dari hasil kueri aktif Supabase (RPC)
     const activeMatch = pmiResults?.find(p => p.id === pmiId || p.name === pmiName);
     if (activeMatch && typeof activeMatch.lat === 'number' && typeof activeMatch.lng === 'number') {
       return [activeMatch.lat, activeMatch.lng];
