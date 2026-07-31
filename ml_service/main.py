@@ -33,20 +33,37 @@ def predict_score(req: PredictionRequest, api_key: str = Depends(verify_api_key)
     try:
         predictions = []
         model_used = "XGBoost" if req.model_type != "lgb" else "LightGBM"
+
+        # Cek apakah file model hasil training tersedia
+        xgb_path = os.path.join(os.path.dirname(__file__), "model_xgb.json")
+        lgb_path = os.path.join(os.path.dirname(__file__), "model_lgb.txt")
         
+        real_model = None
+        if req.model_type != "lgb" and os.path.exists(xgb_path):
+            try:
+                import xgboost as xgb
+                real_model = xgb.XGBRegressor()
+                real_model.load_model(xgb_path)
+                model_used = "XGBoost (Trained Model)"
+            except Exception as e:
+                print("Failed to load XGBoost model, falling back to formula:", e)
+
         for item in req.data:
-            # Menggunakan simulasi prediksi ML murni (bawaan Python)
-            # karena keterbatasan koneksi unduhan library GPU di environment ini
             dist = item.distance_km
             avail = item.stock_ratio * 10
             req_stock = 10
 
-            score = 100.0 - dist
-            if avail < req_stock:
-                score -= 50.0
-                
-            if req.model_type == "lgb":
-                score += 5.0 # LightGBM usually a bit more optimistic in our dummy logic
+            if real_model is not None:
+                import numpy as np
+                features = np.array([[dist, avail, req_stock]])
+                pred = real_model.predict(features)[0]
+                score = float(pred)
+            else:
+                score = 100.0 - dist
+                if avail < req_stock:
+                    score -= 50.0
+                if req.model_type == "lgb":
+                    score += 5.0
 
             score = max(0.0, min(100.0, float(score)))
             predictions.append({"id": item.id, "aiScore": score})
