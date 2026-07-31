@@ -313,22 +313,36 @@ export default function BloodSearch() {
       }
     });
 
-    const pmiBlueIcon = L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
+    const pmiBlueIcon = L.divIcon({
+      className: 'custom-pmi-marker-icon',
+      html: `
+        <div style="position: relative; width: 34px; height: 44px; filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4)); transition: transform 0.2s;">
+          <svg width="34" height="44" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 0C7.16344 0 0 7.16344 0 16C0 27.2 16 42 16 42C16 42 32 27.2 32 16C32 7.16344 24.8366 0 16 0Z" fill="#1D4ED8"/>
+            <circle cx="16" cy="15" r="9" fill="white"/>
+            <path d="M16 10V20M11 15H21" stroke="#1D4ED8" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+      `,
+      iconSize: [34, 44],
+      iconAnchor: [17, 44],
+      popupAnchor: [0, -42]
     });
 
-    const userRedIcon = L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
+    const userRedIcon = L.divIcon({
+      className: 'custom-rs-marker-icon',
+      html: `
+        <div style="position: relative; width: 34px; height: 44px; filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4)); transition: transform 0.2s;">
+          <svg width="34" height="44" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 0C7.16344 0 0 7.16344 0 16C0 27.2 16 42 16 42C16 42 32 27.2 32 16C32 7.16344 24.8366 0 16 0Z" fill="#B91C1C"/>
+            <circle cx="16" cy="15" r="9" fill="white"/>
+            <path d="M16 10V20M11 15H21" stroke="#B91C1C" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+      `,
+      iconSize: [34, 44],
+      iconAnchor: [17, 44],
+      popupAnchor: [0, -42]
     });
 
     if (pmiResults && pmiResults.length > 0) {
