@@ -156,8 +156,8 @@ router.post('/checkin', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/events — 🔒 Hanya PMI/superadmin bisa buat event
-router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+// POST /api/events — 🔒 Hanya PMI/RS/superadmin bisa buat event
+router.post('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { name, date, time, location, address, description, capacity, organizer } = req.body;
 
   if (!name || !date || !location) {
@@ -182,8 +182,8 @@ router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, r
   }
 });
 
-// PUT /api/events/:id — 🔒 PMI/superadmin bisa update event
-router.put('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+// PUT /api/events/:id — 🔒 PMI/RS/superadmin bisa update event
+router.put('/:id', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { id } = req.params;
   const { name, date, time, location, address, description, capacity, status } = req.body;
 
@@ -208,8 +208,8 @@ router.put('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req,
   }
 });
 
-// DELETE /api/events/:id — 🔒 PMI/superadmin bisa hapus event
-router.delete('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+// DELETE /api/events/:id — 🔒 PMI/RS/superadmin bisa hapus event
+router.delete('/:id', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM events WHERE id = ?', [id]);
