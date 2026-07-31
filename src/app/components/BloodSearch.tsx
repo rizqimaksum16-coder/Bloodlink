@@ -172,8 +172,8 @@ export default function BloodSearch() {
         phone: r.phone || '(031) -',
         stock: r.stock,
         bloodTypes: [{ type: bloodType, stock: r.stock, status: r.status || 'available' }],
-        lat: r.lat,
-        lng: r.lng,
+        lat: typeof r.lat === 'number' ? r.lat : (parseFloat(r.lat) || -7.2657),
+        lng: typeof r.lng === 'number' ? r.lng : (parseFloat(r.lng) || 112.7445),
         aiScore: r.aiScore
       }));
     } catch (error) {
