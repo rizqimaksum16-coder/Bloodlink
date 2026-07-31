@@ -308,25 +308,36 @@ export default function BloodSearch() {
       }
     });
 
+    const pmiBlueIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const userRedIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
     if (pmiResults && pmiResults.length > 0) {
       const bounds = L.latLngBounds([]);
       pmiResults.forEach(pmi => {
         if (pmi.lat && pmi.lng) {
-          const marker = L.marker([pmi.lat, pmi.lng]).addTo(map)
+          const marker = L.marker([pmi.lat, pmi.lng], { icon: pmiBlueIcon }).addTo(map)
             .bindPopup(`<b>${pmi.name}</b><br/>Stok: ${pmi.stock} kantong<br/>Jarak: ${pmi.distanceKm?.toFixed(1) || 0} km`);
           bounds.extend([pmi.lat, pmi.lng]);
         }
       });
       if (activeHospital?.lat && activeHospital?.lng) {
         const marker = L.marker([activeHospital.lat, activeHospital.lng], {
-          icon: L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-          })
+          icon: userRedIcon
         }).addTo(map).bindPopup('Lokasi Anda / RS');
         bounds.extend([activeHospital.lat, activeHospital.lng]);
       }
