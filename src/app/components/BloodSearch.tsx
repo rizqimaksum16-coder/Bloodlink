@@ -102,57 +102,61 @@ export default function BloodSearch() {
     lng: number;
     address: string;
   }>({
-    name: 'Rumah Sakit A',
-    lat: -7.2678,
+    name: 'Mencari Lokasi GPS...',
+    lat: -7.2678, // Koordinat default Surabaya Pusat
     lng: 112.7584,
-    address: 'Surabaya'
+    address: 'Menunggu Izin Lokasi'
   });
 
   // Load active hospital coordinates dynamically based on logged in user session
-  // hospitals.name sudah konsisten dengan users.org, query langsung tanpa mapping
+  // or use GPS for guests/donors
   useEffect(() => {
     async function loadActiveLocation() {
-      if (!user) return;
-      
-      // Jika user adalah donor, gunakan Geolocation API untuk mendapatkan lokasi terkini perangkat
-      if (user.role === 'donor') {
-        if ('geolocation' in navigator) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              setActiveHospital({
-                name: 'Lokasi Anda Saat Ini',
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                address: 'Lokasi GPS Perangkat'
-              });
-            },
-            (error) => {
-              console.warn('Gagal mendapatkan lokasi GPS:', error);
-              // Fallback jika GPS ditolak/gagal
-              setActiveHospital({
-                name: 'Lokasi Anda (Default Surabaya)',
-                lat: -7.2678,
-                lng: 112.7584,
-                address: 'Surabaya Pusat'
-              });
-              toast.info('Gagal mengakses GPS, menggunakan lokasi default Surabaya.');
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-          );
-        } else {
-          toast.info('Browser Anda tidak mendukung fitur GPS.');
-        }
-        return; // Selesai untuk donor
+      // Jika user adalah RS, fetch koordinat RS dari Supabase (atau fallback)
+      if (user && user.role === 'rs') {
+        setActiveHospital({
+          name: user.org,
+          lat: -7.2678,
+          lng: 112.7584,
+          address: 'Surabaya'
+        });
+        return;
       }
-
-      // Jika user adalah RS, fetch koordinat RS dari Supabase
-      // Offline Mode Fallback
-      setActiveHospital({
-        name: user.org,
-        lat: -7.2678,
-        lng: 112.7584,
-        address: 'Surabaya'
-      });
+      
+      // Jika user adalah donor, masyarakat umum, atau belum login (guest)
+      // Wajib menggunakan Geolocation API (GPS)
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setActiveHospital({
+              name: 'Lokasi Anda Saat Ini',
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              address: 'Lokasi GPS Perangkat'
+            });
+          },
+          (error) => {
+            console.warn('Gagal mendapatkan lokasi GPS:', error);
+            // Fallback jika GPS ditolak/gagal
+            setActiveHospital({
+              name: 'Lokasi Anda (Default Surabaya)',
+              lat: -7.2678,
+              lng: 112.7584,
+              address: 'Surabaya Pusat'
+            });
+            toast.info('Gagal mengakses GPS, menggunakan lokasi default pusat Surabaya.');
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else {
+        toast.info('Browser Anda tidak mendukung fitur GPS.');
+        setActiveHospital({
+          name: 'Lokasi Tidak Diketahui',
+          lat: -7.2678,
+          lng: 112.7584,
+          address: 'Browser tidak support GPS'
+        });
+      }
     }
     loadActiveLocation();
   }, [user]);
