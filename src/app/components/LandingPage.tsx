@@ -137,12 +137,20 @@ export default function LandingPage() {
                 <ArrowRight className="w-5 h-5" />
               </Link>
             ) : (
-              <Link
-                to="/login"
-                className="px-8 py-4 bg-white text-[#C0392B] rounded-2xl font-bold hover:bg-gray-50 hover:shadow-lg hover:-translate-y-0.5 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
-              >
-                Mulai Gunakan <ArrowRight className="w-5 h-5" />
-              </Link>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <Link
+                  to="/login"
+                  className="px-8 py-4 bg-white text-[#C0392B] rounded-2xl font-bold hover:bg-gray-50 hover:shadow-lg hover:-translate-y-0.5 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
+                >
+                  Masuk Akun <ArrowRight className="w-5 h-5" />
+                </Link>
+                <Link
+                  to="/search"
+                  className="px-8 py-4 bg-[#E74C3C] text-white border border-[#C0392B] rounded-2xl font-bold hover:bg-[#C0392B] hover:shadow-lg hover:-translate-y-0.5 transition-all w-full sm:w-auto flex items-center justify-center gap-2"
+                >
+                  <Search className="w-5 h-5" /> Cari & Pesan Darah (Publik)
+                </Link>
+              </div>
             )}
             <a
               href="#tentang"

@@ -6,6 +6,8 @@ import lightgbm as lgb
 import pandas as pd
 import os
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = FastAPI(title="Bloodlink ML Microservice")
 
 # Token Rahasia untuk mengamankan API ini (Inter-service Security)
@@ -15,14 +17,14 @@ INTERNAL_API_KEY = os.getenv("ML_INTERNAL_API_KEY", "BL00DL1NK_S3CR3T_K3Y_9982")
 # Load Models
 try:
     xgb_model = xgb.XGBClassifier()
-    xgb_model.load_model('model_xgb.json')
+    xgb_model.load_model(os.path.join(BASE_DIR, 'model_xgb.json'))
     print("XGBoost model loaded.")
 except Exception as e:
     print(f"Failed to load XGBoost model: {e}")
     xgb_model = None
 
 try:
-    lgb_model = lgb.Booster(model_file='model_lgb.txt')
+    lgb_model = lgb.Booster(model_file=os.path.join(BASE_DIR, 'model_lgb.txt'))
     print("LightGBM model loaded.")
 except Exception as e:
     print(f"Failed to load LightGBM model: {e}")

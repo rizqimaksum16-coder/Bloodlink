@@ -171,4 +171,32 @@ router.get('/blood', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/orders/public-requests — Ambil semua permintaan publik (PMI/RS)
+router.get('/public-requests', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
+  try {
+    const query = `
+      SELECT * FROM public_blood_requests 
+      ORDER BY created_at DESC
+    `;
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetch public requests:', err);
+    res.status(500).json({ error: 'Gagal mengambil data permintaan publik' });
+  }
+});
+
+// PUT /api/orders/public-requests/:id/status — Update status permintaan publik
+router.put('/public-requests/:id/status', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    await pool.query('UPDATE public_blood_requests SET status = ? WHERE id = ?', [status, id]);
+    res.json({ message: 'Status permintaan publik berhasil diperbarui' });
+  } catch (err) {
+    console.error('Error update public request status:', err);
+    res.status(500).json({ error: 'Gagal memperbarui status permintaan publik' });
+  }
+});
+
 module.exports = router;

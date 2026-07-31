@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate } from 'react-router';
 import {
   MapPin, Filter, Navigation, Phone, Search, X, Zap, Star, Droplets,
   Clock, CheckCircle, Package, TrendingUp, ChevronRight, Sparkles,
@@ -11,7 +11,8 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-// Peta (Leaflet) dan AI scoring telah dihapus dari file ini atas permintaan pengguna.
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 // ==========================================
 // MOCK DATA & CONFIG FOR HOSPITAL STOCK
@@ -66,6 +67,7 @@ const btColor: Record<string, string> = {
 
 export default function BloodSearch() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialTabParam = searchParams.get('tab');
 
   usePageTitle('Cari Stok Darah & PMI');
@@ -88,6 +90,8 @@ export default function BloodSearch() {
   const [resultTab, setResultTab] = useState<'ai-matching' | 'hospital-stock'>('ai-matching');
 
   const { user } = useAuth();
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
 
   // Fungsi AI Analisis Dihapus
   const [activeHospital, setActiveHospital] = useState<{
@@ -284,6 +288,54 @@ export default function BloodSearch() {
       setPmiResults(null);
     }
   }, [initialTabParam]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = L.map(mapRef.current).setView([-7.250445, 112.768845], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(mapInstanceRef.current);
+    }
+    
+    const map = mapInstanceRef.current;
+    
+    // Clear old markers
+    map.eachLayer((layer) => {
+      if (layer instanceof L.Marker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    if (pmiResults && pmiResults.length > 0) {
+      const bounds = L.latLngBounds([]);
+      pmiResults.forEach(pmi => {
+        if (pmi.lat && pmi.lng) {
+          const marker = L.marker([pmi.lat, pmi.lng]).addTo(map)
+            .bindPopup(`<b>${pmi.name}</b><br/>Stok: ${pmi.stock} kantong<br/>Jarak: ${pmi.distanceKm?.toFixed(1) || 0} km`);
+          bounds.extend([pmi.lat, pmi.lng]);
+        }
+      });
+      if (activeHospital?.lat && activeHospital?.lng) {
+        const marker = L.marker([activeHospital.lat, activeHospital.lng], {
+          icon: L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+          })
+        }).addTo(map).bindPopup('Lokasi Anda / RS');
+        bounds.extend([activeHospital.lat, activeHospital.lng]);
+      }
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  }, [pmiResults, activeHospital]);
+
 
   // Hospital stock results
   const filteredHospitals = hospitalsList.filter((h) => {
@@ -580,10 +632,15 @@ export default function BloodSearch() {
                                 return (
                                   <>
                                     {isCardSelected && !isCardConfirmed && (
-                                      user?.role === 'donor' ? (
-                                        <div className="mt-3 bg-[#EAF7FB] text-[#2980B9] border border-[#2980B9]/20 rounded-xl p-3 text-[11px] font-semibold flex items-start gap-2 shadow-sm">
-                                          <AlertCircle className="w-4 h-4 text-[#2980B9] shrink-0 mt-0.5" />
-                                          <span>Informasi stok darah tersedia untuk dipantau. Fitur pemesanan & pengantaran ambulans/kurir logistik khusus untuk akun Rumah Sakit (RS).</span>
+                                      (user?.role === 'donor' || !user) ? (
+                                        <div className="mt-3 flex flex-col gap-2">
+                                          <button onClick={e => { 
+                                            e.stopPropagation(); 
+                                            navigate(`/request-blood?pmi=${pmi.id}&type=${encodeURIComponent(selectedBloodType)}&qty=${qty}`);
+                                          }}
+                                            className="w-full py-2 rounded-lg bg-[#27AE60] text-white text-xs font-bold hover:bg-[#1E8449] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                                            <CheckCircle className="w-3.5 h-3.5" /> Pesan Darah (Masyarakat Umum)
+                                          </button>
                                         </div>
                                       ) : pmi.stock === 0 ? (
                                         <div className="mt-3 flex flex-col gap-2">
@@ -627,7 +684,22 @@ export default function BloodSearch() {
                       ))}
                     </div>
 
-                    {/* Route map dihapus */}
+                    {/* Route map */}
+                    {pmiResults.length > 0 && (
+                      <div className="border border-border rounded-xl overflow-hidden h-[400px] relative mt-6">
+                        <div ref={mapRef} className="w-full h-full" />
+                        <div className="absolute top-4 right-4 z-[400] bg-white rounded-lg shadow-md p-3 text-xs font-semibold border border-border">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-blue-500" /> <span>Lokasi PMI</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-red-500" /> <span>Lokasi Anda</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               )}

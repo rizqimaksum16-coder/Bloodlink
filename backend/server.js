@@ -12,7 +12,7 @@ const ordersRoutes = require('./routes/orders');
 const rewardsRoutes = require('./routes/rewards');
 const usersRoutes = require('./routes/users');
 const notificationsRoutes = require('./routes/notifications');
-
+const publicRoutes = require('./routes/public');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,7 +79,7 @@ app.use('/api/rewards', rewardsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/ai', aiRoutes);
-
+app.use('/api/public', publicRoutes);
 
 // 🔒 Security: Global Error Handler — JANGAN kirim detail error ke client
 app.use((err, req, res, next) => {

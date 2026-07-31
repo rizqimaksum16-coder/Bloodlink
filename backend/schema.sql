@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS donation_records;
 DROP TABLE IF EXISTS deliveries;
 DROP TABLE IF EXISTS donor_profiles;
 DROP TABLE IF EXISTS blood_stock;
+DROP TABLE IF EXISTS public_blood_requests;
 DROP TABLE IF EXISTS blood_requests;
 DROP TABLE IF EXISTS hospitals;
 DROP TABLE IF EXISTS pmi_units;
@@ -70,6 +71,22 @@ CREATE TABLE blood_requests (
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (hospital_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (pmi_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE public_blood_requests (
+    id               VARCHAR(50) PRIMARY KEY,
+    patient_name     VARCHAR(255) NOT NULL,
+    parent_name      VARCHAR(255) NOT NULL,
+    phone            VARCHAR(50) NOT NULL,
+    hospital_name    VARCHAR(255) NOT NULL,
+    delivery_address TEXT NOT NULL,
+    patient_room     VARCHAR(255),
+    blood_type       VARCHAR(15) NOT NULL,
+    quantity         INT NOT NULL,
+    urgency          ENUM('normal', 'darurat') NOT NULL DEFAULT 'normal',
+    status           VARCHAR(50) NOT NULL DEFAULT 'pending',
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE activity_logs (

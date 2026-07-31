@@ -4,6 +4,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 
+function isPasswordSecure(pwd) {
+  return typeof pwd === 'string' && pwd.length >= 8 && /[A-Z]/.test(pwd) && /[a-z]/.test(pwd) && /[0-9]/.test(pwd) && /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
+}
+
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET tidak ditemukan di file .env! Server dihentikan demi keamanan.');
@@ -16,6 +20,10 @@ router.post('/register', async (req, res) => {
 
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Nama, email, dan password wajib diisi' });
+  }
+
+  if (!isPasswordSecure(password)) {
+    return res.status(400).json({ error: 'Password harus minimal 8 karakter dan mengandung huruf besar, kecil, angka, dan simbol' });
   }
 
   // Validasi organisasi untuk institusi

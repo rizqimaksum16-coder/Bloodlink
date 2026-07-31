@@ -13,6 +13,9 @@ export default defineConfig({
     // Sehingga Nmap dan tools monitoring bisa mendeteksi port 5173 di 127.0.0.1
     host: '0.0.0.0',
     port: 5173,
+    watch: {
+      ignored: ['**/backend/**', '**/venv/**']
+    }
   },
   resolve: {
     alias: {

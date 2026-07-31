@@ -28,6 +28,8 @@ const DonorDashboard = lazy(() => import('./components/DonorDashboard'));
 const NotFound = lazy(() => import('./components/NotFound'));
 const AlurDonor = lazy(() => import('./components/AlurDonor'));
 const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
+const PublicBloodRequest = lazy(() => import('./components/PublicBloodRequest'));
+const TrackRequest = lazy(() => import('./components/TrackRequest'));
 
 export default function App() {
   return (
@@ -48,10 +50,12 @@ export default function App() {
                   {/* Public */}
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/search" element={<BloodSearch />} />
+                  <Route path="/request-blood" element={<PublicBloodRequest />} />
+                  <Route path="/track-blood" element={<TrackRequest />} />
 
                   {/* Protected Routes */}
                   <Route element={<ProtectedRoute />}>
-                    <Route path="/search" element={<BloodSearch />} />
                     <Route path="/events" element={<Events />} />
                     
                     <Route path="/home" element={<HomePage />} />

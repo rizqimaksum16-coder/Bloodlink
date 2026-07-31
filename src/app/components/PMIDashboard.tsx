@@ -232,6 +232,7 @@ export default function PMIDashboard() {
 
   const [requests, setRequests] = useState<BloodRequest[]>(bloodRequests);
   const [stocks, setStocks] = useState<BloodStock[]>(bloodStocks);
+  const [publicRequests, setPublicRequests] = useState<any[]>([]);
 
   const [donorList, setDonorList] = useState<Donor[]>([]);
   const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
@@ -253,11 +254,12 @@ export default function PMIDashboard() {
     if (!user) return;
     async function loadPMIData() {
       try {
-        const [reqData, stockData, driverData, eventsData] = await Promise.all([
+        const [reqData, stockData, driverData, eventsData, publicReqData] = await Promise.all([
           api.orders.getRequests([]),
           api.stock.getPMIStock([]),
           api.users.getAll('driver', []),
-          api.events.getAll([])
+          api.events.getAll([]),
+          fetch(`${api.baseUrl}/orders/public-requests`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }).then(r => r.json()).catch(() => [])
         ]);
         if (reqData?.length) {
           setRequests(reqData.map((r: any) => ({
@@ -266,6 +268,9 @@ export default function PMIDashboard() {
             time: r.created_at ? new Date(r.created_at).toLocaleString('id-ID') : 'Baru saja', address: r.address || '-',
             contact: r.contact || '-'
           })));
+        }
+        if (publicReqData && Array.isArray(publicReqData)) {
+          setPublicRequests(publicReqData);
         }
         const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
         const myStocks = stockData?.filter((s: any) => s.pmi_id === user.id) || [];
@@ -700,6 +705,7 @@ export default function PMIDashboard() {
           <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex flex-wrap gap-1 h-auto">
             {[
               { value: 'requests', label: 'Request RS', icon: Bell },
+              { value: 'public-requests', label: 'Permintaan Publik', icon: Droplets },
               { value: 'stock', label: 'Manajemen Stok', icon: Package },
               { value: 'donors', label: 'Database Donor', icon: Users },
               { value: 'drivers', label: 'Kelola Driver', icon: Truck },
@@ -752,6 +758,93 @@ export default function PMIDashboard() {
                 </div>
               );
             })}
+          </TabsContent>
+
+          {/* ── Tab: Permintaan Publik ─────────────────────────────── */}
+          <TabsContent value="public-requests" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Permintaan Darah Publik</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Permintaan darah langsung dari pasien / masyarakat umum</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {publicRequests.length === 0 ? (
+                <div className="text-center py-8 text-sm text-[#9B9BB5]">Tidak ada permintaan publik saat ini.</div>
+              ) : (
+                publicRequests.map((req) => (
+                  <div key={req.id} className="bg-white border border-border rounded-2xl p-5 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-bold text-[#1A1A2E] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{req.patient_name}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEF9E7', color: '#E67E22' }}>
+                            {req.urgency === 'darurat' ? 'Darurat' : 'Normal'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1 text-xs text-[#9B9BB5]">
+                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{req.hospital_name} - {req.patient_room}</span>
+                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{req.delivery_address}</span>
+                          <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{req.phone} ({req.parent_name})</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold" style={{ background: btColor[req.blood_type] || '#C0392B' }}>
+                          {req.blood_type}
+                        </div>
+                        <span className="text-xs font-bold text-[#1A1A2E]">{req.quantity} kantong</span>
+                        <span className="text-[10px] text-gray-500">{req.id}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{req.status.toUpperCase()}</span>
+                      </div>
+                      {req.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                             await fetch(`${api.baseUrl}/orders/public-requests/${req.id}/status`, {
+                               method: 'PUT',
+                               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                               body: JSON.stringify({ status: 'rejected' })
+                             });
+                             setPublicRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected' } : r));
+                             toast.success('Permintaan publik ditolak');
+                          }} className="px-3 py-1.5 rounded-lg border border-border text-xs text-[#9B9BB5] hover:border-red-300 hover:text-[#C0392B] transition-colors flex items-center gap-1">
+                            <X className="w-3 h-3" /> Tolak
+                          </button>
+                          <button onClick={async () => {
+                             await fetch(`${api.baseUrl}/orders/public-requests/${req.id}/status`, {
+                               method: 'PUT',
+                               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                               body: JSON.stringify({ status: 'accepted' })
+                             });
+                             setPublicRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted' } : r));
+                             toast.success('Permintaan publik diterima (Disiapkan)');
+                          }} className="px-3 py-1.5 rounded-lg bg-[#C0392B] text-white text-xs font-semibold hover:bg-[#922B21] transition-colors flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" /> Siapkan
+                          </button>
+                        </div>
+                      )}
+                      {req.status === 'accepted' && (
+                        <button onClick={async () => {
+                             await fetch(`${api.baseUrl}/orders/public-requests/${req.id}/status`, {
+                               method: 'PUT',
+                               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                               body: JSON.stringify({ status: 'on_delivery' })
+                             });
+                             setPublicRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'on_delivery' } : r));
+                             toast.success('Permintaan dikirim');
+                          }} className="px-3 py-1.5 rounded-lg bg-[#2980B9] text-white text-xs font-semibold hover:bg-[#1A5276] transition-colors flex items-center gap-1">
+                            <Truck className="w-3 h-3" /> Kirim
+                          </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </TabsContent>
 
           {/* ── Tab: Manajemen Stok ─────────────────────────── */}

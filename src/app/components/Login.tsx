@@ -18,9 +18,21 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function isPasswordSecure(pwd: string): boolean {
+  return pwd.length >= 8 && /[A-Z]/.test(pwd) && /[a-z]/.test(pwd) && /[0-9]/.test(pwd) && /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
+}
+
 function passwordStrength(pwd: string): { level: 'weak' | 'medium' | 'strong'; label: string; color: string; width: string } {
-  if (pwd.length < 6) return { level: 'weak',   label: 'Lemah',  color: '#FF6B6B', width: '33%' };
-  if (pwd.length < 8 || !/[0-9]/.test(pwd)) return { level: 'medium', label: 'Sedang', color: '#FFB347', width: '66%' };
+  if (pwd.length === 0) return { level: 'weak', label: '', color: 'transparent', width: '0%' };
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[a-z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) score++;
+  
+  if (score <= 2) return { level: 'weak',   label: 'Lemah',  color: '#FF6B6B', width: '33%' };
+  if (score <= 4) return { level: 'medium', label: 'Sedang', color: '#FFB347', width: '66%' };
   return { level: 'strong', label: 'Kuat',  color: '#51CF66', width: '100%' };
 }
 
@@ -108,8 +120,10 @@ export default function Login() {
           org   = sanitize(regOrg) || selRole.label, password = regPassword.slice(0, 200);
     if (!name || !email || !password) { toast.error('Mohon lengkapi nama, email, dan password.'); return; }
     if (!isValidEmail(email))         { toast.error('Format email tidak valid.'); return; }
-    if (password.length < 6)          { toast.error('Password minimal 6 karakter.'); return; }
-    if (pwdStr.level === 'weak')      { toast.error('Password terlalu lemah.'); return; }
+    if (!isPasswordSecure(password)) {
+      toast.error('Password harus min. 8 karakter, ada huruf besar, kecil, angka & simbol.');
+      return;
+    }
     setRegLoading(true);
     try {
       await registerUser({ name, email, password, role: regRole, org, bloodType: regBlood, phone, address });
@@ -411,7 +425,7 @@ export default function Login() {
                 {/* Password */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    Password <span className="text-[10px] normal-case font-normal opacity-60">(min. 6 karakter)</span>
+                    Password <span className="text-[10px] normal-case font-normal opacity-60">(min. 8 kar, A-Z, a-z, 0-9, simbol)</span>
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4"
