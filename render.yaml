@@ -3,6 +3,7 @@ services:
   - type: web
     name: bloodlink-ml
     env: python
+    plan: free
     rootDir: backend/ml_service
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
@@ -18,6 +19,7 @@ services:
   - type: web
     name: bloodlink-backend
     env: node
+    plan: free
     rootDir: backend
     buildCommand: npm install
     startCommand: npm start
