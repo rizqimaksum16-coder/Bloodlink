@@ -155,9 +155,14 @@ export default function BloodSearch() {
     loadActiveLocation();
   }, [user]);
 
+  const [modelUsedName, setModelUsedName] = useState<string>('XGBoost');
+
   const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
     try {
       const result = await api.ai.matching({ bloodType, qty: requiredQty, lat: rsLat, lng: rsLng });
+      if (result.modelUsed) {
+        setModelUsedName(result.modelUsed);
+      }
       return result.recommendations.map((r: any) => ({
         id: String(r.id),
         name: r.name,
@@ -576,7 +581,7 @@ export default function BloodSearch() {
                       <div className="flex items-center gap-3 bg-[#F4EFFE] border border-[#8E44AD]/30 rounded-xl px-4 py-2.5">
                         <Sparkles className="w-4 h-4 text-[#8E44AD] flex-shrink-0" />
                         <p className="text-xs text-[#8E44AD] font-semibold flex-1">
-                          Skoring Berbasis AI Aktif (Machine Learning)
+                          Skoring Berbasis AI Aktif — Model: <span className="font-extrabold underline">{modelUsedName}</span>
                         </p>
                       </div>
                       {pmiResults.map((pmi, i) => (
