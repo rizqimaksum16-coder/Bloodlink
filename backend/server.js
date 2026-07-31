@@ -20,6 +20,9 @@ const PORT = process.env.PORT || 3001;
 // 🔒 Security: Hide Server Header
 app.disable('x-powered-by');
 
+// ✅ Trust proxy (diperlukan untuk Railway/Render agar express-rate-limit bekerja benar)
+app.set('trust proxy', 1);
+
 // 🔒 Security: CORS hanya untuk frontend yang diizinkan
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
 app.use(cors({
