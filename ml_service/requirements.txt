@@ -1,4 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 python-dotenv
+python-multipart
