@@ -12,7 +12,7 @@ services:
       - key: PORT
         value: 10000
       - key: ML_INTERNAL_API_KEY
-        value: BL00DL1NK_S3CR3T_K3Y_9982 # Key default, bisa diubah di dashboard
+        sync: false # Diisi di dashboard Render (samakan untuk ML dan Backend)
 
   # 2. Node.js Express Backend
   - type: web
@@ -28,20 +28,19 @@ services:
       - key: ML_API_URL
         value: http://bloodlink-ml:10000/predict
       - key: ML_INTERNAL_API_KEY
-        value: BL00DL1NK_S3CR3T_K3Y_9982
+        sync: false # Diisi di dashboard Render (samakan untuk ML dan Backend)
       
-      # Database Configs (Wajib diisi nanti di Dashboard Render setelah punya akun Aiven)
+      # Database Configs (Wajib diisi nanti di Dashboard Render)
       - key: DB_HOST
-        value: "" # Contoh: mysql-bloodlink-aiven.aivencloud.com
+        sync: false
       - key: DB_PORT
-        value: "25060" # Biasanya port yang diberikan cloud
+        sync: false
       - key: DB_USER
-        value: "avnadmin"
+        sync: false
       - key: DB_PASSWORD
-        sync: false # Render akan meminta Anda memasukkannya di UI, tidak disimpan di file ini
+        sync: false
       - key: DB_NAME
-        value: "bloodlink"
-      
+        sync: false
       # API Keys Eksternal (Opsional, isi di Dashboard jika perlu)
       - key: GROQ_API_KEY
         sync: false
