@@ -65,7 +65,11 @@ export default function Events() {
             capacity: e.capacity || 100,
             registered: e.registered || 0,
             description: e.description || '',
-            requirements: e.requirements || '',
+            requirements: Array.isArray(e.requirements)
+              ? e.requirements
+              : typeof e.requirements === 'string' && e.requirements.trim()
+                ? e.requirements.split('\n').map((r: string) => r.trim()).filter(Boolean)
+                : ['Usia minimal 17 tahun', 'Berat badan minimal 45 kg', 'Membawa kartu identitas'],
             status: e.status || 'upcoming',
             organizerType: 'pmi'
           })));
