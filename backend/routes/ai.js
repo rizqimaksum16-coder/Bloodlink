@@ -278,12 +278,14 @@ router.post('/matching', async (req, res) => {
 
       const stock_ratio = qty ? pmi.stock / qty : 1.0;
       const remaining_stock = pmi.stock - (qty || 1);
+      const is_critical = (pmi.stock < 10 || pmi.status === 'critical') ? 1 : 0;
 
       return {
         id: String(pmi.id),
         distance_km: parseFloat(distance_km.toFixed(4)),
         stock_ratio: parseFloat(stock_ratio.toFixed(4)),
         remaining_stock: parseFloat(remaining_stock.toFixed(2)),
+        is_critical: is_critical,
         // Data tambahan untuk dikembalikan ke frontend (bukan fitur ML)
         _meta: { ...pmi, distance: parseFloat(distance_km.toFixed(2)) }
       };

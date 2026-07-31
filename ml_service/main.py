@@ -17,7 +17,8 @@ class PredictionData(BaseModel):
     id: str
     distance_km: float
     stock_ratio: float
-    is_critical: int
+    remaining_stock: Optional[float] = 0.0
+    is_critical: Optional[int] = 0
 
 class PredictionRequest(BaseModel):
     model_type: Optional[str] = "xgb" # "xgb" or "lgb"
