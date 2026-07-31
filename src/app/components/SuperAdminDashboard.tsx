@@ -9,6 +9,10 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import { OrgAccount, ActiveTab, OrgType } from '@/types/bloodlink';
 import { api, apiFetch } from '../utils/api';
 import { hashPassword } from '../context/AuthContext';
 
@@ -51,12 +55,13 @@ const emptyOrg = (type: OrgType): Omit<OrgAccount, 'id' | 'createdAt'> => ({
 
 // ─── Map Component ────────────────────────────────────────────────────────────
 
-function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType }: {
+function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType, onMarkerDragEnd }: {
   orgs: OrgAccount[];
   onPickCoords?: (coords: [number, number]) => void;
   centerCoords?: [number, number];
   tempCoords?: [number, number];
   tempType?: 'pmi' | 'rs';
+  onMarkerDragEnd?: (orgId: string, coords: [number, number]) => void;
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,6 +108,13 @@ function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType }: {
       }
     });
 
+    // Create cluster group
+    // @ts-ignore
+    const markers = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 40,
+    });
+
     // PMI markers (red)
     orgs.filter(o => o.type === 'pmi').forEach(org => {
       const icon = L.divIcon({
@@ -111,9 +123,16 @@ function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType }: {
         iconSize: [32, 32],
         iconAnchor: [16, 16],
       });
-      L.marker(org.coords, { icon })
-        .addTo(map)
+      const marker = L.marker(org.coords, { icon, draggable: !!onMarkerDragEnd })
         .bindPopup(`<b>${org.name}</b><br/>${org.address}<br/><small>Coordinate: ${org.coords[0].toFixed(4)}, ${org.coords[1].toFixed(4)}</small>`);
+      
+      if (onMarkerDragEnd) {
+        marker.on('dragend', (e) => {
+          const latlng = e.target.getLatLng();
+          onMarkerDragEnd(org.id, [latlng.lat, latlng.lng]);
+        });
+      }
+      markers.addLayer(marker);
     });
 
     // RS markers (blue)
@@ -124,10 +143,19 @@ function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType }: {
         iconSize: [34, 34],
         iconAnchor: [17, 17],
       });
-      L.marker(org.coords, { icon })
-        .addTo(map)
+      const marker = L.marker(org.coords, { icon, draggable: !!onMarkerDragEnd })
         .bindPopup(`<b>${org.name}</b><br/>${org.address}<br/><small>Coordinate: ${org.coords[0].toFixed(4)}, ${org.coords[1].toFixed(4)}</small>`);
+        
+      if (onMarkerDragEnd) {
+        marker.on('dragend', (e) => {
+          const latlng = e.target.getLatLng();
+          onMarkerDragEnd(org.id, [latlng.lat, latlng.lng]);
+        });
+      }
+      markers.addLayer(marker);
     });
+
+    map.addLayer(markers);
 
     // Render picker marker
     if (tempCoords) {
@@ -140,10 +168,17 @@ function AdminMap({ orgs, onPickCoords, centerCoords, tempCoords, tempType }: {
         iconSize: [32, 32],
         iconAnchor: [16, 16],
       });
-      L.marker(tempCoords, { icon })
+      const marker = L.marker(tempCoords, { icon, draggable: !!onPickCoords })
         .addTo(map)
         .bindPopup(`<b>Lokasi Terpilih</b><br/><small>Coordinate: ${tempCoords[0].toFixed(5)}, ${tempCoords[1].toFixed(5)}</small>`)
         .openPopup();
+        
+      if (onPickCoords) {
+        marker.on('dragend', (e) => {
+          const latlng = e.target.getLatLng();
+          onPickCoords([latlng.lat, latlng.lng]);
+        });
+      }
     }
   }, [orgs, tempCoords, tempType]);
 
@@ -183,9 +218,9 @@ export default function SuperAdminDashboard() {
             type: 'pmi' as OrgType,
             name: u.name,
             email: u.email,
-            address: 'Belum diatur',
-            phone: '-',
-            coords: [-7.265, 112.744] as [number, number],
+            address: u.address || 'Belum diatur',
+            phone: u.phone || '-',
+            coords: [parseFloat(u.latitude) || -7.265, parseFloat(u.longitude) || 112.744] as [number, number],
             status: 'active' as const,
             adminName: u.name,
             createdAt: u.created_at || new Date().toISOString(),
@@ -195,9 +230,9 @@ export default function SuperAdminDashboard() {
             type: 'rs' as OrgType,
             name: u.name,
             email: u.email,
-            address: 'Belum diatur',
-            phone: '-',
-            coords: [-7.267, 112.758] as [number, number],
+            address: u.address || 'Belum diatur',
+            phone: u.phone || '-',
+            coords: [parseFloat(u.latitude) || -7.267, parseFloat(u.longitude) || 112.758] as [number, number],
             status: 'active' as const,
             adminName: u.name,
             createdAt: u.created_at || new Date().toISOString(),
@@ -267,10 +302,17 @@ export default function SuperAdminDashboard() {
     // Simpan akun ke MySQL API
     try {
       if (editingOrg) {
-        // Update user di backend (nama & role)
+        // Update user di backend (nama & role) beserta koordinat
         await apiFetch(`/users/${editingOrg.id}`, {
           method: 'PUT',
-          body: JSON.stringify({ name: orgForm.adminName, role: orgForm.type })
+          body: JSON.stringify({ 
+            name: orgForm.adminName, 
+            role: orgForm.type,
+            address: orgForm.address,
+            phone: orgForm.phone,
+            latitude: orgForm.coords[0],
+            longitude: orgForm.coords[1]
+          })
         }).catch(() => null);
         toast.info('Data akun berhasil diperbarui.');
       } else {
@@ -316,6 +358,25 @@ export default function SuperAdminDashboard() {
     } catch (e) { console.warn('Gagal hapus dari API:', e); }
     setOrgs(prev => prev.filter(o => o.id !== id));
     toast.success(`Akun ${name} dihapus dari sistem`);
+  };
+
+  const handleMarkerDragEnd = async (orgId: string, newCoords: [number, number]) => {
+    // Save new coordinates to backend API
+    try {
+      await apiFetch(`/users/${orgId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ latitude: newCoords[0], longitude: newCoords[1] })
+      });
+      setOrgs(prev => prev.map(o => {
+        if (o.id === orgId) {
+          toast.success(`Lokasi ${o.name} berhasil disimpan`);
+          return { ...o, coords: newCoords };
+        }
+        return o;
+      }));
+    } catch (e: any) {
+      toast.error('Gagal menyimpan lokasi baru ke server: ' + e.message);
+    }
   };
 
   // ─── Tab Navigation ──────────────────────────────────────────────────────────
@@ -574,7 +635,7 @@ export default function SuperAdminDashboard() {
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-border p-4 shadow-sm">
-              <AdminMap orgs={orgs} />
+              <AdminMap orgs={orgs} onMarkerDragEnd={handleMarkerDragEnd} />
             </div>
           </div>
         )}

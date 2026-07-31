@@ -374,15 +374,16 @@ export default function Events() {
   };
 
   const handleDeleteEvent = async (eventId: any, eventName: string) => {
-      // Mode Offline
-      setEventList(prev => {
-        const updated = prev.filter(e => e.id !== eventId);
-        return updated;
-      });
-      toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus.` });
+    try {
+      await api.events.delete(eventId);
+      setEventList(prev => prev.filter(e => e.id !== eventId));
+      toast.success('Event berhasil dihapus!', { description: `Event "${eventName}" telah dihapus dari database.` });
+    } catch (err: any) {
+      toast.error('Gagal menghapus event', { description: err.message });
+    }
   };
 
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEvent.name || !newEvent.date || !newEvent.time || !newEvent.location || !newEvent.address || !newEvent.description) {
       toast.error('Gagal membuat event!', { description: 'Semua kolom wajib diisi.' });
@@ -409,38 +410,51 @@ export default function Events() {
       status = 'completed';
     }
 
-    const created: Event = {
-      id: Date.now(),
-      name: newEvent.name,
-      organizer: user?.org || 'Institusi Kesehatan',
-      date: newEvent.date,
-      time: newEvent.time,
-      location: newEvent.location,
-      address: newEvent.address,
-      capacity: Number(newEvent.capacity),
-      registered: 0,
-      description: newEvent.description,
-      requirements: requirementsList,
-      status: status
-    };
+    try {
+      const res: any = await api.events.create({
+        name: newEvent.name,
+        date: newEvent.date,
+        time: newEvent.time,
+        location: newEvent.location,
+        address: newEvent.address,
+        description: newEvent.description,
+        capacity: Number(newEvent.capacity),
+        organizer: user?.org || 'Institusi Kesehatan'
+      });
 
-      // Mode Offline
-      setEventList(prev => {
-        const updated = [created, ...prev];
-        return updated;
-      });
-      toast.success('Event berhasil dibuat!', { description: `Event "${newEvent.name}" telah aktif.` });
-      setShowCreateModal(false);
-      setNewEvent({
-        name: '',
-        date: '',
-        time: '',
-        location: '',
-        address: '',
-        capacity: 100,
-        description: '',
-        requirements: '',
-      });
+      if (res.event) {
+        const created: Event = {
+          id: res.event.id,
+          name: res.event.name,
+          organizer: res.event.organizer,
+          date: res.event.date,
+          time: res.event.time,
+          location: res.event.location,
+          address: res.event.address,
+          capacity: res.event.capacity,
+          registered: res.event.registered || 0,
+          description: res.event.description,
+          requirements: requirementsList,
+          status: status
+        };
+
+        setEventList(prev => [created, ...prev]);
+        toast.success('Event berhasil dibuat!', { description: `Event "${newEvent.name}" telah aktif dan tersimpan.` });
+        setShowCreateModal(false);
+        setNewEvent({
+          name: '',
+          date: '',
+          time: '',
+          location: '',
+          address: '',
+          capacity: 100,
+          description: '',
+          requirements: '',
+        });
+      }
+    } catch (err: any) {
+      toast.error('Gagal menyimpan event ke database', { description: err.message });
+    }
   };
 
   const pmiEvents = filtered.filter((e) => {

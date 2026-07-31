@@ -8,7 +8,7 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { role } = req.query;
   try {
-    let query = 'SELECT id, email, name, role, created_at FROM users';
+    let query = 'SELECT id, email, name, role, created_at, address, phone, latitude, longitude FROM users';
     const params = [];
     if (role) {
       query += ' WHERE role = ?';
@@ -77,9 +77,12 @@ router.delete('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (r
 // PUT /api/users/:id — Update data user
 router.put('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
   const { id } = req.params;
-  const { name, role } = req.body;
+  const { name, role, address, phone, latitude, longitude } = req.body;
   try {
-    await pool.query('UPDATE users SET name = COALESCE(?, name), role = COALESCE(?, role) WHERE id = ?', [name, role, id]);
+    await pool.query(
+      'UPDATE users SET name = COALESCE(?, name), role = COALESCE(?, role), address = COALESCE(?, address), phone = COALESCE(?, phone), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude) WHERE id = ?',
+      [name, role, address, phone, latitude, longitude, id]
+    );
     res.json({ message: 'Data pengguna berhasil diperbarui' });
   } catch (err) {
     console.error('Error update user:', err);

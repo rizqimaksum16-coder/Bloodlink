@@ -161,6 +161,7 @@ export default function BloodSearch() {
         district: 'Suroboyo', // Default district or mapped from DB
         distanceKm: r.distance,
         phone: r.phone || '(031) -',
+        stock: r.stock,
         bloodTypes: [{ type: bloodType, stock: r.stock, status: r.status || 'available' }],
         lat: r.lat,
         lng: r.lng,
@@ -250,7 +251,7 @@ export default function BloodSearch() {
     }
   };
 
-  // Cari PMI dengan stok nyata dari MySQL API
+  // Cari PMI dengan stok nyata dari MySQL API dan Evaluasi AI
   const handleSearchAndMatch = async () => {
     setIsMatching(true);
     setPmiResults(null);
@@ -258,26 +259,16 @@ export default function BloodSearch() {
     setConfirmedPMIId(null);
 
     try {
-      const pmiStockData: any[] = await api.stock.getPMIStock([]);
-      if (pmiStockData && pmiStockData.length > 0) {
-        const searchBt = selectedBloodType !== 'all' ? selectedBloodType : 'O+';
-        const matched = pmiStockData
-          .filter((s: any) => s.blood_type === searchBt && s.quantity >= (Number(qty) || 1))
-          .map((s: any, i: number) => ({
-            id: String(s.pmi_id),
-            name: s.pmi_name || 'PMI Kota',
-            stock: s.quantity,
-            lat: Number(s.lat) || -7.2657,
-            lng: Number(s.lng) || 112.7445,
-            address: s.pmi_address || 'Alamat PMI'
-          }));
-        setPmiResults(matched);
-      } else {
-        setPmiResults([]);
-      }
+      const searchBt = selectedBloodType !== 'all' ? selectedBloodType : 'O+';
+      const rsLat = activeHospital?.lat || -7.2678;
+      const rsLng = activeHospital?.lng || 112.7584;
+      
+      const matched = await getDynamicPMIResults(searchBt, Number(qty) || 1, rsLat, rsLng);
+      
+      setPmiResults(matched);
     } catch (err) {
       console.warn('Gagal search PMI dari API');
-      toast.error('Gagal mengambil data stok dari server');
+      toast.error('Gagal mengambil data rekomendasi AI dari server');
       setPmiResults([]);
     } finally {
       setIsMatching(false);
@@ -518,18 +509,12 @@ export default function BloodSearch() {
                   <div className="flex flex-col gap-6">
                       {/* PMI recommendations list */}
                       <div className="space-y-4">
-                      {/* On-demand AI Analysis Button (Disabled Temporarily) */}
-                      <div className="flex items-center gap-3 bg-[#F4EFFE] border border-purple-200 rounded-xl px-4 py-2.5 opacity-60">
-                        <Sparkles className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                        <p className="text-xs text-purple-700 flex-1">
-                          Fitur Analisis AI Matching sedang dalam tahap pengembangan dan sementara dinonaktifkan.
+                      {/* AI Analysis Active Banner */}
+                      <div className="flex items-center gap-3 bg-[#F4EFFE] border border-[#8E44AD]/30 rounded-xl px-4 py-2.5">
+                        <Sparkles className="w-4 h-4 text-[#8E44AD] flex-shrink-0" />
+                        <p className="text-xs text-[#8E44AD] font-semibold flex-1">
+                          Skoring Berbasis AI Aktif (Machine Learning)
                         </p>
-                        <button
-                          disabled={true}
-                          className="flex-shrink-0 text-[11px] font-bold bg-[#9B9BB5] text-white px-3 py-1.5 rounded-lg cursor-not-allowed flex items-center gap-1.5"
-                        >
-                          <Sparkles className="w-3 h-3" /> Segera Hadir 🔒
-                        </button>
                       </div>
                       {pmiResults.map((pmi, i) => (
                         <div key={pmi.id}
@@ -552,13 +537,41 @@ export default function BloodSearch() {
                               <p className="text-xs text-[#4A4A6A] flex items-center gap-1">
                                 <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> {pmi.address}
                               </p>
-                              <div className="mt-2 text-xs font-semibold">
-                                <span className="text-[#27AE60] bg-[#EAFAF1] px-2.5 py-1 rounded-full">
-                                  Stok Tersedia: {pmi.stock} Kantong
+                              <div className="mt-2 flex items-center gap-2 text-xs font-semibold">
+                                <span className="text-white px-2 py-1 rounded-md" style={{ background: bloodTypeColor[selectedBloodType !== 'all' ? selectedBloodType : 'O+'] || '#E74C3C' }}>
+                                  {selectedBloodType !== 'all' ? selectedBloodType : 'O+'}
+                                </span>
+                                <span className="text-[#27AE60] bg-[#EAFAF1] px-2.5 py-1 rounded-full border border-[#27AE60]/20">
+                                  Tersedia {pmi.stock} Kantong
                                 </span>
                               </div>
 
-                              {/* Komponen alasan dan analisis AI telah dihapus */}
+                              {/* AI Analysis Component */}
+                              <div className="mt-3 bg-[#F9F9FC] border border-border rounded-xl p-3 flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-[#8E44AD] flex items-center gap-1 uppercase tracking-wider">
+                                    <Sparkles className="w-3 h-3" /> AI Rekomendasi
+                                  </span>
+                                  <span className={`text-xs font-bold ${
+                                    (pmi.aiScore || 0) >= 80 ? 'text-[#27AE60]' :
+                                    (pmi.aiScore || 0) >= 50 ? 'text-[#F39C12]' : 'text-[#C0392B]'
+                                  }`}>
+                                    Skor: {Math.round(pmi.aiScore || 0)}/100
+                                  </span>
+                                </div>
+                                <div className="w-full bg-[#E5E5EB] rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all duration-1000 ${
+                                      (pmi.aiScore || 0) >= 80 ? 'bg-[#27AE60]' :
+                                      (pmi.aiScore || 0) >= 50 ? 'bg-[#F39C12]' : 'bg-[#C0392B]'
+                                    }`}
+                                    style={{ width: `${Math.min(100, Math.max(0, pmi.aiScore || 0))}%` }}
+                                  />
+                                </div>
+                                <p className="text-[11px] text-[#4A4A6A] leading-relaxed mt-1">
+                                  Berdasarkan kalkulasi model Machine Learning, PMI ini memiliki skor kecocokan {Math.round(pmi.aiScore || 0)} mempertimbangkan jarak ({pmi.distanceKm?.toFixed(1) || 0} km), stok tersedia ({pmi.stock}), dan jumlah permintaan.
+                                </p>
+                              </div>
 
                               {(() => {
                                 const isCardSelected = selectedPMI === pmi.id || (!selectedPMI && i === 0);

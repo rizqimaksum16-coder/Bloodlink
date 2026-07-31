@@ -19,15 +19,25 @@ const providers = [
   },
   {
     name: 'Gemini',
-    url: () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    url: () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
     headers: () => ({
       'Content-Type': 'application/json'
     }),
-    body: (messages) => ({
-      contents: [{
-        parts: [{ text: messages.map(m => `${m.role}: ${m.content}`).join('\\n') }]
-      }]
-    }),
+    body: (messages) => {
+      const sysMsg = messages.find(m => m.role === 'system');
+      const convoMsgs = messages.filter(m => m.role !== 'system');
+      
+      const contents = convoMsgs.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }]
+      }));
+      
+      const payload = { contents };
+      if (sysMsg) {
+        payload.systemInstruction = { parts: [{ text: sysMsg.content }] };
+      }
+      return payload;
+    },
     checkKey: () => !!process.env.GEMINI_API_KEY,
     parseResponse: (data) => {
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -60,7 +70,7 @@ const providers = [
       'Content-Type': 'application/json'
     }),
     body: (messages) => ({
-      model: 'openai/gpt-3.5-turbo', // Or 'meta-llama/llama-3-8b-instruct:free'
+      model: 'google/gemma-4-31b-it:free',
       messages
     }),
     checkKey: () => !!process.env.OPENROUTER_API_KEY
@@ -86,16 +96,20 @@ const providers = [
       'Content-Type': 'application/json'
     }),
     body: (messages) => {
-      // Cohere uses a slightly different structure: message (string) and chat_history
-      const history = messages.slice(0, -1).map(m => ({
+      const sysMsg = messages.find(m => m.role === 'system');
+      const preamble = sysMsg ? sysMsg.content : undefined;
+      const convoMsgs = messages.filter(m => m.role !== 'system');
+      
+      const history = convoMsgs.slice(0, -1).map(m => ({
         role: m.role === 'user' ? 'USER' : 'CHATBOT',
         message: m.content
       }));
-      const lastMsg = messages[messages.length - 1].content;
+      const lastMsg = convoMsgs[convoMsgs.length - 1]?.content || '';
       return {
-        model: 'command-r',
+        model: 'command-r7b-12-2024',
         message: lastMsg,
-        chat_history: history
+        chat_history: history,
+        preamble: preamble
       };
     },
     checkKey: () => !!process.env.COHERE_API_KEY,
@@ -247,26 +261,94 @@ router.post('/matching', async (req, res) => {
     // 3. AI Logic (Scoring sederhana berbasis aturan yang menggantikan model eksternal berat)
     // Di produksi, kita bisa mengirim data array 'rows' ini ke API LLM Eksternal untuk di-ranking.
     // Untuk demo, kita implementasikan logic scoring Euclidean distance.
-    const recommendations = rows.map(pmi => {
+    const ML_API_URL = process.env.ML_API_URL || 'http://127.0.0.1:8000/predict';
+    const ML_API_KEY = process.env.ML_INTERNAL_API_KEY || 'BL00DL1NK_S3CR3T_K3Y_9982';
+    
+    // Siapkan data untuk FastAPI
+    const mlPayload = rows.map(pmi => {
       const pmiLat = pmi.lat || -7.2657;
       const pmiLng = pmi.lng || 112.7445;
       const dLat = (lat || -7.2678) - pmiLat;
       const dLng = (lng || 112.7584) - pmiLng;
       const distance = Math.sqrt(dLat*dLat + dLng*dLng) * 111.12; // dalam KM
       
-      let aiScore = 100;
-      aiScore -= (distance * 2); // Makin jauh, nilai makin kurang
-      if (pmi.stock < qty) aiScore -= 50; // Stok tidak cukup
-      else if (pmi.stock >= qty * 2) aiScore += 10; // Stok melimpah
+      const stock_ratio = qty ? pmi.stock / qty : 1.0;
+      const remaining_stock = pmi.stock - (qty || 1);
 
       return {
-        ...pmi,
-        distance,
-        aiScore: Math.round(aiScore)
+        id: pmi.id,
+        distance_km: distance,
+        stock_ratio: stock_ratio,
+        remaining_stock: remaining_stock,
+        ...pmi
       };
-    }).sort((a, b) => b.aiScore - a.aiScore); // Urutkan dari yang terbaik
+    });
+
+    let ml_predictions = null;
+    let model_used = "Euclidean Fallback";
+
+    // Panggil FastAPI secara aman dengan Timeout 3 Detik
+    try {
+      // Menggunakan dynamic import untuk node-fetch jika fetch tidak ada, tapi node 24+ ada native fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(ML_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ML_API_KEY
+        },
+        body: JSON.stringify({
+          model_type: process.env.ML_MODEL_TYPE || 'xgboost', // switch 'lightgbm' / 'xgboost' via env
+          data: mlPayload
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const ml_result = await response.json();
+        ml_predictions = ml_result.predictions;
+        model_used = ml_result.model_used;
+      } else {
+        console.warn(`ML API Error: ${response.status} - Fallback ke Euclidean`);
+      }
+    } catch (e) {
+      console.warn(`Gagal terhubung ke ML API: ${e.message} - Fallback ke Euclidean`);
+    }
+
+    let recommendations = [];
+
+    if (ml_predictions) {
+      // Pasangkan skor AI dengan data PMI
+      const scoreMap = {};
+      ml_predictions.forEach(p => scoreMap[p.id] = p.aiScore);
+      
+      recommendations = mlPayload.map(pmi => ({
+        ...pmi,
+        distance: pmi.distance_km,
+        aiScore: scoreMap[pmi.id] || 0
+      })).sort((a, b) => b.aiScore - a.aiScore);
+
+    } else {
+      // FALLBACK DARURAT: Gunakan Euclidean Distance manual
+      recommendations = mlPayload.map(pmi => {
+        let aiScore = 100;
+        aiScore -= (pmi.distance_km * 2); 
+        if (pmi.stock < qty) aiScore -= 50; 
+        else if (pmi.stock >= qty * 2) aiScore += 10; 
+
+        return {
+          ...pmi,
+          distance: pmi.distance_km,
+          aiScore: Math.round(aiScore)
+        };
+      }).sort((a, b) => b.aiScore - a.aiScore); 
+    }
 
     res.json({
+      modelUsed: model_used,
       recommendations,
       usage: {
         total_tokens: 15 // Mock token usage for rule-based matching

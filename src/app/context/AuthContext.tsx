@@ -140,9 +140,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Register User via Express API
   const registerUser = async (payload: RegisterPayload) => {
-    const { name, email, password, role, org, bloodType } = payload;
+    const { name, email, password, role, org, bloodType, phone, address } = payload;
     try {
-      const res: any = await api.auth.register({ name, email, password, role, blood_type: bloodType });
+      const res: any = await api.auth.register({ 
+        name, 
+        email, 
+        password, 
+        role, 
+        blood_type: bloodType,
+        org,
+        phone,
+        address 
+      });
       if (res.token) {
         localStorage.setItem('bloodlink_token', res.token);
       }

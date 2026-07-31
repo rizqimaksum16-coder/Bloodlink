@@ -18,9 +18,19 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'Nama, email, dan password wajib diisi' });
   }
 
+  // Validasi organisasi untuk institusi
+  if (role !== 'donor' && (!org || org.trim() === '-' || org.trim() === '')) {
+    return res.status(400).json({ error: 'Nama organisasi/instansi wajib diisi untuk pendaftaran Rumah Sakit atau PMI' });
+  }
+
+  const connection = await pool.getConnection();
   try {
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    await connection.beginTransaction();
+
+    const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
+      await connection.rollback();
+      connection.release();
       return res.status(400).json({ error: 'Email sudah terdaftar' });
     }
 
@@ -28,24 +38,33 @@ router.post('/register', async (req, res) => {
     const userId = require('crypto').randomUUID();
     const avatar = name.substring(0, 2).toUpperCase();
 
-    await pool.query(
+    // 1. Simpan ke tabel users
+    await connection.query(
       'INSERT INTO users (id, name, email, password_hash, role, org, avatar, address, phone, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [userId, name, email, hashedPassword, role, org, avatar, address, phone, latitude, longitude]
     );
 
+    // 2. Simpan ke tabel profil pendonor (sinkronisasi nomor HP dan alamat)
     if (role === 'donor') {
       const profileId = 'DP-' + userId.substring(0, 8) + '-' + Date.now();
-      await pool.query(
-        `INSERT INTO donor_profiles (id, user_id, blood_type)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE blood_type = VALUES(blood_type)`,
-        [profileId, userId, blood_type]
+      await connection.query(
+        `INSERT INTO donor_profiles (id, user_id, blood_type, phone, address)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE blood_type = VALUES(blood_type), phone = VALUES(phone), address = VALUES(address)`,
+        [profileId, userId, blood_type, phone, address]
       );
     }
+
+    await connection.commit();
+    connection.release();
 
     const token = jwt.sign({ id: userId, email, role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ message: 'Registrasi berhasil', token, user: { id: userId, email, name, role } });
   } catch (err) {
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
     console.error('Error register:', err);
     res.status(500).json({ error: 'Gagal melakukan registrasi' });
   }

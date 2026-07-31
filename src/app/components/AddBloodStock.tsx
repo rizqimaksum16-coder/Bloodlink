@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { api } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -20,13 +21,20 @@ const btColor: Record<string, string> = {
 
 export default function AddBloodStock() {
   usePageTitle('Tambah Stok Darah');
+  const { user } = useAuth();
   const [formData, setFormData] = useState({ hospitalName: '', bloodType: '', quantity: '', expiryDate: '', notes: '' });
   const [loading, setLoading] = useState(false);
   const [recentSubmissions, setRecentSubmissions] = useState(initialSubmissions);
 
   const fetchRecentSubmissions = async () => {
-    // Mode offline, menggunakan recentSubmissions yang sudah ada
-    return;
+    try {
+      const logs = await api.stock.getActivityLogs([]);
+      if (logs && logs.length > 0) {
+        setRecentSubmissions(logs);
+      }
+    } catch (err) {
+      console.warn('Gagal memuat log aktivitas', err);
+    }
   };
 
   useEffect(() => {
@@ -37,7 +45,7 @@ export default function AddBloodStock() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.hospitalName || !formData.bloodType || !formData.quantity) {
+    if (!formData.bloodType || !formData.quantity) {
       toast.error('Mohon lengkapi semua field yang wajib diisi');
       return;
     }
@@ -45,17 +53,27 @@ export default function AddBloodStock() {
 
     const qtyNum = parseInt(formData.quantity) || 0;
 
-    // Local fallback untuk offline mode
-    setRecentSubmissions(prev => [
-      { hospital: formData.hospitalName, bloodType: formData.bloodType, quantity: qtyNum, time: 'Baru saja' },
-      ...prev.slice(0, 4)
-    ]);
+    try {
+      if (user?.role === 'rs') {
+        await api.stock.updateHospitalStock(formData.bloodType, qtyNum);
+      } else {
+        await api.stock.updatePMIStock(formData.hospitalName || user?.org || 'PMI', formData.bloodType, qtyNum);
+      }
 
-    toast.success('Stok darah berhasil ditambahkan!', {
-      description: `${formData.quantity} kantong ${formData.bloodType} di ${formData.hospitalName}`,
-    });
-    setFormData({ hospitalName: '', bloodType: '', quantity: '', expiryDate: '', notes: '' });
-    setLoading(false);
+      setRecentSubmissions(prev => [
+        { hospital: formData.hospitalName || user?.org, bloodType: formData.bloodType, quantity: qtyNum, time: 'Baru saja' },
+        ...prev.slice(0, 4)
+      ]);
+
+      toast.success('Stok darah berhasil ditambahkan!', {
+        description: `${formData.quantity} kantong ${formData.bloodType} berhasil disimpan`,
+      });
+      setFormData({ hospitalName: '', bloodType: '', quantity: '', expiryDate: '', notes: '' });
+    } catch (err: any) {
+      toast.error('Gagal menyimpan stok darah', { description: err.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Check which required fields are filled

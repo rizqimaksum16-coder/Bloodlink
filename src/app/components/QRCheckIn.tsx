@@ -145,8 +145,21 @@ export default function QRCheckIn() {
       )
     );
 
-    // Persist check-in to Supabase
-    // Supabase update check_in dihilangkan untuk mode offline
+    // Persist check-in to Backend API
+    try {
+      await api.events.checkIn({ booking_id: booking.id });
+    } catch (err: any) {
+      toast.error('Gagal menyimpan check-in ke server', { description: err.message });
+      // Remove local optimistic update on failure
+      setLocalBookings((prev) =>
+        prev.map((b) =>
+          b.id === booking!.id
+            ? { ...b, checkedIn: false, checkedInAt: undefined }
+            : b
+        )
+      );
+      return;
+    }
 
     setLastScannedName(booking.donorName);
     setScanResult('success');
