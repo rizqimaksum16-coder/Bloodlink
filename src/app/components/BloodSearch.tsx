@@ -13,6 +13,8 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 
 // ==========================================
 // MOCK DATA & CONFIG FOR HOSPITAL STOCK
@@ -307,11 +309,17 @@ export default function BloodSearch() {
     const map = mapInstanceRef.current;
     
     // Clear old markers
+    // Hapus marker dan routing control lama
     map.eachLayer((layer) => {
       if (layer instanceof L.Marker) {
         map.removeLayer(layer);
       }
     });
+
+    if ((map as any)._routingControl) {
+      map.removeControl((map as any)._routingControl);
+      (map as any)._routingControl = null;
+    }
 
     const pmiBlueIcon = L.divIcon({
       className: 'custom-pmi-marker-icon',
@@ -358,6 +366,25 @@ export default function BloodSearch() {
         }).addTo(map).bindPopup('Lokasi Anda / RS');
         bounds.extend([activeHospital.lat, activeHospital.lng]);
       }
+
+      // Tambahkan Routing Google Maps style ke lokasi PMI Rekomendasi #1 (PMI Terbaik)
+      const topPMI = pmiResults[0];
+      if (activeHospital?.lat && activeHospital?.lng && topPMI.lat && topPMI.lng) {
+        (map as any)._routingControl = (L as any).Routing.control({
+          waypoints: [
+            L.latLng(activeHospital.lat, activeHospital.lng),
+            L.latLng(topPMI.lat, topPMI.lng)
+          ],
+          routeWhileDragging: false,
+          addWaypoints: false,
+          show: false, // Sembunyikan panel teks rute agar UI map tetap bersih
+          createMarker: function() { return null; }, // Gunakan custom marker kita saja
+          lineOptions: {
+            styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
+          }
+        }).addTo(map);
+      }
+
       if (bounds.isValid()) {
         map.fitBounds(bounds, { padding: [50, 50] });
       }
