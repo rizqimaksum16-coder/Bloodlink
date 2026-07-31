@@ -7,7 +7,7 @@ async function test() {
     console.table(rows);
     process.exit(0);
   } catch (e) {
-    console.error("DB Error:", e.message);
+    console.error("DB Error:", e);
     process.exit(1);
   }
 }

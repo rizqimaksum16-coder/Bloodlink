@@ -1,0 +1,49 @@
+services:
+  # 1. Python Machine Learning Service (FastAPI)
+  - type: web
+    name: bloodlink-ml
+    env: python
+    rootDir: backend/ml_service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: PORT
+        value: 10000
+      - key: ML_INTERNAL_API_KEY
+        value: BL00DL1NK_S3CR3T_K3Y_9982 # Key default, bisa diubah di dashboard
+
+  # 2. Node.js Express Backend
+  - type: web
+    name: bloodlink-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # URL Internal untuk menghubungi layanan ML di atas secara cepat
+      - key: ML_API_URL
+        value: http://bloodlink-ml:10000/predict
+      - key: ML_INTERNAL_API_KEY
+        value: BL00DL1NK_S3CR3T_K3Y_9982
+      
+      # Database Configs (Wajib diisi nanti di Dashboard Render setelah punya akun Aiven)
+      - key: DB_HOST
+        value: "" # Contoh: mysql-bloodlink-aiven.aivencloud.com
+      - key: DB_PORT
+        value: "25060" # Biasanya port yang diberikan cloud
+      - key: DB_USER
+        value: "avnadmin"
+      - key: DB_PASSWORD
+        sync: false # Render akan meminta Anda memasukkannya di UI, tidak disimpan di file ini
+      - key: DB_NAME
+        value: "bloodlink"
+      
+      # API Keys Eksternal (Opsional, isi di Dashboard jika perlu)
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

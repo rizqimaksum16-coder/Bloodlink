@@ -9,7 +9,10 @@ const pool = mysql.createPool({
   database: process.env.MYSQL_DATABASE || process.env.DB_NAME || 'bloodlink',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Helper function to test DB connection
