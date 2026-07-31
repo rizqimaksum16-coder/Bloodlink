@@ -240,9 +240,17 @@ router.post('/chat', async (req, res) => {
 
 router.post('/matching', async (req, res) => {
   const { bloodType, qty, lat, lng } = req.body;
-  
+
+  const ML_API_URL = process.env.ML_API_URL;
+  const ML_API_KEY = process.env.ML_INTERNAL_API_KEY;
+
+  // Pastikan ML_API_URL sudah dikonfigurasi
+  if (!ML_API_URL) {
+    return res.status(503).json({ error: 'ML service belum dikonfigurasi. Pastikan variabel ML_API_URL sudah diset di server.' });
+  }
+
   try {
-    // 1. Dapatkan stok PMI nyata dari database
+    // 1. Ambil stok PMI dari database
     const [rows] = await pool.query(`
       SELECT 
         u.id, u.org as name, u.address, u.phone, 
@@ -253,113 +261,90 @@ router.post('/matching', async (req, res) => {
       WHERE s.blood_type = ? AND s.owner_pmi_id IS NOT NULL
     `, [bloodType || 'O+']);
 
-    // 2. Jika tidak ada stok
     if (!rows.length) {
-      return res.json({ recommendations: [], message: "Tidak ada stok tersedia." });
+      return res.json({ recommendations: [], message: 'Tidak ada stok tersedia untuk golongan darah ini.' });
     }
 
-    // 3. AI Logic (Scoring sederhana berbasis aturan yang menggantikan model eksternal berat)
-    // Di produksi, kita bisa mengirim data array 'rows' ini ke API LLM Eksternal untuk di-ranking.
-    // Untuk demo, kita implementasikan logic scoring Euclidean distance.
-    const ML_API_URL = process.env.ML_API_URL || 'http://127.0.0.1:8000/predict';
-    const ML_API_KEY = process.env.ML_INTERNAL_API_KEY || 'BL00DL1NK_S3CR3T_K3Y_9982';
-    
-    // Siapkan data untuk FastAPI
+    // 2. Hitung fitur untuk setiap PMI dan kirim ke ML
+    const userLat = lat || -7.2678;
+    const userLng = lng || 112.7584;
+
     const mlPayload = rows.map(pmi => {
       const pmiLat = pmi.lat || -7.2657;
       const pmiLng = pmi.lng || 112.7445;
-      const dLat = (lat || -7.2678) - pmiLat;
-      const dLng = (lng || 112.7584) - pmiLng;
-      const distance = Math.sqrt(dLat*dLat + dLng*dLng) * 111.12; // dalam KM
-      
+      const dLat = userLat - pmiLat;
+      const dLng = userLng - pmiLng;
+      const distance_km = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+
       const stock_ratio = qty ? pmi.stock / qty : 1.0;
       const remaining_stock = pmi.stock - (qty || 1);
 
       return {
-        id: pmi.id,
-        distance_km: distance,
-        stock_ratio: stock_ratio,
-        remaining_stock: remaining_stock,
-        ...pmi
+        id: String(pmi.id),
+        distance_km: parseFloat(distance_km.toFixed(4)),
+        stock_ratio: parseFloat(stock_ratio.toFixed(4)),
+        remaining_stock: parseFloat(remaining_stock.toFixed(2)),
+        // Data tambahan untuk dikembalikan ke frontend (bukan fitur ML)
+        _meta: { ...pmi, distance: parseFloat(distance_km.toFixed(2)) }
       };
     });
 
-    let ml_predictions = null;
-    let model_used = "Euclidean Fallback";
+    // 3. Panggil ML FastAPI (timeout 10 detik)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    // Panggil FastAPI secara aman dengan Timeout 3 Detik
+    let mlResult;
     try {
-      // Menggunakan dynamic import untuk node-fetch jika fetch tidak ada, tapi node 24+ ada native fetch
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      const response = await fetch(ML_API_URL, {
+      const mlResponse = await fetch(ML_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ML_API_KEY
+          'x-api-key': ML_API_KEY || ''
         },
         body: JSON.stringify({
-          model_type: process.env.ML_MODEL_TYPE || 'xgboost', // switch 'lightgbm' / 'xgboost' via env
-          data: mlPayload
+          model_type: process.env.ML_MODEL_TYPE || 'xgboost',
+          data: mlPayload.map(({ _meta, ...features }) => features) // Kirim hanya fitur
         }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
 
-      if (response.ok) {
-        const ml_result = await response.json();
-        ml_predictions = ml_result.predictions;
-        model_used = ml_result.model_used;
-      } else {
-        console.warn(`ML API Error: ${response.status} - Fallback ke Euclidean`);
+      if (!mlResponse.ok) {
+        const errText = await mlResponse.text();
+        throw new Error(`ML service merespons dengan status ${mlResponse.status}: ${errText}`);
       }
-    } catch (e) {
-      console.warn(`Gagal terhubung ke ML API: ${e.message} - Fallback ke Euclidean`);
+
+      mlResult = await mlResponse.json();
+    } catch (mlError) {
+      clearTimeout(timeoutId);
+      console.error('ML API Error:', mlError.message);
+      return res.status(503).json({
+        error: `ML service tidak dapat dihubungi: ${mlError.message}. Pastikan layanan ML sudah berjalan dan URL-nya benar.`
+      });
     }
 
-    let recommendations = [];
+    // 4. Gabungkan hasil prediksi ML dengan data lengkap PMI
+    const scoreMap = {};
+    (mlResult.predictions || []).forEach(p => {
+      scoreMap[p.id] = p.aiScore;
+    });
 
-    if (ml_predictions) {
-      // Pasangkan skor AI dengan data PMI
-      const scoreMap = {};
-      ml_predictions.forEach(p => scoreMap[p.id] = p.aiScore);
-      
-      recommendations = mlPayload.map(pmi => ({
-        ...pmi,
-        distance: pmi.distance_km,
-        aiScore: scoreMap[pmi.id] || 0
-      })).sort((a, b) => b.aiScore - a.aiScore);
-
-    } else {
-      // FALLBACK DARURAT: Gunakan Euclidean Distance manual
-      recommendations = mlPayload.map(pmi => {
-        let aiScore = 100;
-        aiScore -= (pmi.distance_km * 2); 
-        if (pmi.stock < qty) aiScore -= 50; 
-        else if (pmi.stock >= qty * 2) aiScore += 10; 
-
-        return {
-          ...pmi,
-          distance: pmi.distance_km,
-          aiScore: Math.round(aiScore)
-        };
-      }).sort((a, b) => b.aiScore - a.aiScore); 
-    }
+    const recommendations = mlPayload.map(item => ({
+      ...item._meta,
+      aiScore: scoreMap[String(item._meta.id)] ?? 0
+    })).sort((a, b) => b.aiScore - a.aiScore);
 
     res.json({
-      modelUsed: model_used,
+      modelUsed: mlResult.model_used || 'xgboost',
       recommendations,
-      usage: {
-        total_tokens: 15 // Mock token usage for rule-based matching
-      },
-      provider: 'Bloodlink Internal AI'
+      provider: 'Bloodlink ML (FastAPI)'
     });
 
   } catch (error) {
-    console.error("AI Matching Error:", error);
-    res.status(500).json({ error: 'Gagal melakukan AI matching.' });
+    console.error('AI Matching Error:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan pada server saat melakukan AI matching.' });
   }
 });
+
 
 module.exports = router;
