@@ -4,6 +4,7 @@ import {
   Droplets, Search, X, ChevronRight, ScanLine, BadgeCheck, AlertCircle, Info, RefreshCw, Bluetooth
 } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useSearchParams } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
@@ -46,6 +47,8 @@ export default function QRCheckIn() {
   const isDonor = user?.role === 'donor';
 
   usePageTitle(isDonor ? 'Karcis Kehadiran' : 'QR Check-In');
+  const [searchParams] = useSearchParams();
+  const ticketFromUrl = searchParams.get('ticket');
 
   const [eventList, setEventList] = useState<DonorEvent[]>([]);
 
@@ -86,7 +89,13 @@ export default function QRCheckIn() {
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+    if (ticketFromUrl && !scanResult) {
+      setScanInput(ticketFromUrl);
+      setTimeout(() => {
+        handleScan(ticketFromUrl);
+      }, 500);
+    }
+  }, [ticketFromUrl]);
 
   // Load real bookings from Supabase
   useEffect(() => {
@@ -100,8 +109,16 @@ export default function QRCheckIn() {
   const pctCheckIn = eventBookings.length > 0 ? Math.round((checkedInCount / eventBookings.length) * 100) : 0;
 
   const handleScan = async (code: string) => {
-    const qr = (code || scanInput).trim();
+    let qr = (code || scanInput).trim();
     if (!qr) return;
+
+    try {
+      if (qr.startsWith('http')) {
+        const url = new URL(qr);
+        const ticketParam = url.searchParams.get('ticket');
+        if (ticketParam) qr = ticketParam;
+      }
+    } catch (e) {}
 
     // Search across ALL bookings
     let booking = localBookings.find(
@@ -171,6 +188,7 @@ export default function QRCheckIn() {
   const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [allCameras, setAllCameras] = useState<MediaDeviceInfo[]>([]);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   const getCameraDevices = async () => {
     try {
@@ -191,7 +209,7 @@ export default function QRCheckIn() {
   };
 
   // Camera scanner handlers
-  const startCamera = async (deviceIdToUse?: string) => {
+  const startCamera = async (deviceIdToUse?: string, modeToUse?: 'environment' | 'user') => {
     setCameraError(null);
     setShowScanner(true);
     setScanning(false);
@@ -200,16 +218,17 @@ export default function QRCheckIn() {
     }
 
     const devId = deviceIdToUse || selectedDeviceId;
+    const mode = modeToUse || facingMode;
     const constraints: MediaStreamConstraints = devId
       ? { video: { deviceId: { exact: devId } } }
-      : { video: { facingMode: { ideal: 'environment' } } };
+      : { video: { facingMode: { ideal: mode } } };
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       await handleStreamValidation(stream);
     } catch (err) {
       try {
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
         await handleStreamValidation(fallbackStream);
       } catch (e) {
         setCameraError('Kamera tidak dapat diakses atau tidak diizinkan di peramban ini.');
@@ -252,11 +271,16 @@ export default function QRCheckIn() {
       const videoInputs = devices.filter((d) => d.kind === 'videoinput');
       setAvailableDevices(videoInputs);
 
+      // Jika browser hanya mendeteksi 1 atau 0 kamera (sering terjadi di mobile web sebelum izin penuh),
+      // kita gunakan fallback toggle facingMode (depan/belakang)
       if (videoInputs.length <= 1) {
-        toast.info('Hanya 1 kamera terdeteksi.', { description: 'Pastikan kamera eksternal sudah diizinkan di peramban.' });
+        const newMode = facingMode === 'environment' ? 'user' : 'environment';
+        setFacingMode(newMode);
+        setSelectedDeviceId(''); // Reset device ID agar constraints menggunakan facingMode
+        startCamera('', newMode);
+        toast.success('Berpindah Kamera', { description: newMode === 'user' ? 'Kamera Depan' : 'Kamera Belakang' });
+        return;
       }
-
-      if (videoInputs.length === 0) return;
 
       const currentIndex = videoInputs.findIndex((d) => d.deviceId === selectedDeviceId);
       const nextIndex = (currentIndex + 1) % videoInputs.length;
@@ -545,7 +569,7 @@ export default function QRCheckIn() {
                   </div>
 
                   <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center border-2 border-[#C0392B]">
-                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                    <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
                     {cameraError ? (
                       <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 text-center">
                         <AlertCircle className="w-8 h-8 text-red-500 mb-2 animate-bounce" />

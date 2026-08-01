@@ -1216,7 +1216,7 @@ export default function Events() {
 
                       <div className="grid grid-cols-12 gap-4 items-center py-5">
                         <div className="col-span-5 bg-white p-3.5 rounded-2xl flex flex-col items-center shadow-md">
-                          <QRCodeSVG id={`qr-svg-event-${eventTicketData.ticketId}`} value={eventTicketData.ticketId} size={120} level="H" />
+                          <QRCodeSVG id={`qr-svg-event-${eventTicketData.ticketId}`} value={`${window.location.origin}/qr-checkin?ticket=${eventTicketData.ticketId}`} size={120} level="H" />
                           <span className="text-[9px] font-black text-[#1A1A2E] mt-2 tracking-wider">
                             {eventTicketData.ticketId}
                           </span>

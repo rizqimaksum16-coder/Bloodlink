@@ -51,8 +51,8 @@ export default function PublicBloodRequest() {
         })
       });
       
-      setSuccessId(data.trackingId);
-      toast.success('Pemesanan berhasil! Simpan Nomor Resi Anda.');
+      setSuccessId(data.trackingId || 'success');
+      toast.success('Pemesanan berhasil dikirim ke PMI!');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -68,20 +68,11 @@ export default function PublicBloodRequest() {
             <CheckCircle className="w-10 h-10 text-[#27AE60]" />
           </div>
           <h2 className="text-2xl font-black text-[#1A1A2E] mb-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Pemesanan Berhasil</h2>
-          <p className="text-sm text-[#4A4A6A] mb-6">Permintaan darah Anda telah diteruskan ke PMI terkait. Silakan simpan Nomor Resi ini untuk melacak pengiriman.</p>
+          <p className="text-sm text-[#4A4A6A] mb-8">Permintaan darah Anda telah berhasil dikirimkan dan diteruskan langsung ke sistem PMI terkait untuk segera diproses.</p>
           
-          <div className="bg-[#F8F9FA] rounded-2xl p-6 border-2 border-dashed border-[#BDC3C7] mb-8">
-            <p className="text-xs font-bold text-[#9B9BB5] uppercase tracking-widest mb-2">Nomor Resi / Tracking ID</p>
-            <p className="text-3xl font-black text-[#8E44AD] tracking-wide font-mono">{successId}</p>
-          </div>
-
           <div className="flex flex-col gap-3">
-            <button onClick={() => navigate(`/track-blood?id=${successId}`)} 
-              className="w-full py-3.5 rounded-xl text-white font-bold text-sm bg-[#8E44AD] shadow-lg shadow-[#8E44AD]/30 hover:opacity-90 transition-opacity">
-              Lacak Pesanan Sekarang
-            </button>
             <button onClick={() => navigate('/')} 
-              className="w-full py-3.5 rounded-xl text-[#4A4A6A] font-bold text-sm border-2 border-[#E5E5EB] hover:bg-[#F8F9FA] transition-colors">
+              className="w-full py-3.5 rounded-xl text-white font-bold text-sm bg-[#C0392B] hover:bg-[#922B21] transition-colors shadow-lg shadow-[#C0392B]/20">
               Kembali ke Beranda
             </button>
           </div>

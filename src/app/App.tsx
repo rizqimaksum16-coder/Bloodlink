@@ -52,7 +52,7 @@ export default function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/search" element={<BloodSearch />} />
                   <Route path="/request-blood" element={<PublicBloodRequest />} />
-                  <Route path="/track-blood" element={<TrackRequest />} />
+
 
                   {/* Protected Routes */}
                   <Route element={<ProtectedRoute />}>
