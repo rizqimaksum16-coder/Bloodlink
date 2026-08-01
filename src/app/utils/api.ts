@@ -151,6 +151,8 @@ export const api = {
   // Orders & Deliveries API
   orders: {
     getRequests: (fallback?: any[]) => apiFetch('/orders/requests', {}, fallback),
+    
+    getPublicRequests: (fallback?: any[]) => apiFetch('/orders/public-requests', {}, fallback),
 
     createRequest: (data: any) =>
       apiFetch('/orders/requests', {

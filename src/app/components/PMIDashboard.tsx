@@ -259,7 +259,7 @@ export default function PMIDashboard() {
           api.stock.getPMIStock([]),
           api.users.getAll('driver', []),
           api.events.getAll([]),
-          fetch(`${api.baseUrl}/orders/public-requests`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }).then(r => r.json()).catch(() => [])
+          api.orders.getPublicRequests([])
         ]);
         if (reqData?.length) {
           setRequests(reqData.map((r: any) => ({
