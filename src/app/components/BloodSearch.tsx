@@ -280,7 +280,7 @@ export default function BloodSearch() {
     setConfirmedPMIId(null);
 
     try {
-      const searchBt = selectedBloodType !== 'all' ? selectedBloodType : 'O+';
+      const searchBt = (selectedBloodType !== 'all' ? selectedBloodType : 'O+') as BloodType;
       const rsLat = activeHospital?.lat || -7.2678;
       const rsLng = activeHospital?.lng || 112.7584;
       
