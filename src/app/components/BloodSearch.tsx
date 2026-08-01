@@ -161,11 +161,11 @@ export default function BloodSearch() {
           lat: -7.2678,
           lng: 112.7584,
           address: 'Surabaya'
-        });
         return;
       }
       
-      requestLocation(false);
+      // Jangan panggil requestLocation() secara otomatis saat komponen dimuat (on mount).
+      // Memanggil Geolocation API tanpa interaksi pengguna sering diblokir otomatis oleh browser HP (terutama Safari/Chrome mobile).
     }
     loadActiveLocation();
   }, [user]);
