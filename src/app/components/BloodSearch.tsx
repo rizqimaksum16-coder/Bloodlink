@@ -57,7 +57,13 @@ interface PMIResult {
   stock: number;
   lat?: number;
   lng?: number;
+  distanceKm?: number;
+  tag?: string;
+  tagColor?: string;
+  aiScore?: number;
 }
+
+type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 const bloodTypesList: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const btColor: Record<string, string> = {
@@ -165,7 +171,7 @@ export default function BloodSearch() {
 
   const getDynamicPMIResults = async (bloodType: BloodType, requiredQty: number, rsLat: number, rsLng: number): Promise<PMIResult[]> => {
     try {
-      const result = await api.ai.matching({ bloodType, qty: requiredQty, lat: rsLat, lng: rsLng });
+      const result: any = await api.ai.matching({ bloodType, qty: requiredQty, lat: rsLat, lng: rsLng });
       if (result.modelUsed) {
         setModelUsedName(result.modelUsed);
       }
