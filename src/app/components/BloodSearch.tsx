@@ -114,7 +114,7 @@ export default function BloodSearch() {
     address: 'Menunggu Izin Lokasi'
   });
 
-  const requestLocation = () => {
+  const requestLocation = (showToast = true) => {
     if ('geolocation' in navigator) {
       setActiveHospital(prev => ({ ...prev, name: 'Mencari Lokasi GPS...', address: 'Menunggu Izin Lokasi...' }));
       navigator.geolocation.getCurrentPosition(
@@ -125,7 +125,7 @@ export default function BloodSearch() {
             lng: position.coords.longitude,
             address: 'Lokasi GPS Perangkat'
           });
-          toast.success('Lokasi GPS berhasil diperbarui.');
+          if (showToast) toast.success('Lokasi GPS berhasil diperbarui.');
         },
         (error) => {
           console.warn('Gagal mendapatkan lokasi GPS:', error);
@@ -135,12 +135,12 @@ export default function BloodSearch() {
             lng: 112.7584,
             address: 'Surabaya Pusat'
           });
-          toast.info('Gagal mengakses GPS, menggunakan lokasi default.');
+          if (showToast) toast.info('Gagal mengakses GPS, menggunakan lokasi default. (' + error.message + ')');
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
       );
     } else {
-      toast.info('Browser Anda tidak mendukung fitur GPS.');
+      if (showToast) toast.info('Browser Anda tidak mendukung fitur GPS.');
       setActiveHospital({
         name: 'Lokasi Tidak Diketahui',
         lat: -7.2678,
@@ -165,7 +165,7 @@ export default function BloodSearch() {
         return;
       }
       
-      requestLocation();
+      requestLocation(false);
     }
     loadActiveLocation();
   }, [user]);
@@ -468,7 +468,7 @@ export default function BloodSearch() {
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide">Titik Lokasi Referensi</span>
                   {(!user || user.role !== 'rs') && (
-                    <button onClick={requestLocation} className="text-xs font-bold text-[#2980B9] hover:underline flex items-center gap-1">
+                    <button onClick={() => requestLocation(true)} className="text-xs font-bold text-[#2980B9] hover:underline flex items-center gap-1">
                       <RefreshCw className="w-3 h-3" /> Perbarui
                     </button>
                   )}
