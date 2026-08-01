@@ -114,6 +114,42 @@ export default function BloodSearch() {
     address: 'Menunggu Izin Lokasi'
   });
 
+  const requestLocation = () => {
+    if ('geolocation' in navigator) {
+      setActiveHospital(prev => ({ ...prev, name: 'Mencari Lokasi GPS...', address: 'Menunggu Izin Lokasi...' }));
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setActiveHospital({
+            name: 'Lokasi Anda Saat Ini',
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            address: 'Lokasi GPS Perangkat'
+          });
+          toast.success('Lokasi GPS berhasil diperbarui.');
+        },
+        (error) => {
+          console.warn('Gagal mendapatkan lokasi GPS:', error);
+          setActiveHospital({
+            name: 'Lokasi Anda (Default Surabaya)',
+            lat: -7.2678,
+            lng: 112.7584,
+            address: 'Surabaya Pusat'
+          });
+          toast.info('Gagal mengakses GPS, menggunakan lokasi default.');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      toast.info('Browser Anda tidak mendukung fitur GPS.');
+      setActiveHospital({
+        name: 'Lokasi Tidak Diketahui',
+        lat: -7.2678,
+        lng: 112.7584,
+        address: 'Browser tidak support GPS'
+      });
+    }
+  };
+
   // Load active hospital coordinates dynamically based on logged in user session
   // or use GPS for guests/donors
   useEffect(() => {
@@ -129,40 +165,7 @@ export default function BloodSearch() {
         return;
       }
       
-      // Jika user adalah donor, masyarakat umum, atau belum login (guest)
-      // Wajib menggunakan Geolocation API (GPS)
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setActiveHospital({
-              name: 'Lokasi Anda Saat Ini',
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              address: 'Lokasi GPS Perangkat'
-            });
-          },
-          (error) => {
-            console.warn('Gagal mendapatkan lokasi GPS:', error);
-            // Fallback jika GPS ditolak/gagal
-            setActiveHospital({
-              name: 'Lokasi Anda (Default Surabaya)',
-              lat: -7.2678,
-              lng: 112.7584,
-              address: 'Surabaya Pusat'
-            });
-            toast.info('Gagal mengakses GPS, menggunakan lokasi default pusat Surabaya.');
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      } else {
-        toast.info('Browser Anda tidak mendukung fitur GPS.');
-        setActiveHospital({
-          name: 'Lokasi Tidak Diketahui',
-          lat: -7.2678,
-          lng: 112.7584,
-          address: 'Browser tidak support GPS'
-        });
-      }
+      requestLocation();
     }
     loadActiveLocation();
   }, [user]);
@@ -460,6 +463,24 @@ export default function BloodSearch() {
             </div>
 
             <div className="space-y-5">
+              {/* Location Status */}
+              <div className="bg-[#F8F9FA] rounded-xl p-3 border border-border">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide">Titik Lokasi Referensi</span>
+                  {(!user || user.role !== 'rs') && (
+                    <button onClick={requestLocation} className="text-xs font-bold text-[#2980B9] hover:underline flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" /> Perbarui
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-start gap-2 mt-2">
+                  <MapPin className="w-4 h-4 text-[#C0392B] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-[#1A1A2E]">{activeHospital.name}</p>
+                    <p className="text-[10px] text-[#9B9BB5]">{activeHospital.address}</p>
+                  </div>
+                </div>
+              </div>
               {/* Blood type selection */}
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide block mb-2">Golongan Darah</label>
