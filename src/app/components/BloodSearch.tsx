@@ -108,10 +108,10 @@ export default function BloodSearch() {
     lng: number;
     address: string;
   }>({
-    name: 'Lokasi Belum Diperbarui',
+    name: 'Mencari Lokasi GPS...',
     lat: -7.2678, // Koordinat default Surabaya Pusat
     lng: 112.7584,
-    address: 'Klik Perbarui untuk mencari lokasi Anda'
+    address: 'Mohon tunggu...'
   });
 
   const requestLocation = (showToast = true) => {
@@ -165,8 +165,9 @@ export default function BloodSearch() {
         return;
       }
       
-      // Jangan panggil requestLocation() secara otomatis saat komponen dimuat (on mount).
-      // Memanggil Geolocation API tanpa interaksi pengguna sering diblokir otomatis oleh browser HP (terutama Safari/Chrome mobile).
+      // Panggil requestLocation secara otomatis saat komponen dimuat,
+      // tapi set showToast = false agar tidak spam popup error jika ditolak.
+      requestLocation(false);
     }
     loadActiveLocation();
   }, [user]);
@@ -719,17 +720,7 @@ export default function BloodSearch() {
                                 return (
                                   <>
                                     {isCardSelected && !isCardConfirmed && (
-                                      (user?.role === 'donor' || !user) ? (
-                                        <div className="mt-3 flex flex-col gap-2">
-                                          <button onClick={e => { 
-                                            e.stopPropagation(); 
-                                            navigate(`/request-blood?pmi=${pmi.id}&type=${encodeURIComponent(selectedBloodType)}&qty=${qty}`);
-                                          }}
-                                            className="w-full py-2 rounded-lg bg-[#27AE60] text-white text-xs font-bold hover:bg-[#1E8449] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
-                                            <CheckCircle className="w-3.5 h-3.5" /> Pesan Darah (Masyarakat Umum)
-                                          </button>
-                                        </div>
-                                      ) : pmi.stock === 0 ? (
+                                      pmi.stock === 0 ? (
                                         <div className="mt-3 flex flex-col gap-2">
                                           <div className="bg-[#FDEDEC] text-[#C0392B] border border-[#F5B7B1]/30 rounded-lg p-2.5 text-[11px] font-medium flex items-start gap-1.5">
                                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -748,6 +739,16 @@ export default function BloodSearch() {
                                               <Zap className="w-3.5 h-3.5 animate-pulse" /> Broadcast Darurat
                                             </button>
                                           </div>
+                                        </div>
+                                      ) : (user?.role === 'donor' || !user) ? (
+                                        <div className="mt-3 flex flex-col gap-2">
+                                          <button onClick={e => { 
+                                            e.stopPropagation(); 
+                                            navigate(`/request-blood?pmi=${pmi.id}&type=${encodeURIComponent(selectedBloodType)}&qty=${qty}`);
+                                          }}
+                                            className="w-full py-2 rounded-lg bg-[#27AE60] text-white text-xs font-bold hover:bg-[#1E8449] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                                            <CheckCircle className="w-3.5 h-3.5" /> Pesan Darah (Masyarakat Umum)
+                                          </button>
                                         </div>
                                       ) : (
                                         <button onClick={e => { e.stopPropagation(); handleCreateOrder(pmi.id, pmi.name); }}
