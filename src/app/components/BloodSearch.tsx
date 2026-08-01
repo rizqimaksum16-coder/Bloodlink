@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router';
 import {
   MapPin, Filter, Navigation, Phone, Search, X, Zap, Star, Droplets,
   Clock, CheckCircle, Package, TrendingUp, ChevronRight, Sparkles,
-  BarChart2, Building2, AlertCircle, Map
+  BarChart2, Building2, AlertCircle, Map, RefreshCw
 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -108,10 +108,10 @@ export default function BloodSearch() {
     lng: number;
     address: string;
   }>({
-    name: 'Mencari Lokasi GPS...',
+    name: 'Lokasi Belum Diperbarui',
     lat: -7.2678, // Koordinat default Surabaya Pusat
     lng: 112.7584,
-    address: 'Menunggu Izin Lokasi'
+    address: 'Klik Perbarui untuk mencari lokasi Anda'
   });
 
   const requestLocation = (showToast = true) => {
@@ -161,6 +161,7 @@ export default function BloodSearch() {
           lat: -7.2678,
           lng: 112.7584,
           address: 'Surabaya'
+        });
         return;
       }
       
