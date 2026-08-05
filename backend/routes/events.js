@@ -119,7 +119,16 @@ router.delete('/bookings/:id', authMiddleware, async (req, res) => {
   }
 });
 
+function computeDonorLevel(totalDonations) {
+  if (totalDonations >= 25) return 'Veteran';
+  if (totalDonations >= 10) return 'Emas';
+  if (totalDonations >= 5) return 'Perak';
+  if (totalDonations >= 1) return 'Perunggu';
+  return 'Pemula';
+}
+
 // POST /api/events/checkin — 🔒 Harus login (biasanya petugas PMI)
+// Idempotent lifecycle: checked_in + donation_records + points/streak/next_eligible + notif
 router.post('/checkin', authMiddleware, async (req, res) => {
   const { qr_data, booking_id } = req.body;
   let targetId = booking_id;
@@ -127,7 +136,7 @@ router.post('/checkin', authMiddleware, async (req, res) => {
   if (qr_data) {
     try {
       const parsed = JSON.parse(qr_data);
-      targetId = parsed.booking_id || targetId;
+      targetId = parsed.booking_id || parsed.qr_code || targetId;
     } catch (e) {
       targetId = qr_data;
     }
@@ -137,22 +146,119 @@ router.post('/checkin', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Data QR / ID Pendaftaran tidak valid' });
   }
 
+  const conn = await pool.getConnection();
   try {
-    const [bookings] = await pool.query('SELECT * FROM event_bookings WHERE id = ?', [targetId]);
+    await conn.beginTransaction();
+
+    // Cari booking by id atau qr_code
+    const [bookings] = await conn.query(
+      'SELECT * FROM event_bookings WHERE id = ? OR qr_code = ? FOR UPDATE',
+      [targetId, targetId]
+    );
     if (bookings.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ error: 'Pendaftaran tidak ditemukan' });
     }
 
     const booking = bookings[0];
     if (booking.checked_in) {
+      await conn.rollback();
       return res.status(400).json({ error: 'QR Code ini sudah pernah di-check-in!' });
     }
 
-    await pool.query('UPDATE event_bookings SET checked_in = true WHERE id = ?', [targetId]);
-    res.json({ message: 'Check-in berhasil!', booking });
+    const POINTS_EARNED = 50;
+    const ELIGIBLE_DAYS = 60;
+
+    const [profiles] = await conn.query(
+      'SELECT * FROM donor_profiles WHERE id = ? FOR UPDATE',
+      [booking.donor_id]
+    );
+    if (profiles.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Profil pendonor tidak ditemukan' });
+    }
+    const profile = profiles[0];
+
+    await conn.query(
+      'UPDATE event_bookings SET checked_in = true, status = ? WHERE id = ?',
+      ['checked_in', booking.id]
+    );
+
+    const donationId = 'DR-' + Date.now();
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const nextEligible = new Date(today);
+    nextEligible.setDate(nextEligible.getDate() + ELIGIBLE_DAYS);
+    const nextEligibleStr = nextEligible.toISOString().slice(0, 10);
+
+    await conn.query(
+      `INSERT INTO donation_records
+        (id, donor_id, date, location, blood_type, volume_ml, points_earned, certificate)
+       VALUES (?, ?, ?, ?, ?, 450, ?, true)`,
+      [
+        donationId,
+        profile.id,
+        todayStr,
+        booking.location || booking.event_name || 'Event Donor',
+        profile.blood_type || 'Belum Tahu',
+        POINTS_EARNED
+      ]
+    );
+
+    // Streak: +1 jika last_donation dalam ~120 hari; else reset ke 1
+    let newStreak = 1;
+    if (profile.last_donation) {
+      const last = new Date(profile.last_donation);
+      const diffDays = Math.floor((today - last) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0 && diffDays <= 120) {
+        newStreak = (profile.streak || 0) + 1;
+      }
+    }
+
+    const newTotal = (profile.total_donations || 0) + 1;
+    const newPoints = (profile.points || 0) + POINTS_EARNED;
+    const newLevel = computeDonorLevel(newTotal);
+
+    await conn.query(
+      `UPDATE donor_profiles SET
+         total_donations = ?,
+         points = ?,
+         last_donation = ?,
+         next_eligible = ?,
+         streak = ?,
+         level = ?
+       WHERE id = ?`,
+      [newTotal, newPoints, todayStr, nextEligibleStr, newStreak, newLevel, profile.id]
+    );
+
+    const notifId = 'DN-' + Date.now();
+    await conn.query(
+      `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)
+       VALUES (?, ?, 'checkin', ?, ?, false)`,
+      [
+        notifId,
+        profile.id,
+        'Check-in berhasil!',
+        `Anda berhasil check-in di ${booking.event_name}. +${POINTS_EARNED} poin. Donor berikutnya mulai ${nextEligibleStr}.`
+      ]
+    );
+
+    await conn.commit();
+
+    const [updatedBooking] = await pool.query('SELECT * FROM event_bookings WHERE id = ?', [booking.id]);
+    res.json({
+      message: 'Check-in berhasil!',
+      booking: updatedBooking[0],
+      points_earned: POINTS_EARNED,
+      next_eligible: nextEligibleStr,
+      donation_id: donationId
+    });
   } catch (err) {
+    await conn.rollback();
     console.error('Error checkin event:', err);
     res.status(500).json({ error: 'Gagal memproses check-in' });
+  } finally {
+    conn.release();
   }
 });
 

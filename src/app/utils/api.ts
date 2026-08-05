@@ -65,11 +65,29 @@ export const api = {
     getHistory: (_email?: string, fallback?: any[]) =>
       apiFetch('/donors/history', {}, fallback),
 
+    getEligibility: (fallback?: any) =>
+      apiFetch('/donors/eligibility', {}, fallback),
+
+    getLeaderboard: (fallback?: any) =>
+      apiFetch('/donors/leaderboard', {}, fallback),
+
     updateProfile: (data: any) =>
       apiFetch('/donors/profile', {
         method: 'PUT',
         body: JSON.stringify(data)
-      })
+      }),
+
+    emergencyResponse: (data: { notification_id?: string; message?: string }) =>
+      apiFetch('/donors/emergency-response', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+
+    requestEligibleReminder: (fallback?: any) =>
+      apiFetch('/donors/eligible-reminder', {
+        method: 'POST',
+        body: JSON.stringify({})
+      }, fallback)
   },
 
   // Events API

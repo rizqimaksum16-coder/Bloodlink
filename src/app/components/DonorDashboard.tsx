@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Calendar, Trophy, Droplets, Heart, Users, TrendingUp, ChevronRight,
-  ArrowRight, Zap, Star, Gift, CheckCircle, Lock, Activity, Target, Award
+  ArrowRight, Zap, Star, Gift, CheckCircle, Lock, Activity, Target, Award,
+  Clock, BookOpen
 } from 'lucide-react';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -135,7 +136,7 @@ export default function DonorDashboard() {
   const { user } = useAuth();
   usePageTitle('Dashboard Pendonor');
 
-  const [donorStats, setDonorStats] = useState<DonorStats>({
+  const [donorStats, setDonorStats] = useState<DonorStats & { nextEligible?: string }>({
     totalDonations: 0,
     totalPoints: 0,
     currentStreak: 0,
@@ -216,6 +217,7 @@ export default function DonorDashboard() {
             currentStreak: profileData.streak || 0,
             ranking: 45,
             badgeLevel: determineBadgeLevel(profileData.total_donations || 0),
+            nextEligible: profileData.next_eligible || undefined,
           });
         } else {
           // Fallback jika belum ada profil donor
@@ -344,6 +346,41 @@ export default function DonorDashboard() {
               </p>
             </div>
           </div>
+
+          {/* Eligibility Countdown Widget */}
+          {donorStats.nextEligible && (
+            <div className="bg-gradient-to-r from-[#C0392B] to-[#922B21] rounded-2xl p-5 sm:p-6 text-white shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-center justify-between mt-6">
+              <div className="absolute -right-4 -top-4 opacity-10">
+                <Heart className="w-32 h-32" />
+              </div>
+              <div className="relative z-10 flex items-center gap-4 text-center sm:text-left">
+                <div className="bg-white/20 p-3 rounded-full flex-shrink-0 mx-auto sm:mx-0">
+                  <Clock className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Kapan Bisa Donor Lagi?</h3>
+                  <p className="text-sm text-white/80">
+                    Berdasarkan donor terakhir Anda, estimasi jadwal donor berikutnya adalah:
+                  </p>
+                </div>
+              </div>
+              <div className="relative z-10 mt-4 sm:mt-0 flex flex-col items-center">
+                <div className="bg-white text-[#C0392B] font-black text-2xl sm:text-3xl px-6 py-2 rounded-xl shadow-inner">
+                  {(() => {
+                    const today = new Date();
+                    const nextDate = new Date(donorStats.nextEligible);
+                    const diffTime = nextDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (diffDays <= 0) return 'SIAP DONOR';
+                    return `${diffDays} HARI`;
+                  })()}
+                </div>
+                <div className="text-xs font-semibold mt-2 bg-black/20 px-3 py-1 rounded-full">
+                  📅 {new Date(donorStats.nextEligible).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Profile Setup Warning Banner */}
@@ -368,18 +405,16 @@ export default function DonorDashboard() {
           </div>
         )}
 
-        {/* ─── 4 Quick Action Cards ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ─── 6 Quick Action Cards ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <button
             onClick={() => navigate('/events')}
             className="bg-white border-2 border-[#FDEDEC] rounded-lg p-4 hover:shadow-lg hover:border-[#C0392B] transition-all group"
           >
             <div className="flex items-start justify-between mb-3">
               <Calendar className="w-6 h-6 text-[#C0392B] group-hover:scale-110 transition-transform" />
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Cari Event Donor</h3>
-            <p className="text-xs text-gray-600">2 event baru tersedia</p>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Cari Event</h3>
           </button>
 
           <button
@@ -388,10 +423,8 @@ export default function DonorDashboard() {
           >
             <div className="flex items-start justify-between mb-3">
               <Activity className="w-6 h-6 text-[#F39C12] group-hover:scale-110 transition-transform" />
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Lihat Tiket</h3>
-            <p className="text-xs text-gray-600">1 tiket aktif</p>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Tiket Aktif</h3>
           </button>
 
           <button
@@ -400,12 +433,8 @@ export default function DonorDashboard() {
           >
             <div className="flex items-start justify-between mb-3">
               <Gift className="w-6 h-6 text-[#8E44AD] group-hover:scale-110 transition-transform" />
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Tukar Reward</h3>
-            <p className="text-xs text-gray-600">
-              {donorStats.totalPoints} poin tersedia
-            </p>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Rewards</h3>
           </button>
 
           <button
@@ -414,10 +443,28 @@ export default function DonorDashboard() {
           >
             <div className="flex items-start justify-between mb-3">
               <Droplets className="w-6 h-6 text-[#27AE60] group-hover:scale-110 transition-transform" />
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Cek Stok Darah</h3>
-            <p className="text-xs text-gray-600">Real-time availability</p>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Stok Darah</h3>
+          </button>
+
+          <button
+            onClick={() => navigate('/leaderboard')}
+            className="bg-white border-2 border-blue-50 rounded-lg p-4 hover:shadow-lg hover:border-blue-400 transition-all group"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <Trophy className="w-6 h-6 text-blue-500 group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Papan Peringkat</h3>
+          </button>
+
+          <button
+            onClick={() => navigate('/education')}
+            className="bg-white border-2 border-pink-50 rounded-lg p-4 hover:shadow-lg hover:border-pink-400 transition-all group"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <BookOpen className="w-6 h-6 text-pink-500 group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Edukasi</h3>
           </button>
         </div>
 

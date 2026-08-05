@@ -25,6 +25,8 @@ const QRCheckIn = lazy(() => import('./components/QRCheckIn'));
 const RewardPage = lazy(() => import('./components/RewardPage'));
 const DriverDashboard = lazy(() => import('./components/DriverDashboard'));
 const DonorDashboard = lazy(() => import('./components/DonorDashboard'));
+const Leaderboard = lazy(() => import('./components/Leaderboard'));
+const Education = lazy(() => import('./components/Education'));
 const NotFound = lazy(() => import('./components/NotFound'));
 const AlurDonor = lazy(() => import('./components/AlurDonor'));
 const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
@@ -81,6 +83,12 @@ export default function App() {
                     } />
                     <Route path="/rewards" element={
                       <ProtectedRoute allowedRoles={['donor']}><RewardPage /></ProtectedRoute>
+                    } />
+                    <Route path="/leaderboard" element={
+                      <ProtectedRoute allowedRoles={['donor']}><Leaderboard /></ProtectedRoute>
+                    } />
+                    <Route path="/education" element={
+                      <ProtectedRoute allowedRoles={['donor', 'pmi', 'rs', 'driver', 'superadmin']}><Education /></ProtectedRoute>
                     } />
 
                     {/* Protected: role-based dashboards */}
