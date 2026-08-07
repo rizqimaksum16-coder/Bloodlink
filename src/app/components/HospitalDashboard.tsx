@@ -851,7 +851,7 @@ export default function HospitalDashboard() {
               {user?.org || 'Rumah Sakit A'}
             </h1>
             <p className="text-xs text-[#4A4A6A] mt-1 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> Jl. Mayjend Prof. Dr. Moestopo 6-8, Surabaya
+              <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> Jl. Salemba Raya, Jakarta Pusat
             </p>
           </div>
           <button onClick={() => { setShowOrderForm(true); setOrderStep('form'); }}

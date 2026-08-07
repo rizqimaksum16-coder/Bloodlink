@@ -132,7 +132,7 @@ function MapMockup({ delivery }: { delivery: Delivery }) {
       {/* Live badge overlay */}
       <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm z-20">
         <span className="w-2 h-2 rounded-full bg-[#27AE60] animate-pulse" />
-        <span className="text-[10px] font-bold text-[#1A1A2E]">Live GPS (Surabaya)</span>
+        <span className="text-[10px] font-bold text-[#1A1A2E]">Live GPS (Aktif)</span>
       </div>
 
       {/* ETA badge overlay */}

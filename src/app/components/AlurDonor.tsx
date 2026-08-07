@@ -405,7 +405,7 @@ export default function AlurDonor() {
               Belum Ada Tiket Donor Aktif
             </h3>
             <p className="text-xs text-[#4A4A6A] max-w-sm mx-auto mb-6 leading-relaxed">
-              Anda belum memiliki tiket pendaftaran donor darah aktif. Silakan pilih event donor yang tersedia di Kota Surabaya dan lakukan pendaftaran.
+              Anda belum memiliki tiket pendaftaran donor darah aktif. Silakan pilih event donor yang tersedia di wilayah Anda dan lakukan pendaftaran.
             </p>
             <Link to="/events">
               <button className="flex items-center gap-2 mx-auto px-6 py-3 bg-[#C0392B] hover:bg-[#922B21] text-white font-bold text-xs rounded-xl shadow-md transition-all">

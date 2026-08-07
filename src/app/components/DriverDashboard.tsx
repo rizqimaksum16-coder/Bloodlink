@@ -182,7 +182,7 @@ export default function DriverDashboard() {
               <h1 className="text-2xl md:text-3xl font-black mt-2 leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Halo, {currentDriverName || 'Driver PMI'}!
               </h1>
-              <p className="text-white/80 text-xs mt-1">Armada Pengiriman Stok Darah PMI Surabaya</p>
+              <p className="text-white/80 text-xs mt-1">Armada Pengiriman Stok Darah PMI</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold backdrop-blur-sm">

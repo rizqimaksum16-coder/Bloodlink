@@ -109,7 +109,7 @@ export default function BloodSearch() {
     address: string;
   }>({
     name: 'Mencari Lokasi GPS...',
-    lat: -7.2678, // Koordinat default Surabaya Pusat
+    lat: -6.2088, // Koordinat default Jakarta
     lng: 112.7584,
     address: 'Mohon tunggu...'
   });
@@ -130,10 +130,10 @@ export default function BloodSearch() {
         (error) => {
           console.warn('Gagal mendapatkan lokasi GPS:', error);
           setActiveHospital({
-            name: 'Lokasi Anda (Default Surabaya)',
+            name: 'Lokasi Anda (Default)',
             lat: -7.2678,
             lng: 112.7584,
-            address: 'Surabaya Pusat'
+            address: 'Pusat Kota'
           });
           if (showToast) toast.info('Gagal mengakses GPS, menggunakan lokasi default. (' + error.message + ')');
         },
@@ -160,7 +160,7 @@ export default function BloodSearch() {
           name: user.org,
           lat: -7.2678,
           lng: 112.7584,
-          address: 'Surabaya'
+          address: 'Pusat Kota'
         });
         return;
       }

@@ -391,7 +391,7 @@ export default function PMIDashboard() {
   };
 
 
-  const myPmiName = user?.org || 'PMI Kota Surabaya';
+  const myPmiName = user?.org || 'PMI Pusat';
   const displayedRequests = requests.filter(r => !r.pmi || r.pmi.toLowerCase() === myPmiName.toLowerCase());
 
   const pendingCount = displayedRequests.filter(r => r.status === 'pending').length;
@@ -506,7 +506,7 @@ export default function PMIDashboard() {
       return;
     }
 
-    const orgName = user?.org || 'PMI Kota Surabaya';
+    const orgName = user?.org || 'PMI Pusat';
     let newId = `drv_${Date.now()}`;
 
     // Tambah ke API MySQL
@@ -673,7 +673,7 @@ export default function PMIDashboard() {
               <Droplets className="w-7 h-7 text-[#C0392B] fill-[#C0392B]" />
               {user?.org || 'PMI A'}
             </h1>
-            <p className="text-sm text-[#4A4A6A] mt-1">Jl. Embong Ploso No. 5, Surabaya</p>
+            <p className="text-sm text-[#4A4A6A] mt-1">Jl. Jend. Gatot Subroto Kav. 96, Jakarta</p>
           </div>
           <div className="hidden sm:flex items-center gap-2 bg-[#EAFAF1] text-[#1E8449] px-3 py-1.5 rounded-xl text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#27AE60] animate-pulse" />
@@ -1268,7 +1268,7 @@ export default function PMIDashboard() {
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Lokasi *</label>
                 <input
-                  type="text" placeholder="Contoh: Mall Galaxy Surabaya"
+                  type="text" placeholder="Contoh: Mall Grand Indonesia"
                   value={newEventLocation} onChange={e => setNewEventLocation(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
                 />
@@ -1336,7 +1336,7 @@ export default function PMIDashboard() {
                 <textarea
                   value={broadcastMsg}
                   onChange={e => setBroadcastMsg(e.target.value)}
-                  placeholder={`Halo, PMI Surabaya membutuhkan donor darah golongan ${broadcastType} segera. Stok kami sangat kritis. Harap segera hubungi kami di 031-XXXXXXX.`}
+                  placeholder={`Halo, PMI membutuhkan donor darah golongan ${broadcastType} segera. Stok kami sangat kritis. Harap segera hubungi kami di 031-XXXXXXX.`}
                   className="w-full p-3 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors resize-none"
                   rows={4}
                 />

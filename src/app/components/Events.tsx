@@ -623,7 +623,7 @@ export default function Events() {
             <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Event Donor Darah
             </h1>
-            <p className="text-[#4A4A6A] mt-1 text-sm">Ikuti event donor darah yang diadakan di Surabaya</p>
+            <p className="text-[#4A4A6A] mt-1 text-sm">Ikuti event donor darah yang diadakan di wilayah Anda</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1349,7 +1349,7 @@ export default function Events() {
                     <label className="text-xs font-bold text-[#4A4A6A] block mb-1.5 uppercase">Lokasi Utama</label>
                     <Input
                       required
-                      placeholder="Contoh: Balai Kota Surabaya"
+                      placeholder="Contoh: Balai Kota Jakarta"
                       value={newEvent.location}
                       onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
                       className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B]"
@@ -1372,7 +1372,7 @@ export default function Events() {
                   <label className="text-xs font-bold text-[#4A4A6A] block mb-1.5 uppercase">Alamat Lengkap</label>
                   <Input
                     required
-                    placeholder="Contoh: Jl. Taman Surya No. 1, Surabaya"
+                    placeholder="Contoh: Jl. Medan Merdeka Sel. No. 8-9, Jakarta"
                     value={newEvent.address}
                     onChange={e => setNewEvent({ ...newEvent, address: e.target.value })}
                     className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B]"

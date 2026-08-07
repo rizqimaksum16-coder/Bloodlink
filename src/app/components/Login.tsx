@@ -116,7 +116,7 @@ export default function Login() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = sanitize(regName), email = sanitize(regEmail),
-          phone = sanitize(regPhone), address = sanitize(regAddress) || 'Surabaya',
+          phone = sanitize(regPhone), address = sanitize(regAddress) || 'Alamat Lengkap',
           org   = sanitize(regOrg) || selRole.label, password = regPassword.slice(0, 200);
     if (!name || !email || !password) { toast.error('Mohon lengkapi nama, email, dan password.'); return; }
     if (!isValidEmail(email))         { toast.error('Format email tidak valid.'); return; }
@@ -382,7 +382,7 @@ export default function Login() {
                     id="reg-org"
                     label={regRole === 'pmi' ? 'Nama Unit PMI' : regRole === 'rs' ? 'Nama Rumah Sakit' : 'Unit / Organisasi'}
                     type="text"
-                    placeholder={regRole === 'pmi' ? 'PMI Kota Surabaya' : regRole === 'rs' ? 'RSUD Dr. Soetomo' : 'Nama unit'}
+                    placeholder={regRole === 'pmi' ? 'PMI Pusat' : regRole === 'rs' ? 'RSUD Cipto Mangunkusumo' : 'Nama unit'}
                     value={regOrg} onChange={e => setRegOrg(e.target.value)}
                     maxLength={150}
                   />
@@ -416,7 +416,7 @@ export default function Login() {
                 {regRole === 'donor' && (
                   <GlassInput
                     id="reg-address" label="Alamat / Kecamatan" type="text"
-                    placeholder="Contoh: Gubeng, Surabaya"
+                    placeholder="Contoh: Kemang, Jakarta Selatan"
                     value={regAddress} onChange={e => setRegAddress(e.target.value)}
                     maxLength={200}
                   />

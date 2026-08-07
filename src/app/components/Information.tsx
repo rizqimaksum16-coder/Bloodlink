@@ -186,7 +186,7 @@ export default function Information() {
               <Phone className="w-5 h-5 text-[#2980B9]" />
               <h2 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Kontak Bantuan PMI</h2>
             </div>
-            <p className="text-xs text-[#9B9BB5] mb-5">Hubungi Unit Transfusi Darah PMI Kota Surabaya jika ada pertanyaan darurat</p>
+            <p className="text-xs text-[#9B9BB5] mb-5">Hubungi Unit Transfusi Darah PMI terdekat jika ada pertanyaan darurat</p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border border-border bg-[#F9F9FC]">
@@ -198,7 +198,7 @@ export default function Information() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-[#2980B9]" />
-                    <span>info@pmisurabaya.or.id</span>
+                    <span>info@pmi.or.id</span>
                   </div>
                 </div>
               </div>
@@ -207,7 +207,7 @@ export default function Information() {
                 <h3 className="font-bold text-[#1A1A2E] text-xs mb-2 uppercase tracking-wider">Lokasi Kantor Pusat</h3>
                 <div className="flex items-start gap-2 text-xs text-[#4A4A6A]">
                   <MapPin className="w-4 h-4 text-[#C0392B] flex-shrink-0 mt-0.5" />
-                  <span>Jl. Embong Ploso No. 7-15, Embong Kaliasin, Kec. Genteng, Kota Surabaya, Surabaya dan sekitarnya 60271</span>
+                  <span>Jl. Jend. Gatot Subroto Kav. 96, Jakarta Selatan, 12790</span>
                 </div>
               </div>
             </div>
