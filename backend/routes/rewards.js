@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/auth');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 // Pastikan tabel reward_claims ada (auto-create jika belum)
 async function ensureClaimsTable() {
@@ -120,7 +120,7 @@ router.post('/redeem', authMiddleware, async (req, res) => {
     );
 
     // Simpan klaim ke tabel reward_claims
-    const claimId = `rc-${uuidv4().split('-')[0]}`;
+    const claimId = `rc-${randomUUID().split('-')[0]}`;
     await pool.query(
       'INSERT INTO reward_claims (id, user_id, reward_id) VALUES (?, ?, ?)',
       [claimId, userId, reward_id]
