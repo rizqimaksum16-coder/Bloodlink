@@ -244,7 +244,7 @@ export default function DonorDashboard() {
                 <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
                   <Ticket className="w-5 h-5" /> Daftar Tiket Donor
                 </h3>
-                <button onClick={() => navigate('/tickets')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
+                <button onClick={() => navigate('/alur')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
               </div>
               
               {activeTickets.length > 0 ? (
@@ -264,7 +264,7 @@ export default function DonorDashboard() {
                           </div>
                           <p className="font-bold text-base text-slate-900 dark:text-slate-100">{ticket.eventName}</p>
                         </div>
-                        <button onClick={() => navigate(`/tickets/${ticket.id}`)}
+                        <button onClick={() => navigate('/alur')}
                           className="w-full sm:w-auto px-6 py-2.5 bg-[#E11D48] text-white text-xs font-bold rounded-sm hover:bg-[#BE123C] transition-colors shadow-sm flex items-center justify-center gap-2">
                           <Search className="w-3.5 h-3.5" /> Tampilkan QR
                         </button>
