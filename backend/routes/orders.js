@@ -49,6 +49,16 @@ router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async 
       'INSERT INTO blood_requests (id, hospital_id, blood_type, quantity, urgency) VALUES (?, ?, ?, ?, ?)',
       [id, hospitalRef, blood_type, qtyVal, urgency]
     );
+
+    // Notify all PMI users
+    const [pmis] = await pool.query("SELECT id FROM users WHERE role = 'pmi'");
+    for (const pmi of pmis) {
+      await pool.query(
+        "INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, 'request', 'Permintaan Darah Baru', ?)",
+        ['N-' + Date.now() + Math.floor(Math.random()*1000), pmi.id, `Ada permintaan darah ${blood_type} sebanyak ${qtyVal} kantong.`]
+      );
+    }
+
     res.json({ message: 'Permintaan darah berhasil dibuat', id });
   } catch (err) {
     console.error('Error create blood request:', err);
@@ -95,6 +105,13 @@ router.post('/deliveries', authMiddleware, requireRole('pmi', 'superadmin'), asy
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, orderId, driverId, status || 'disiapkan', eta || '-', distance || '-', pct || 0]
     );
+
+    // Notify Driver
+    await pool.query(
+      "INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, 'delivery', 'Tugas Pengiriman Baru', 'Anda ditugaskan untuk mengirimkan darah. Silakan cek di menu pengiriman.')",
+      ['N-' + Date.now(), driverId]
+    );
+
     res.json({ message: 'Tugas pengiriman berhasil dibuat', id });
   } catch (err) {
     console.error('Error create delivery:', err);
@@ -112,6 +129,19 @@ router.put('/deliveries/:id/status', authMiddleware, requireRole('driver', 'pmi'
       'UPDATE deliveries SET status = COALESCE(?, status), pct = COALESCE(?, pct), eta = COALESCE(?, eta) WHERE id = ?',
       [status, pct, eta, id]
     );
+
+    // Notify RS
+    const [delivs] = await pool.query(
+      "SELECT r.hospital_id FROM deliveries d JOIN blood_requests r ON r.id = d.order_id WHERE d.id = ?",
+      [id]
+    );
+    if (delivs.length > 0 && status) {
+      await pool.query(
+        "INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, 'delivery_status', 'Update Pengiriman Darah', ?)",
+        ['N-' + Date.now(), delivs[0].hospital_id, `Status pengiriman diperbarui menjadi: ${status}.`]
+      );
+    }
+
     res.json({ message: 'Status pengiriman berhasil diperbarui' });
   } catch (err) {
     console.error('Error update delivery status:', err);

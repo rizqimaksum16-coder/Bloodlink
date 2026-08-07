@@ -247,11 +247,11 @@ router.post('/checkin', authMiddleware, async (req, res) => {
       
       const achNotifId = 'DN-ACH-' + Date.now() + Math.floor(Math.random() * 1000);
       await conn.query(
-        `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)
+        `INSERT INTO notifications (id, user_id, type, title, message, read_status)
          VALUES (?, ?, 'achievement', ?, ?, false)`,
         [
           achNotifId,
-          profile.id,
+          profile.user_id,
           'Pencapaian Baru!',
           `Selamat! Anda telah membuka pencapaian: ${ach.name}.`
         ]
@@ -260,11 +260,11 @@ router.post('/checkin', authMiddleware, async (req, res) => {
 
     const notifId = 'DN-' + Date.now();
     await conn.query(
-      `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)
+      `INSERT INTO notifications (id, user_id, type, title, message, read_status)
        VALUES (?, ?, 'checkin', ?, ?, false)`,
       [
         notifId,
-        profile.id,
+        profile.user_id,
         'Check-in berhasil!',
         `Anda berhasil check-in di ${booking.event_name}. +${POINTS_EARNED} poin. Donor berikutnya mulai ${nextEligibleStr}.`
       ]

@@ -171,19 +171,19 @@ router.post('/emergency-response', authMiddleware, requireRole('donor'), async (
 
     if (notification_id) {
       await pool.query(
-        'UPDATE donor_notifications SET read_status = true WHERE id = ? AND donor_id = ?',
-        [notification_id, profile.id]
+        'UPDATE notifications SET read_status = true WHERE id = ? AND user_id = ?',
+        [notification_id, userId]
       );
     }
 
     // Notifikasi konfirmasi ke donor
     const notifId = 'DN-ER-' + Date.now();
     await pool.query(
-      `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)
+      `INSERT INTO notifications (id, user_id, type, title, message, read_status)
        VALUES (?, ?, 'info', ?, ?, false)`,
       [
         notifId,
-        profile.id,
+        userId,
         'Tanggapan darurat terkirim',
         'Terima kasih! PMI akan menghubungi Anda jika diperlukan.'
       ]
@@ -223,11 +223,11 @@ router.post('/eligible-reminder', authMiddleware, requireRole('donor'), async (r
     }
 
     const [recent] = await pool.query(
-      `SELECT id FROM donor_notifications
-       WHERE donor_id = ? AND type = 'eligible_reminder'
+      `SELECT id FROM notifications
+       WHERE user_id = ? AND type = 'eligible_reminder'
          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
        LIMIT 1`,
-      [profile.id]
+      [userId]
     );
     if (recent.length > 0) {
       return res.json({ created: false, reason: 'already_reminded' });
@@ -235,11 +235,11 @@ router.post('/eligible-reminder', authMiddleware, requireRole('donor'), async (r
 
     const notifId = 'DN-EL-' + Date.now();
     await pool.query(
-      `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)
+      `INSERT INTO notifications (id, user_id, type, title, message, read_status)
        VALUES (?, ?, 'eligible_reminder', ?, ?, false)`,
       [
         notifId,
-        profile.id,
+        userId,
         'Anda sudah boleh donor lagi!',
         'Masa tunggu sudah selesai. Cek event donor terdekat dan daftar sekarang.'
       ]

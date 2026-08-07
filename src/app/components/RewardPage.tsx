@@ -256,7 +256,8 @@ export default function RewardPage() {
                 <div className="w-8 h-8 border-4 border-[#C0392B]/20 border-t-[#C0392B] rounded-full animate-spin" />
               </div>
             ) : achievementsList.map((a: any) => {
-              const Icon = Award; // Fallback icon
+              const iconMap: Record<string, any> = { Heart, Trophy, Star, Award, Zap, Flame, Crown, Shield };
+              const Icon = iconMap[a.icon_name] || Award;
               return (
                 <div key={a.id} className={`bg-white rounded-2xl border p-5 transition-all ${a.is_earned ? 'border-border' : 'border-border opacity-70'}`}>
                   <div className="flex items-start gap-4">

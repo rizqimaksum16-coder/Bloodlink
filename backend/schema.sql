@@ -5,7 +5,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 1. HAPUS SEMUA TABEL
-DROP TABLE IF EXISTS donor_notifications;
+DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS event_bookings;
 DROP TABLE IF EXISTS donation_records;
 DROP TABLE IF EXISTS donor_achievements;
@@ -175,15 +175,15 @@ CREATE TABLE event_bookings (
     FOREIGN KEY (donor_id) REFERENCES donor_profiles(id) ON DELETE CASCADE
 );
 
-CREATE TABLE donor_notifications (
+CREATE TABLE notifications (
     id         VARCHAR(50) PRIMARY KEY,
-    donor_id   VARCHAR(50) NOT NULL,
+    user_id    VARCHAR(50) NOT NULL,
     type       VARCHAR(20) NOT NULL,
     title      VARCHAR(255) NOT NULL,
     message    TEXT NOT NULL,
     read_status BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (donor_id) REFERENCES donor_profiles(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE deliveries (

@@ -238,75 +238,16 @@ export default function DonorDashboard() {
           {/* LEFT COLUMN (Priority Action & Operational Data) */}
           <div className="lg:col-span-8 flex flex-col gap-8">
             
-            {/* EVENT TERDEKAT - Most Important Operational Task */}
-            <div className={cardBaseClass}>
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1E293B]">
-                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                   <Calendar className="w-5 h-5 text-[#E11D48]" /> Event Donor Terdekat
+            {/* DAFTAR TIKET DONOR (Tiket Aktif) */}
+            <div className={`${cardBaseClass} border-[#E11D48]/20 dark:border-[#E11D48]/20 overflow-hidden`}>
+              <div className="px-6 py-4 border-b border-[#E11D48]/10 dark:border-[#E11D48]/20 bg-red-50/80 dark:bg-[#E11D48]/10 flex items-center justify-between">
+                <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
+                  <Ticket className="w-5 h-5" /> Daftar Tiket Donor
                 </h3>
-                <button onClick={() => navigate('/events')}
-                  className="text-xs font-semibold text-[#E11D48] hover:text-[#BE123C] flex items-center gap-1 transition-colors">
-                  Semua event <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                <button onClick={() => navigate('/tickets')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
               </div>
               
-              {upcomingEvents.length > 0 ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                  {upcomingEvents.map((event) => {
-                    const pct = event.quota > 0 ? Math.min((event.registered / event.quota) * 100, 100) : 0;
-                    const sisa = event.quota - event.registered;
-                    return (
-                      <button key={event.id} onClick={() => navigate('/events')}
-                        className="w-full px-6 py-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#E11D48] transition-colors truncate mb-2">{event.name}</p>
-                          <div className="flex flex-wrap items-center gap-4">
-                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {event.date}
-                            </span>
-                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {event.location}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="w-full sm:w-32 flex-shrink-0">
-                          <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kuota</span>
-                            <span className={`text-[10px] font-bold ${sisa > 0 ? 'text-[#E11D48]' : 'text-slate-500 dark:text-slate-400'}`}>
-                              {sisa > 0 ? `${sisa} sisa` : 'Penuh'}
-                            </span>
-                          </div>
-                          {event.quota > 0 && (
-                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-none overflow-hidden">
-                              <div className="h-full bg-[#E11D48] transition-all duration-1000" style={{ width: `${pct}%` }} />
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="m-6 border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-sm p-10 flex flex-col items-center justify-center text-center">
-                  <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm flex items-center justify-center mb-4 shadow-sm">
-                    <Calendar className="w-5 h-5 text-slate-400" />
-                  </div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Belum Ada Jadwal Terdekat</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">Jadwal donor darah di area Anda sedang kosong. Kami akan memperbarui daftar ini segera.</p>
-                </div>
-              )}
-            </div>
-
-            {/* TIKET AKTIF (Expanded in Main Column) */}
-            {activeTickets.length > 0 && (
-              <div className={`${cardBaseClass} border-[#E11D48]/20 dark:border-[#E11D48]/20 overflow-hidden`}>
-                <div className="px-6 py-4 border-b border-[#E11D48]/10 dark:border-[#E11D48]/20 bg-red-50/80 dark:bg-[#E11D48]/10 flex items-center justify-between">
-                  <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
-                    <Ticket className="w-5 h-5" /> Tiket Aktif
-                  </h3>
-                  <button onClick={() => navigate('/tickets')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
-                </div>
+              {activeTickets.length > 0 ? (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                   {activeTickets.map(ticket => {
                     const st = ticketStatusMap[ticket.status] || ticketStatusMap.ready;
@@ -331,8 +272,16 @@ export default function DonorDashboard() {
                     );
                   })}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="m-6 border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-sm p-10 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm flex items-center justify-center mb-4 shadow-sm">
+                    <Ticket className="w-5 h-5 text-slate-400" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Belum Ada Tiket Aktif</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">Anda belum terdaftar di event donor apa pun saat ini. Silakan cari event dan daftar untuk mendapatkan tiket.</p>
+                </div>
+              )}
+            </div>
 
           </div>
 
