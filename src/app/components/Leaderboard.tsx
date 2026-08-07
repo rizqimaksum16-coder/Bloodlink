@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, Medal, Award, Star, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { Trophy, Medal, Award, Star, TrendingUp, RefreshCw } from 'lucide-react';
 import { api } from '../utils/api';
 
 interface TopDonor {
@@ -15,21 +15,24 @@ export default function Leaderboard() {
   const [userRank, setUserRank] = useState<number | null>(null);
   const [userStats, setUserStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
       setError('');
-      const data = await api.donors.getLeaderboard();
+      // Fallback kosong agar tidak crash jika backend tidak tersedia
+      const data = await api.donors.getLeaderboard({ top10: [], userRank: null, userStats: null });
       if (data) {
         setTop10(data.top10 || []);
-        setUserRank(data.userRank);
-        setUserStats(data.userStats);
+        setUserRank(data.userRank ?? null);
+        setUserStats(data.userStats ?? null);
       }
     } catch (err: any) {
       console.error('Failed to load leaderboard:', err);
-      setError('Gagal memuat data leaderboard. Silakan coba lagi.');
+      // Jika benar-benar gagal, tampilkan state kosong bukan error
+      setTop10([]);
+      setUserRank(null);
+      setUserStats(null);
     } finally {
       setLoading(false);
     }
@@ -55,17 +58,7 @@ export default function Leaderboard() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 gap-3 bg-red-50 rounded-2xl border border-red-100">
-        <AlertCircle className="w-8 h-8 text-red-500" />
-        <p className="text-sm font-semibold text-red-700">{error}</p>
-        <button onClick={fetchLeaderboard} className="mt-2 flex items-center gap-2 px-4 py-2 bg-white text-red-600 rounded-lg text-xs font-bold border border-red-200 hover:bg-red-50">
-          <RefreshCw className="w-3.5 h-3.5" /> Coba Lagi
-        </button>
-      </div>
-    );
-  }
+
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
@@ -88,8 +81,22 @@ export default function Leaderboard() {
 
       <div className="p-0">
         {top10.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 text-sm">
-            Belum ada data pendonor saat ini.
+          <div className="flex flex-col items-center justify-center p-12 text-center gap-4">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+              <Trophy className="w-8 h-8 text-gray-300" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-gray-500">Data Belum Tersedia</p>
+              <p className="text-sm text-gray-400 mt-1 max-w-xs">
+                Data leaderboard belum bisa dimuat. Pastikan koneksi internet Anda baik dan coba lagi.
+              </p>
+            </div>
+            <button
+              onClick={fetchLeaderboard}
+              className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" /> Coba Lagi
+            </button>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
