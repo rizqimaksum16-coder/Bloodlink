@@ -54,7 +54,6 @@ export default function RewardPage() {
   const [rewardsList, setRewardsList] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'rewards' | 'achievements'>('rewards');
   const [filter, setFilter] = useState('all');
-  const [claimed, setClaimed] = useState<string[]>([]);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
   const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
   const [achievementsList, setAchievementsList] = useState<any[]>([]);
@@ -85,8 +84,8 @@ export default function RewardPage() {
 
   const filteredRewards = rewardsList.filter(r => {
     if (filter === 'all') return true;
-    if (filter === 'affordable') return r.points <= userPoints && r.available;
-    if (filter === 'available') return r.available;
+    if (filter === 'affordable') return r.points <= userPoints && !r.is_claimed;
+    if (filter === 'available') return !r.is_claimed;
     return true;
   });
 
@@ -98,9 +97,11 @@ export default function RewardPage() {
     setClaimAnim(id);
     try {
       await api.rewards.redeem(id, user?.email || '');
-      toast.success('Poin berhasil ditukarkan!');
-      setDonorProfile(prev => prev ? { ...prev, points: prev.points - cost } : null);
-      setClaimed(prev => [...prev, id]);
+      toast.success('🎉 Reward berhasil diklaim!');
+      // Update poin di state lokal
+      setDonorProfile(prev => prev ? { ...prev, points: Math.max(0, prev.points - cost) } : null);
+      // Tandai reward sebagai diklaim di list
+      setRewardsList(prev => prev.map(r => r.id === id ? { ...r, is_claimed: true } : r));
     } catch (err: any) {
       toast.error(err.message || 'Gagal menukarkan reward');
     } finally {
@@ -199,44 +200,60 @@ export default function RewardPage() {
             ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredRewards.map(r => {
-                const isClaimed = claimed.includes(r.id);
+                const isClaimed = !!r.is_claimed;
                 const canAfford = userPoints >= r.points;
                 const isAnimating = claimAnim === r.id;
                 return (
-                  <div key={r.id} className={`bg-white rounded-2xl border p-5 transition-all ${isClaimed ? 'border-[#27AE60]/40 bg-[#EAFAF1]/20' : 'border-border hover:shadow-sm'}`}>
+                  <div key={r.id} className={`bg-white rounded-2xl border p-5 transition-all ${
+                    isClaimed
+                      ? 'border-[#27AE60]/40 bg-[#EAFAF1]/30'
+                      : canAfford
+                        ? 'border-border hover:shadow-md hover:border-[#C0392B]/30'
+                        : 'border-border hover:shadow-sm opacity-75'
+                  }`}>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-[#F7F7FB] flex items-center justify-center text-2xl">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                          isClaimed ? 'bg-[#EAFAF1]' : 'bg-[#F7F7FB]'
+                        }`}>
                           {r.icon}
                         </div>
                         <div>
                           <p className="font-bold text-[#1A1A2E] text-sm">{r.name}</p>
                           <p className="text-xs text-[#9B9BB5] mt-0.5">{r.description}</p>
+                          {isClaimed && r.claimed_at && (
+                            <p className="text-[10px] text-[#27AE60] font-medium mt-0.5">
+                              Diklaim {new Date(r.claimed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
-                    {r.limited && r.limitCount && (
-                      <p className="text-[10px] text-[#E67E22] font-semibold mb-2 flex items-center gap-1">
-                        <Flame className="w-3.5 h-3.5" /> Stok terbatas: {r.limitCount} tersisa
-                      </p>
-                    )}
                     <div className="flex items-center justify-between mt-3">
                       <div className="flex items-center gap-1.5">
-                        <Star className="w-4 h-4 text-[#F1C40F] fill-[#F1C40F]" />
+                        <Star className={`w-4 h-4 ${isClaimed ? 'text-[#27AE60] fill-[#27AE60]' : 'text-[#F1C40F] fill-[#F1C40F]'}`} />
                         <span className="font-bold text-[#1A1A2E] text-sm">{r.points === 0 ? 'Gratis' : `${r.points.toLocaleString('id-ID')} poin`}</span>
                       </div>
                       {isClaimed ? (
-                        <span className="text-[10px] font-bold text-[#27AE60] flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-[#27AE60] flex items-center gap-1 bg-[#EAFAF1] px-2.5 py-1 rounded-lg">
                           <CheckCircle className="w-3.5 h-3.5" /> Sudah Diklaim
                         </span>
                       ) : !r.available ? (
                         <span className="text-[10px] font-bold text-[#9B9BB5] flex items-center gap-1">
-                          <Lock className="w-3.5 h-3.5" /> Habis
+                          <Lock className="w-3.5 h-3.5" /> Tidak Tersedia
                         </span>
                       ) : (
-                        <button onClick={() => handleClaim(r.id, r.points)} disabled={!canAfford || isAnimating}
-                          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${canAfford ? 'bg-[#C0392B] text-white hover:bg-[#922B21]' : 'bg-[#F4F4F8] text-[#9B9BB5] cursor-not-allowed'}`}>
-                          {isAnimating ? '✓' : canAfford ? 'Klaim' : 'Poin Kurang'}
+                        <button
+                          onClick={() => handleClaim(r.id, r.points)}
+                          disabled={!canAfford || isAnimating}
+                          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            isAnimating
+                              ? 'bg-[#27AE60] text-white'
+                              : canAfford
+                                ? 'bg-[#C0392B] text-white hover:bg-[#922B21] active:scale-95'
+                                : 'bg-[#F4F4F8] text-[#9B9BB5] cursor-not-allowed'
+                          }`}>
+                          {isAnimating ? '✓ Diklaim!' : canAfford ? 'Klaim Sekarang' : 'Poin Kurang'}
                         </button>
                       )}
                     </div>
