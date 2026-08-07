@@ -186,8 +186,8 @@ export default function DonorDashboard() {
       
       {/* ─── HEADER (Anti-Slop: Elegant Crimson) ─────────── */}
       <div className="px-6 sm:px-10 pt-16 pb-12 bg-[#8B1A10] dark:bg-[#4A0E09] border-b border-[#6E140C] dark:border-[#380A06]">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <div>
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8">
+          <div className="max-w-2xl">
             <div className="flex items-center gap-3 mb-5">
               <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-white/10 text-white border border-white/20 rounded-sm backdrop-blur-sm">
                 {badge.label} Donor
@@ -198,16 +198,16 @@ export default function DonorDashboard() {
                 </span>
               )}
             </div>
-            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-3">
+            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4">
               Halo, {user?.name?.split(' ')[0] || 'Pendonor'}.
             </h1>
-            <p className="text-red-100/90 max-w-lg leading-relaxed">
+            <p className="text-red-100/90 leading-relaxed text-base">
               Setiap donasi darahmu sangat berarti. Pantau kontribusimu dan temukan jadwal donor terdekat.
             </p>
           </div>
 
           {/* Quick Action */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 mt-4 md:mt-0">
             <button onClick={() => navigate('/events')}
               className="group flex items-center gap-2 bg-white text-[#8B1A10] hover:bg-red-50 px-6 py-3 text-sm font-bold rounded-sm transition-transform hover:-translate-y-0.5 active:translate-y-0 border border-transparent shadow-sm">
               <Droplets className="w-4 h-4" /> Mulai Donor
