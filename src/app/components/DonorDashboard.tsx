@@ -273,20 +273,67 @@ export default function DonorDashboard() {
           {/* KOLOM KIRI: Tiket + Event ───────────────────────────── 2 col */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* NAVIGASI CEPAT */}
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                { icon: Activity, label: 'Tiket',       route: '/alur'         },
-                { icon: Gift,     label: 'Rewards',      route: '/rewards'      },
-                { icon: Trophy,   label: 'Leaderboard',  route: '/leaderboard'  },
-                { icon: BookOpen, label: 'Edukasi',      route: '/education'    },
-              ].map((item) => (
-                <button key={item.route} onClick={() => navigate(item.route)}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm py-4 flex flex-col items-center gap-2 hover:border-[#C0392B]/20 hover:bg-red-50/30 transition-colors">
-                  <item.icon className="w-5 h-5 text-[#C0392B]" />
-                  <span className="text-xs font-medium text-[#1A1A2E]">{item.label}</span>
-                </button>
-              ))}
+            {/* NAVIGASI CEPAT / MENU UTAMA */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-[#1A1A2E]">Menu Utama</p>
+                <span className="text-xs text-[#9B9BB5]">Pilih fitur yang ingin diakses</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { 
+                    icon: Activity, 
+                    label: 'Tiket Aktif', 
+                    desc: 'Lihat kode QR & status', 
+                    route: '/alur', 
+                    color: 'text-[#C0392B]', 
+                    bg: 'bg-red-50' 
+                  },
+                  { 
+                    icon: Gift,     
+                    label: 'Tukar Reward', 
+                    desc: 'Tukar poin dengan hadiah', 
+                    route: '/rewards', 
+                    color: 'text-amber-600', 
+                    bg: 'bg-amber-50' 
+                  },
+                  { 
+                    icon: Trophy,   
+                    label: 'Leaderboard',  
+                    desc: 'Peringkat pendonor terbaik', 
+                    route: '/leaderboard', 
+                    color: 'text-blue-600', 
+                    bg: 'bg-blue-50' 
+                  },
+                  { 
+                    icon: BookOpen, 
+                    label: 'Edukasi Donor', 
+                    desc: 'Artikel & tips kesehatan', 
+                    route: '/education', 
+                    color: 'text-purple-600', 
+                    bg: 'bg-purple-50' 
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.route}
+                    onClick={() => navigate(item.route)}
+                    className="group flex items-center justify-between p-3.5 rounded-xl border border-gray-100 bg-[#F7F7FB]/50 hover:bg-white hover:border-[#C0392B]/30 hover:shadow-md transition-all duration-200 text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center flex-shrink-0`}>
+                        <item.icon className={`w-4 h-4 ${item.color}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#1A1A2E] group-hover:text-[#C0392B] transition-colors truncate">
+                          {item.label}
+                        </p>
+                        <p className="text-xs text-[#9B9BB5] truncate">{item.desc}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#C0392B] group-hover:translate-x-0.5 transition-all flex-shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* TIKET AKTIF */}
