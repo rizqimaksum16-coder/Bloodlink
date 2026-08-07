@@ -219,7 +219,7 @@ export default function DonorDashboard() {
       {/* ─── BENTO GRID LAYOUT ────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-6 sm:px-10 mt-8">
         
-        {/* STATS ROW (4 Columns) */}
+        {/* STATS ROW (4 Columns) - Highest Priority */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
           {[
             { label: 'Total Donasi', val: `${donorStats.totalDonations}`, suffix: 'kali', icon: Heart, color: 'text-[#E11D48]' },
@@ -240,37 +240,18 @@ export default function DonorDashboard() {
           ))}
         </div>
 
-        {/* MAIN BENTO GRID (2 Columns: Left 8, Right 4) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* MAIN BENTO GRID (Left 8, Right 4) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
           
-          {/* LEFT COLUMN (Wider) */}
+          {/* LEFT COLUMN (Priority Action & Operational Data) */}
           <div className="lg:col-span-8 flex flex-col gap-8">
             
-            {/* MENU UTAMA (4 Cards Grid) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { icon: Ticket, title: 'Tiket Aktif', desc: 'Lihat kode QR & status', to: '/tickets', color: 'text-indigo-500' },
-                { icon: Gift, title: 'Tukar Reward', desc: 'Tukar poin dengan hadiah', to: '/rewards', color: 'text-amber-500' },
-                { icon: Trophy, title: 'Leaderboard', desc: 'Peringkat pendonor terbaik', to: '/leaderboard', color: 'text-blue-500' },
-                { icon: BookOpen, title: 'Edukasi', desc: 'Artikel & tips kesehatan', to: '/education', color: 'text-emerald-500' },
-              ].map((menu, i) => (
-                <button key={i} onClick={() => navigate(menu.to)}
-                  className={`${cardBaseClass} ${hoverCardClass} p-5 flex items-start gap-4 text-left group`}>
-                  <div className={`p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-sm group-hover:bg-slate-100 dark:group-hover:bg-slate-700 transition-colors`}>
-                    <menu.icon className={`w-5 h-5 ${menu.color}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#E11D48] dark:group-hover:text-[#E11D48] transition-colors">{menu.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{menu.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* EVENT TERDEKAT */}
+            {/* EVENT TERDEKAT - Most Important Operational Task */}
             <div className={cardBaseClass}>
               <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1E293B]">
-                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Event Donor Terdekat</h3>
+                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                   <Calendar className="w-5 h-5 text-[#E11D48]" /> Event Donor Terdekat
+                </h3>
                 <button onClick={() => navigate('/events')}
                   className="text-xs font-semibold text-[#E11D48] hover:text-[#BE123C] flex items-center gap-1 transition-colors">
                   Semua event <ChevronRight className="w-3.5 h-3.5" />
@@ -325,16 +306,52 @@ export default function DonorDashboard() {
               )}
             </div>
 
+            {/* TIKET AKTIF (Expanded in Main Column) */}
+            {activeTickets.length > 0 && (
+              <div className={`${cardBaseClass} border-[#E11D48]/20 dark:border-[#E11D48]/20 overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-[#E11D48]/10 dark:border-[#E11D48]/20 bg-red-50/80 dark:bg-[#E11D48]/10 flex items-center justify-between">
+                  <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
+                    <Ticket className="w-5 h-5" /> Tiket Aktif
+                  </h3>
+                  <button onClick={() => navigate('/tickets')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  {activeTickets.map(ticket => {
+                    const st = ticketStatusMap[ticket.status] || ticketStatusMap.ready;
+                    return (
+                      <div key={ticket.id} className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm whitespace-nowrap ${st.style}`}>
+                              {st.label}
+                            </span>
+                            <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5" /> {ticket.eventDate}
+                            </p>
+                          </div>
+                          <p className="font-bold text-base text-slate-900 dark:text-slate-100">{ticket.eventName}</p>
+                        </div>
+                        <button onClick={() => navigate(`/tickets/${ticket.id}`)}
+                          className="w-full sm:w-auto px-6 py-2.5 bg-[#E11D48] text-white text-xs font-bold rounded-sm hover:bg-[#BE123C] transition-colors shadow-sm flex items-center justify-center gap-2">
+                          <Search className="w-3.5 h-3.5" /> Tampilkan QR
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
           </div>
 
-          {/* RIGHT COLUMN (Narrower) */}
+          {/* RIGHT COLUMN (Context, Status & Gamification) */}
           <div className="lg:col-span-4 flex flex-col gap-8">
             
-            {/* PROFIL RINGKAS */}
+            {/* STATUS DONOR - Crucial Personal Context */}
             <div className={cardBaseClass}>
               <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 bg-white dark:bg-[#1E293B]">
                 <Droplets className="w-4 h-4 text-[#E11D48]" />
-                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Status Donor</h3>
+                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Status Anda</h3>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 <div className="px-6 py-5 flex flex-col gap-1">
@@ -355,43 +372,12 @@ export default function DonorDashboard() {
               </div>
             </div>
 
-            {/* TIKET AKTIF (Mini) */}
-            {activeTickets.length > 0 && (
-              <div className={`${cardBaseClass} border-[#E11D48]/20 dark:border-[#E11D48]/20`}>
-                <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-red-50/50 dark:bg-[#E11D48]/10">
-                  <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
-                    <Ticket className="w-4 h-4" /> Tiket Aktif
-                  </h3>
-                </div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                  {activeTickets.map(ticket => {
-                    const st = ticketStatusMap[ticket.status] || ticketStatusMap.ready;
-                    return (
-                      <div key={ticket.id} className="px-6 py-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate pr-2">{ticket.eventName}</p>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm whitespace-nowrap ${st.style}`}>
-                            {st.label}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mb-3">
-                          <Calendar className="w-3.5 h-3.5" /> {ticket.eventDate}
-                        </p>
-                        <button onClick={() => navigate(`/tickets/${ticket.id}`)}
-                          className="w-full text-xs font-bold text-center py-2 border border-[#E11D48]/30 dark:border-[#E11D48]/30 rounded-sm text-[#E11D48] dark:text-red-400 hover:bg-[#E11D48] hover:text-white transition-colors">
-                          Lihat QR Code
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* PENCAPAIAN */}
+            {/* PENCAPAIAN - Gamification */}
             <div className={cardBaseClass}>
               <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1E293B]">
-                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Pencapaian</h3>
+                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-emerald-500" /> Pencapaian
+                </h3>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 {displayAchievements.map((a) => {
@@ -434,6 +420,30 @@ export default function DonorDashboard() {
 
           </div>
         </div>
+
+        {/* ─── PINTASAN CEPAT (Quick Links - Secondary Menu) ──────────────── */}
+        <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4 px-1">Pintasan Cepat</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { icon: Gift, title: 'Tukar Reward', desc: 'Lihat hadiah tersedia', to: '/rewards', color: 'text-amber-500' },
+              { icon: Trophy, title: 'Leaderboard', desc: 'Peringkat pendonor', to: '/leaderboard', color: 'text-blue-500' },
+              { icon: BookOpen, title: 'Edukasi', desc: 'Artikel kesehatan', to: '/education', color: 'text-emerald-500' },
+            ].map((menu, i) => (
+              <button key={i} onClick={() => navigate(menu.to)}
+                className={`${cardBaseClass} ${hoverCardClass} p-4 flex items-center gap-4 text-left group bg-white/50 dark:bg-[#1E293B]/50 hover:bg-white dark:hover:bg-[#1E293B]`}>
+                <div className={`p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm group-hover:bg-slate-50 dark:group-hover:bg-slate-700 transition-colors`}>
+                  <menu.icon className={`w-4 h-4 ${menu.color}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#E11D48] transition-colors">{menu.title}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{menu.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
