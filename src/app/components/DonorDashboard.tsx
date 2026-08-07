@@ -3,17 +3,14 @@ import { useNavigate } from 'react-router';
 import {
   Calendar, Trophy, Droplets, Heart, TrendingUp, ChevronRight,
   ArrowRight, Zap, Star, Gift, CheckCircle, Activity, Target, Award,
-  Clock, BookOpen, Lock, Ticket, Search
+  Clock, BookOpen, Lock, Ticket, Search, AlertCircle
 } from 'lucide-react';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 interface DonorStats {
   totalDonations: number;
   totalPoints: number;
@@ -21,7 +18,6 @@ interface DonorStats {
   ranking: number;
   badgeLevel: 'bronze' | 'silver' | 'gold' | 'none';
 }
-
 interface ActiveTicket {
   id: string;
   eventName: string;
@@ -30,7 +26,6 @@ interface ActiveTicket {
   qrCode: string;
   points: number;
 }
-
 interface AchievementItem {
   id: string;
   name: string;
@@ -43,22 +38,16 @@ interface AchievementItem {
   total?: number;
 }
 
-// Placeholders untuk icon
 const Flame = TrendingUp;
 const Crown = Trophy;
-const Shield = Award;
 const QrCode = Activity;
 
-// ─── Badge Config ─────────────────────────────────────────────────────────────
-
 const badgeConfig: Record<string, { label: string; icon: string; color: string; gradient: string }> = {
-  bronze: { label: 'Bronze Donor', icon: '🥉', color: '#C2701A', gradient: 'from-amber-700 to-amber-500' },
-  silver: { label: 'Silver Donor', icon: '🥈', color: '#6b7280', gradient: 'from-gray-500 to-gray-300' },
-  gold:   { label: 'Gold Donor',   icon: '🥇', color: '#B7791F', gradient: 'from-yellow-600 to-yellow-400' },
-  none:   { label: 'Pendonor Baru', icon: '🎗️', color: '#9B9BB5', gradient: 'from-gray-400 to-gray-300' },
+  bronze: { label: 'Bronze', icon: '🥉', color: '#C2701A', gradient: 'from-amber-700 to-amber-500' },
+  silver: { label: 'Silver', icon: '🥈', color: '#6b7280', gradient: 'from-gray-500 to-gray-300' },
+  gold:   { label: 'Gold',   icon: '🥇', color: '#B7791F', gradient: 'from-yellow-600 to-yellow-400' },
+  none:   { label: 'New', icon: '🎗️', color: '#9B9BB5', gradient: 'from-gray-400 to-gray-300' },
 };
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DonorDashboard() {
   const navigate = useNavigate();
@@ -72,7 +61,6 @@ export default function DonorDashboard() {
     ranking: 0,
     badgeLevel: 'none',
   });
-
   const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>([]);
   const [displayAchievements, setDisplayAchievements] = useState<AchievementItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,62 +69,33 @@ export default function DonorDashboard() {
   const getDynamicAchievements = (totalDonations: number): AchievementItem[] => {
     return [
       {
-        id: 'A001',
-        name: 'Donor Pertama',
-        description: 'Selesaikan donasi darah pertamamu',
-        icon: Heart,
-        color: '#E05252',
-        bg: '#FFF0F0',
-        earned: totalDonations >= 1,
-        progress: Math.min(totalDonations, 1),
-        total: 1,
+        id: 'A001', name: 'Donor Pertama', description: 'Selesaikan donasi pertamamu',
+        icon: Heart, color: '#ef4444', bg: '#fef2f2', earned: totalDonations >= 1, progress: Math.min(totalDonations, 1), total: 1,
       },
       {
-        id: 'A002',
-        name: 'Konsisten 3x',
-        description: 'Donor 3 kali berturut-turut',
-        icon: Flame,
-        color: '#C2701A',
-        bg: '#FFF7ED',
-        earned: totalDonations >= 3,
-        progress: Math.min(totalDonations, 3),
-        total: 3,
+        id: 'A002', name: 'Konsisten', description: 'Donor 3 kali berturut-turut',
+        icon: Flame, color: '#f59e0b', bg: '#fffbeb', earned: totalDonations >= 3, progress: Math.min(totalDonations, 3), total: 3,
       },
       {
-        id: 'A003',
-        name: 'Bintang 10',
-        description: 'Capai 10 kali donasi',
-        icon: Star,
-        color: '#B45309',
-        bg: '#FFFBEB',
-        earned: totalDonations >= 10,
-        progress: Math.min(totalDonations, 10),
-        total: 10,
+        id: 'A003', name: 'Bintang 10', description: 'Capai 10 kali donasi',
+        icon: Star, color: '#8b5cf6', bg: '#f5f3ff', earned: totalDonations >= 10, progress: Math.min(totalDonations, 10), total: 10,
       },
       {
-        id: 'A004',
-        name: 'Pahlawan PMI',
-        description: 'Capai 25 kali donasi',
-        icon: Crown,
-        color: '#7C5CBF',
-        bg: '#F5F0FF',
-        earned: totalDonations >= 25,
-        progress: Math.min(totalDonations, 25),
-        total: 25,
+        id: 'A004', name: 'Pahlawan', description: 'Capai 25 kali donasi',
+        icon: Crown, color: '#10b981', bg: '#ecfdf5', earned: totalDonations >= 25, progress: Math.min(totalDonations, 25), total: 25,
       }
     ];
   };
 
-  // Load donor data dari MySQL API
   useEffect(() => {
     async function loadDonorData() {
       if (!user?.email) return;
       setLoading(true);
       try {
         const [profileData, historyData, bookingsData] = await Promise.all([
-          api.donors.getProfile(user.email, null),
-          api.donors.getHistory(user.email, []),
-          api.events.getMyBookings([])
+          api.donors.getProfile(user.email, null).catch(() => null),
+          api.donors.getHistory(user.email, []).catch(() => []),
+          api.events.getMyBookings([]).catch(() => [])
         ]);
 
         if (profileData) {
@@ -145,11 +104,12 @@ export default function DonorDashboard() {
             totalDonations,
             totalPoints: profileData.points || 0,
             currentStreak: profileData.streak || 0,
-            ranking: 45,
+            ranking: profileData.ranking || 45,
             badgeLevel: determineBadgeLevel(totalDonations),
             nextEligible: profileData.next_eligible || undefined,
           });
           setDisplayAchievements(getDynamicAchievements(totalDonations));
+          if (!profileData.blood_type) setNeedsProfileSetup(true);
         } else {
           setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
           setDisplayAchievements(getDynamicAchievements(0));
@@ -168,14 +128,11 @@ export default function DonorDashboard() {
           setActiveTickets([]);
         }
       } catch (err) {
-        console.warn('Gagal memuat data donor dari API, menggunakan data lokal.');
-        setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
-        setDisplayAchievements(getDynamicAchievements(0));
+        console.warn('Gagal memuat data');
       } finally {
         setLoading(false);
       }
     }
-
     loadDonorData();
   }, [user?.email]);
 
@@ -189,17 +146,14 @@ export default function DonorDashboard() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <div className="w-8 h-8 rounded-full border-[3px] border-[#E05252]/20 border-t-[#E05252] animate-spin" />
-        <span className="text-xs font-medium text-gray-400 tracking-wide">
-          Memuat Dashboard...
-        </span>
+        <div className="w-10 h-10 rounded-full border-4 border-red-500/20 border-t-red-500 animate-spin" />
+        <span className="text-sm font-semibold text-gray-500 tracking-wide animate-pulse">Memuat Dashboard...</span>
       </div>
     );
   }
 
   const badge = badgeConfig[donorStats.badgeLevel];
 
-  // Eligibility countdown helper
   const getEligibilityInfo = () => {
     if (!donorStats.nextEligible) return { label: 'Siap Donor', daysLeft: 0, isReady: true };
     const today = new Date();
@@ -211,357 +165,307 @@ export default function DonorDashboard() {
   const eligibility = getEligibilityInfo();
 
   return (
-    <div className="min-h-screen bg-[#FAFAF9] pt-0 pb-16">
+    <div className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-red-500/30">
+      
+      {/* ─── HERO BANNER ─────────────────────────────────────────────────────── */}
+      <div className="relative bg-gradient-to-br from-red-600 via-rose-600 to-red-800 pt-12 pb-28 px-6 sm:px-12 overflow-hidden shadow-xl shadow-red-900/10">
+        <div className="absolute inset-0 opacity-10 mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/3"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-rose-500/20 blur-2xl rounded-full translate-y-1/2 -translate-x-1/4"></div>
 
-      {/* ─── HERO HEADER ─────────────────────────────────────────────────────── */}
-      <div className="relative bg-gradient-to-br from-[#E05252] via-[#D04444] to-[#B83B3B] pt-8 pb-16 px-4 sm:px-8 overflow-hidden">
-        {/* Subtle decorative element */}
-        <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full bg-white/5" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 rounded-full bg-black/8" />
-
-        <div className="relative z-10 max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <span className="inline-flex items-center gap-1.5 bg-white/15 text-white/90 text-xs font-semibold px-3 py-1 rounded-full mb-3 tracking-wide">
-              {badge.icon} {badge.label}
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white leading-snug">
-              Halo, {user?.name?.split(' ')[0] || 'Pahlawan'} 👋
-            </h1>
-            <p className="text-white/65 text-sm mt-1">
-              Selamat datang di dashboard donasi Anda.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 bg-white/12 backdrop-blur-sm border border-white/15 rounded-2xl px-5 py-4 self-start sm:self-auto">
-            <Droplets className="w-6 h-6 text-white/75" />
+        <div className="relative z-10 max-w-6xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">
+              <span className="text-base leading-none">{badge.icon}</span> {badge.label} Donor
+            </div>
             <div>
-              <p className="text-white/55 text-xs font-medium uppercase tracking-wide">Total Donasi</p>
-              <p className="text-white text-2xl font-bold leading-none">{donorStats.totalDonations}x</p>
+              <h1 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight leading-tight">
+                Halo, {user?.name?.split(' ')[0] || 'Pahlawan'} <span className="inline-block cursor-default origin-bottom-right">👋</span>
+              </h1>
+              <p className="text-rose-100/90 text-sm md:text-base mt-2 font-medium max-w-lg">
+                Setiap tetes darahmu sangat berharga. Mari selamatkan lebih banyak nyawa hari ini.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl self-start md:self-auto hover:bg-white/15 transition-all duration-300">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+              <Droplets className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-rose-100/80 text-xs font-bold uppercase tracking-wider">Total Donasi</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-white text-3xl font-black leading-none">{donorStats.totalDonations}</span>
+                <span className="text-rose-200 font-bold text-sm">kali</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-8 space-y-5">
-
+      <div className="relative z-20 max-w-6xl mx-auto px-4 sm:px-6 -mt-16 space-y-8">
+        
         {/* ─── STAT CARDS ──────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-          {/* Poin Reward */}
-          <div className="bg-white rounded-2xl p-5 border border-[#F0EDE8] shadow-sm hover:shadow-md transition-shadow duration-200">
-            <div className="w-9 h-9 rounded-xl bg-[#FFF7ED] flex items-center justify-center mb-3">
-              <Trophy className="w-4.5 h-4.5 text-[#C2701A]" style={{ width: '18px', height: '18px' }} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          {[
+            { label: 'Poin Reward', value: donorStats.totalPoints.toLocaleString('id-ID'), icon: Trophy, color: 'text-amber-500', bg: 'bg-amber-100/50' },
+            { label: 'Hari Berturut', value: donorStats.currentStreak, icon: Zap, color: 'text-violet-500', bg: 'bg-violet-100/50' },
+            { label: 'Status Badge', value: badge.label, icon: Award, color: 'text-emerald-500', bg: 'bg-emerald-100/50' },
+            { label: 'Peringkat', value: `#${donorStats.ranking || '–'}`, icon: Star, color: 'text-blue-500', bg: 'bg-blue-100/50' },
+          ].map((stat, i) => (
+            <div key={i} className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 sm:p-6 border border-white shadow-xl shadow-slate-200/40 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300 group">
+              <div className={`w-12 h-12 ${stat.bg} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </div>
+              <p className="text-2xl sm:text-3xl font-extrabold text-slate-800 leading-none mb-1">{stat.value}</p>
+              <p className="text-sm font-semibold text-slate-400">{stat.label}</p>
             </div>
-            <p className="text-2xl font-bold text-gray-900 leading-none">
-              {donorStats.totalPoints.toLocaleString('id-ID')}
-            </p>
-            <p className="text-xs text-gray-400 font-medium mt-1">Poin Reward</p>
-          </div>
-
-          {/* Konsistensi */}
-          <div className="bg-white rounded-2xl p-5 border border-[#F0EDE8] shadow-sm hover:shadow-md transition-shadow duration-200">
-            <div className="w-9 h-9 rounded-xl bg-[#F5F0FF] flex items-center justify-center mb-3">
-              <Zap style={{ width: '18px', height: '18px', color: '#7C5CBF' }} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900 leading-none">
-              {donorStats.currentStreak}
-            </p>
-            <p className="text-xs text-gray-400 font-medium mt-1">Hari Berturut</p>
-          </div>
-
-          {/* Badge Level */}
-          <div className="bg-white rounded-2xl p-5 border border-[#F0EDE8] shadow-sm hover:shadow-md transition-shadow duration-200">
-            <div className="w-9 h-9 rounded-xl bg-[#F0FDF4] flex items-center justify-center mb-3 text-base">
-              {badge.icon}
-            </div>
-            <p className="text-2xl font-bold text-gray-900 leading-none">Badge</p>
-            <p className="text-xs text-gray-400 font-medium mt-1">{badge.label}</p>
-          </div>
-
-          {/* Ranking */}
-          <div className="bg-white rounded-2xl p-5 border border-[#F0EDE8] shadow-sm hover:shadow-md transition-shadow duration-200">
-            <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] flex items-center justify-center mb-3">
-              <Star style={{ width: '18px', height: '18px', color: '#2563EB' }} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900 leading-none">
-              #{donorStats.ranking || '–'}
-            </p>
-            <p className="text-xs text-gray-400 font-medium mt-1">Peringkat</p>
-          </div>
+          ))}
         </div>
 
         {/* ─── ELIGIBILITY BANNER ───────────────────────────────────────────────── */}
-        <div className={`rounded-2xl p-5 sm:p-6 border-l-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4
+        <div className={`rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl relative overflow-hidden transition-all duration-500
           ${eligibility.isReady
-            ? 'bg-[#F0FDF4] border-l-[#22C55E] border border-green-100'
-            : 'bg-[#FFF5F5] border-l-[#E05252] border border-rose-100'
+            ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-emerald-500/20'
+            : 'bg-gradient-to-r from-slate-800 to-slate-900 shadow-slate-900/20'
           }`}>
-          <div className="flex items-center gap-4">
-            <div className={`p-2.5 rounded-xl flex-shrink-0 ${eligibility.isReady ? 'bg-green-100' : 'bg-rose-100'}`}>
-              <Clock className={`w-5 h-5 ${eligibility.isReady ? 'text-green-600' : 'text-rose-500'}`} />
+          
+          <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
+          
+          <div className="flex items-center gap-5 relative z-10">
+            <div className={`p-4 rounded-2xl flex-shrink-0 shadow-inner ${eligibility.isReady ? 'bg-emerald-600/50 text-white' : 'bg-slate-700/50 text-slate-300'}`}>
+              {eligibility.isReady ? <Heart className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
             </div>
             <div>
-              <h3 className={`text-sm font-bold ${eligibility.isReady ? 'text-green-800' : 'text-rose-700'}`}>
-                {eligibility.isReady ? '🎉 Kamu Sudah Bisa Donor!' : 'Kapan Bisa Donor Lagi?'}
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">
+                {eligibility.isReady ? 'Waktunya Menyelamatkan Nyawa! 🎉' : 'Sedang Masa Pemulihan'}
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className={`text-sm sm:text-base font-medium ${eligibility.isReady ? 'text-emerald-50' : 'text-slate-400'}`}>
                 {eligibility.isReady
-                  ? 'Jadwalkan donor sekarang dan selamatkan nyawa!'
-                  : 'Berdasarkan donor terakhir, estimasi donor berikutnya:'}
+                  ? 'Kondisimu sudah siap untuk melakukan donor darah kembali.'
+                  : 'Berdasarkan donasi terakhir, Anda harus menunggu sebelum donor lagi.'}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <div className={`font-bold text-sm px-4 py-2 rounded-xl ${
-              eligibility.isReady
-                ? 'bg-green-600 text-white'
-                : 'bg-rose-500 text-white'
-            }`}>
-              {eligibility.label}
-            </div>
+          
+          <div className="flex flex-col sm:flex-row items-center gap-3 relative z-10 w-full md:w-auto">
+            {!eligibility.isReady && (
+               <div className="flex flex-col items-center justify-center bg-slate-800/80 border border-slate-700 rounded-2xl px-6 py-3 w-full sm:w-auto">
+                 <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Tersisa</span>
+                 <span className="text-white text-2xl font-black">{eligibility.daysLeft} Hari</span>
+               </div>
+            )}
             {eligibility.isReady && (
               <button
                 onClick={() => navigate('/events')}
-                className="text-xs font-semibold bg-white border border-green-200 text-green-700 px-3 py-2 rounded-xl hover:bg-green-50 transition-colors flex items-center gap-1"
+                className="w-full sm:w-auto text-emerald-600 font-bold bg-white px-8 py-4 rounded-2xl hover:bg-emerald-50 hover:scale-105 hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
               >
-                Cari Event <ArrowRight className="w-3 h-3" />
+                Cari Event <ArrowRight className="w-5 h-5" />
               </button>
-            )}
-            {donorStats.nextEligible && !eligibility.isReady && (
-              <span className="text-xs text-gray-400 bg-white border border-rose-100 px-3 py-2 rounded-xl">
-                📅 {new Date(donorStats.nextEligible).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
             )}
           </div>
         </div>
 
         {/* ─── Profile Setup Warning ────────────────────────────────────────────── */}
         {needsProfileSetup && (
-          <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 p-4 rounded-2xl">
-            <div className="flex items-start gap-3">
-              <Target className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-semibold text-amber-800">Profil Belum Lengkap</h3>
-                <p className="mt-1 text-xs text-amber-600">
-                  Lengkapi data medis dasar (seperti Golongan Darah) sebelum mendaftar event donor.
-                </p>
-                <button
-                  onClick={() => toast.info('Fitur edit profil sedang dalam pengembangan')}
-                  className="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 flex items-center gap-1 transition-colors"
-                >
-                  Lengkapi Profil <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
+          <div className="bg-amber-500/10 border border-amber-500/20 p-5 rounded-3xl flex items-start gap-4">
+            <div className="p-3 bg-amber-500/20 text-amber-600 rounded-2xl">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-amber-900">Profil Medis Belum Lengkap</h3>
+              <p className="mt-1 text-sm font-medium text-amber-700/80">
+                Lengkapi data medis dasar seperti Golongan Darah untuk mempermudah pendaftaran event.
+              </p>
+              <button
+                onClick={() => toast.info('Fitur edit profil sedang dalam pengembangan')}
+                className="mt-3 text-sm font-bold text-amber-600 hover:text-amber-800 flex items-center gap-1.5 transition-colors"
+              >
+                Lengkapi Profil Sekarang <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
 
-        {/* ─── QUICK ACTION CARDS ──────────────────────────────────────────────── */}
-        <div>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Menu Utama</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              {
-                icon: Activity,
-                color: '#C2701A',
-                bg: '#FFF7ED',
-                title: 'Tiket Aktif',
-                desc: 'Pendaftaran event kamu',
-                route: '/alur',
-              },
-              {
-                icon: Gift,
-                color: '#7C5CBF',
-                bg: '#F5F0FF',
-                title: 'Rewards',
-                desc: 'Tukarkan poin hadiahmu',
-                route: '/rewards',
-              },
-              {
-                icon: Trophy,
-                color: '#2563EB',
-                bg: '#EFF6FF',
-                title: 'Leaderboard',
-                desc: 'Lihat posisi kamu',
-                route: '/leaderboard',
-              },
-              {
-                icon: BookOpen,
-                color: '#DB2777',
-                bg: '#FDF2F8',
-                title: 'Edukasi',
-                desc: 'Manfaat donor darah',
-                route: '/education',
-              },
-            ].map((item) => (
-              <button
-                key={item.route}
-                onClick={() => navigate(item.route)}
-                className="group bg-white rounded-2xl p-4 text-left border border-[#F0EDE8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 group-hover:scale-105 transition-transform duration-200"
-                  style={{ backgroundColor: item.bg }}
-                >
-                  <item.icon style={{ width: '17px', height: '17px', color: item.color }} />
-                </div>
-                <h3 className="font-semibold text-gray-800 text-sm mb-0.5">{item.title}</h3>
-                <p className="text-gray-400 text-xs leading-snug">{item.desc}</p>
-                <div className="mt-3 flex items-center gap-0.5 text-xs font-medium" style={{ color: item.color }}>
-                  Buka <ChevronRight className="w-3 h-3" />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── PENCAPAIAN ──────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-[#F0EDE8] p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-800">🏅 Pencapaian</h2>
-            <button
-              onClick={() => navigate('/rewards')}
-              className="text-xs font-semibold text-[#E05252] hover:text-[#C04040] flex items-center gap-1 transition-colors"
-            >
-              Lihat Semua <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {displayAchievements.map((achievement) => {
-              const Icon = achievement.icon;
-              return (
-                <div
-                  key={achievement.id}
-                  className={`relative p-4 rounded-xl border transition-all duration-200 overflow-hidden ${
-                    achievement.earned
-                      ? 'border-green-100 bg-[#F8FFF9]'
-                      : 'border-[#F0EDE8] bg-[#FAFAF9]'
-                  }`}
-                >
-                  {/* Earned check */}
-                  {achievement.earned && (
-                    <div className="absolute top-2.5 right-2.5">
-                      <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                        <CheckCircle className="w-2.5 h-2.5 text-white" />
-                      </div>
-                    </div>
-                  )}
-                  {/* Lock icon */}
-                  {!achievement.earned && (
-                    <div className="absolute top-2.5 right-2.5 text-gray-300">
-                      <Lock className="w-3.5 h-3.5" />
-                    </div>
-                  )}
-
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${!achievement.earned ? 'opacity-40 grayscale' : ''}`}
-                    style={{ backgroundColor: achievement.bg }}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          
+          {/* ─── KIRI: MENU UTAMA & TIKET ───────────────────────────────────────── */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* QUICK ACTIONS */}
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-red-500" /> Eksplorasi
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { icon: Activity, color: 'text-orange-500', bg: 'bg-orange-500/10', title: 'Tiket Aktif', desc: 'Lihat QR & Status', route: '/alur' },
+                  { icon: Gift, color: 'text-purple-500', bg: 'bg-purple-500/10', title: 'Rewards', desc: 'Tukar poin hadiah', route: '/rewards' },
+                  { icon: Trophy, color: 'text-blue-500', bg: 'bg-blue-500/10', title: 'Leaderboard', desc: 'Peringkat pendonor', route: '/leaderboard' },
+                  { icon: BookOpen, color: 'text-pink-500', bg: 'bg-pink-500/10', title: 'Edukasi', desc: 'Artikel kesehatan', route: '/education' },
+                ].map((item) => (
+                  <button
+                    key={item.route}
+                    onClick={() => navigate(item.route)}
+                    className="group bg-white rounded-3xl p-5 sm:p-6 text-left border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-red-100 transition-all duration-300"
                   >
-                    <Icon style={{ width: '17px', height: '17px', color: achievement.color }} />
-                  </div>
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 ${item.bg}`}>
+                      <item.icon className={`w-6 h-6 ${item.color}`} />
+                    </div>
+                    <h3 className="font-bold text-slate-800 text-base mb-1 group-hover:text-red-600 transition-colors">{item.title}</h3>
+                    <p className="text-slate-500 text-sm font-medium">{item.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                  <h3 className={`font-semibold text-xs mb-0.5 ${achievement.earned ? 'text-gray-800' : 'text-gray-400'}`}>
-                    {achievement.name}
-                  </h3>
-                  <p className={`text-xs leading-snug ${achievement.earned ? 'text-gray-500' : 'text-gray-300'}`}>
-                    {achievement.description}
-                  </p>
+            {/* TIKET AKTIF */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Ticket className="w-5 h-5 text-red-500" /> Tiket Terkini
+                </h2>
+                {activeTickets.length > 0 && (
+                  <button
+                    onClick={() => navigate('/alur')}
+                    className="text-sm font-bold text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors"
+                  >
+                    Lihat Semua <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
-                  {!achievement.earned && achievement.progress !== undefined && achievement.total && (
-                    <div className="mt-3 space-y-1">
-                      <div className="w-full bg-gray-100 rounded-full h-1">
-                        <div
-                          className="h-1 rounded-full transition-all duration-500"
-                          style={{
-                            width: `${(achievement.progress / achievement.total) * 100}%`,
-                            backgroundColor: achievement.color
-                          }}
-                        />
+              {activeTickets.length > 0 ? (
+                <div className="space-y-4">
+                  {activeTickets.slice(0, 3).map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className="group flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-red-200 hover:bg-red-50/30 transition-all duration-300 cursor-pointer"
+                      onClick={() => navigate('/alur')}
+                    >
+                      <div className="flex items-center gap-4 mb-4 sm:mb-0">
+                        <div className="w-12 h-12 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-sm group-hover:border-red-200 group-hover:scale-105 transition-all">
+                          <QrCode className="w-6 h-6 text-red-500" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base mb-1 group-hover:text-red-600 transition-colors">{ticket.eventName}</h3>
+                          <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+                            <Calendar className="w-4 h-4" /> {ticket.eventDate}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-300">{achievement.progress}/{achievement.total}</p>
+                      <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center gap-2">
+                        <span
+                          className={`inline-block text-xs font-bold px-3 py-1.5 rounded-xl uppercase tracking-wider ${
+                            ticket.status === 'ready'
+                              ? 'bg-blue-100 text-blue-700'
+                              : ticket.status === 'checked_in'
+                                ? 'bg-orange-100 text-orange-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                          }`}
+                        >
+                          {ticket.status === 'ready' ? 'Ready' : ticket.status === 'checked_in' ? 'Check In' : 'Selesai'}
+                        </span>
+                        {ticket.points > 0 && (
+                          <p className="text-sm font-bold text-amber-500">+{ticket.points} Pts</p>
+                        )}
+                      </div>
                     </div>
-                  )}
-
-                  {achievement.earned && (
-                    <p className="mt-2 text-xs text-green-500 font-semibold">✓ Diraih!</p>
-                  )}
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ─── TIKET AKTIF ─────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-[#F0EDE8] p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-800">🎫 Tiket Aktif</h2>
-            {activeTickets.length > 0 && (
-              <button
-                onClick={() => navigate('/alur')}
-                className="text-xs font-semibold text-[#E05252] hover:text-[#C04040] flex items-center gap-1 transition-colors"
-              >
-                Lihat Semua <ArrowRight className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {activeTickets.length > 0 ? (
-            <div className="space-y-2">
-              {activeTickets.slice(0, 3).map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="flex items-center justify-between p-3.5 bg-[#FAFAF9] rounded-xl border border-[#F0EDE8] hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-white border border-[#F0EDE8] rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
-                      <QrCode className="w-4 h-4 text-[#E05252]" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800 text-sm leading-tight">{ticket.eventName}</h3>
-                      <p className="text-xs text-gray-400 mt-0.5">{ticket.eventDate}</p>
-                    </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                    <Ticket className="w-8 h-8 text-slate-300" />
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <span
-                      className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-lg ${
-                        ticket.status === 'ready'
-                          ? 'bg-blue-50 text-blue-600'
-                          : ticket.status === 'checked_in'
-                            ? 'bg-orange-50 text-orange-600'
-                            : 'bg-green-50 text-green-600'
+                  <h3 className="font-bold text-slate-700 text-base mb-2">Belum Ada Tiket</h3>
+                  <p className="text-sm text-slate-500 mb-6 max-w-sm font-medium">
+                    Jadwalkan donormu sekarang. Pilih event terdekat dan dapatkan tiketmu di sini.
+                  </p>
+                  <button
+                    onClick={() => navigate('/events')}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 hover:shadow-xl hover:shadow-red-600/40 hover:-translate-y-0.5 transition-all duration-300"
+                  >
+                    <Search className="w-4 h-4" /> Cari Event Donor
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── KANAN: PENCAPAIAN ────────────────────────────────────────────── */}
+          <div className="space-y-8">
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 sm:p-8 shadow-sm h-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-red-500" /> Badges
+                </h2>
+              </div>
+              <div className="flex flex-col gap-4">
+                {displayAchievements.map((achievement) => {
+                  const Icon = achievement.icon;
+                  return (
+                    <div
+                      key={achievement.id}
+                      className={`relative p-5 rounded-2xl border transition-all duration-300 overflow-hidden flex items-center gap-4 ${
+                        achievement.earned
+                          ? 'border-emerald-100 bg-emerald-50/30'
+                          : 'border-slate-100 bg-slate-50'
                       }`}
                     >
-                      {ticket.status === 'ready' ? 'Ready' : ticket.status === 'checked_in' ? 'Check In' : 'Selesai'}
-                    </span>
-                    {ticket.points > 0 && (
-                      <p className="text-xs font-semibold text-[#C2701A] mt-1">+{ticket.points} pts</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* ─── EMPTY STATE ─── */
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-14 h-14 bg-[#FFF0F0] rounded-2xl flex items-center justify-center mb-4">
-                <Ticket className="w-7 h-7 text-[#E05252]/40" />
+                      <div
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${!achievement.earned ? 'opacity-50 grayscale' : ''}`}
+                        style={{ backgroundColor: achievement.bg }}
+                      >
+                        <Icon style={{ width: '28px', height: '28px', color: achievement.color }} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className={`font-bold text-sm ${achievement.earned ? 'text-slate-800' : 'text-slate-500'}`}>
+                            {achievement.name}
+                          </h3>
+                          {achievement.earned ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <Lock className="w-4 h-4 text-slate-300" />
+                          )}
+                        </div>
+                        <p className={`text-xs font-medium mb-3 ${achievement.earned ? 'text-slate-600' : 'text-slate-400'}`}>
+                          {achievement.description}
+                        </p>
+                        {!achievement.earned && achievement.progress !== undefined && achievement.total && (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              <span>Progress</span>
+                              <span>{achievement.progress}/{achievement.total}</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-1000"
+                                style={{
+                                  width: `${(achievement.progress / achievement.total) * 100}%`,
+                                  backgroundColor: achievement.color
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {achievement.earned && (
+                          <span className="inline-block text-[10px] font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg uppercase tracking-wider">
+                            Diraih
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <h3 className="font-semibold text-gray-600 text-sm mb-1">Belum Ada Tiket Aktif</h3>
-              <p className="text-xs text-gray-400 mb-5 max-w-xs leading-relaxed">
-                Daftarkan diri ke event donor darah terdekat dan tiket Anda akan muncul di sini.
-              </p>
-              <button
-                onClick={() => navigate('/events')}
-                className="flex items-center gap-2 bg-[#E05252] hover:bg-[#C84646] text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-              >
-                <Search className="w-3.5 h-3.5" />
-                Cari Event Donor
-              </button>
             </div>
-          )}
+          </div>
+          
         </div>
-
       </div>
     </div>
   );
 }
+
