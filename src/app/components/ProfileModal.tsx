@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { User, X, Mail, ShieldAlert, BadgeCheck } from 'lucide-react';
+import { User, X, Mail, ShieldAlert, BadgeCheck, Droplets, Phone, MapPin, Save, Loader2 } from 'lucide-react';
 import { useAuth, UserRole } from '../context/AuthContext';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { toast } from 'sonner';
+import { api } from '../utils/api';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Belum Tahu'];
 
 const roleColors: Record<UserRole, { color: string; bg: string; label: string }> = {
   pmi: { color: '#C0392B', bg: '#FDEDEC', label: 'Petugas PMI' },
@@ -22,32 +25,66 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, updateProfile } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  // Donor-specific fields
+  const [bloodType, setBloodType] = useState('Belum Tahu');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
+  const isDonor = user?.role === 'donor';
+
+  // Load data saat modal dibuka
   useEffect(() => {
-    if (user) {
-      setName(user.name);
-      setEmail(user.email);
+    if (!isOpen || !user) return;
+    setName(user.name);
+    setEmail(user.email);
+
+    if (isDonor) {
+      setIsLoadingProfile(true);
+      api.donors.getProfile(undefined, null)
+        .then((profile: any) => {
+          if (profile) {
+            setBloodType(profile.blood_type || 'Belum Tahu');
+            setPhone(profile.phone || '');
+            setAddress(profile.address || '');
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoadingProfile(false));
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, isDonor]);
 
   if (!isOpen || !user) return null;
 
   const roleCfg = roleColors[user.role];
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Nama tidak boleh kosong');
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      toast.error('Format e-mail tidak valid');
-      return;
-    }
+    if (!name.trim()) { toast.error('Nama tidak boleh kosong'); return; }
+    if (!email.trim() || !email.includes('@')) { toast.error('Format e-mail tidak valid'); return; }
 
-    updateProfile(name, email);
-    toast.success('Profil berhasil diperbarui!');
-    onClose();
+    setIsSaving(true);
+    try {
+      // 1. Update nama & email (di AuthContext / cookie)
+      await updateProfile(name, email);
+
+      // 2. Jika donor, update profil donor ke backend (permanen)
+      if (isDonor) {
+        await api.donors.updateProfile({
+          blood_type: bloodType,
+          phone: phone.trim() || null,
+          address: address.trim() || null,
+        });
+      }
+
+      toast.success('Profil berhasil diperbarui!');
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menyimpan profil');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -57,16 +94,16 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in border border-border"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-border"
         onClick={(e) => e.stopPropagation()}
-        style={{ animation: 'profileSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}
+        style={{ animation: 'profileSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)', maxHeight: '90vh', overflowY: 'auto' }}
       >
         {/* Header */}
-        <div className="relative px-6 pt-6 pb-4 border-b border-border flex items-center justify-between">
+        <div className="sticky top-0 bg-white z-10 px-6 pt-6 pb-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5" style={{ color: roleCfg.color }} />
             <h2 className="text-base font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Profil Akun Anda
+              Profil Akun
             </h2>
           </div>
           <button
@@ -78,11 +115,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 space-y-6">
+        <form onSubmit={handleSave} className="p-6 space-y-5">
           {/* Avatar and Role */}
           <div className="flex flex-col items-center text-center">
             <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-extrabold shadow-md mb-3 border-2 border-white relative group"
+              className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-extrabold shadow-md mb-3 border-2 border-white relative"
               style={{ background: roleCfg.color }}
             >
               {user.avatar}
@@ -90,7 +127,6 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 <BadgeCheck className="w-3.5 h-3.5" />
               </div>
             </div>
-
             <span
               className="text-xs font-bold px-3 py-1 rounded-full border mb-1"
               style={{ background: roleCfg.bg, color: roleCfg.color, borderColor: roleCfg.color + '30' }}
@@ -100,47 +136,111 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             <p className="text-xs text-[#9B9BB5]">{user.org}</p>
           </div>
 
-          <div className="space-y-4">
-            {/* Name Input */}
-            <div className="space-y-1.5">
-              <Label htmlFor="profile-name" className="text-xs font-semibold text-[#4A4A6A]">Nama Lengkap</Label>
-              <Input
-                id="profile-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Masukkan nama lengkap..."
-                className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-11 text-sm rounded-xl"
-              />
+          {isLoadingProfile ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-6 h-6 text-[#C0392B] animate-spin" />
             </div>
-
-            {/* Email Input */}
-            <div className="space-y-1.5">
-              <Label htmlFor="profile-email" className="text-xs font-semibold text-[#4A4A6A]">E-mail</Label>
-              <div className="relative">
+          ) : (
+            <div className="space-y-4">
+              {/* Nama */}
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-name" className="text-xs font-semibold text-[#4A4A6A]">Nama Lengkap</Label>
                 <Input
-                  id="profile-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Masukkan e-mail..."
-                  className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-11 pl-10 text-sm rounded-xl"
+                  id="profile-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Masukkan nama lengkap..."
+                  className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-11 text-sm rounded-xl"
                 />
-                <Mail className="w-4 h-4 text-[#9B9BB5] absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
-            </div>
-            
-            {/* Read-only Org Info */}
-            <div className="bg-[#F7F7FB] border border-border/80 rounded-xl p-3.5 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 text-[#9B9BB5] flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[11px] font-bold text-[#4A4A6A] uppercase tracking-wide">Instansi / Organisasi</p>
-                <p className="text-xs text-[#9B9BB5] mt-0.5">Terdaftar sebagai bagian dari <span className="font-semibold text-[#1A1A2E]">{user.org}</span>. Hubungi admin untuk perubahan instansi.</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Action buttons */}
-          <div className="flex gap-3 pt-2">
+              {/* Email */}
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-email" className="text-xs font-semibold text-[#4A4A6A]">E-mail</Label>
+                <div className="relative">
+                  <Input
+                    id="profile-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Masukkan e-mail..."
+                    className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-11 pl-10 text-sm rounded-xl"
+                  />
+                  <Mail className="w-4 h-4 text-[#9B9BB5] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              {/* === KHUSUS DONOR === */}
+              {isDonor && (
+                <>
+                  {/* Golongan Darah */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-[#4A4A6A] flex items-center gap-1.5">
+                      <Droplets className="w-3.5 h-3.5 text-[#C0392B]" /> Golongan Darah
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BLOOD_TYPES.map(bt => (
+                        <button
+                          key={bt}
+                          type="button"
+                          onClick={() => setBloodType(bt)}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            bloodType === bt
+                              ? 'bg-[#C0392B] text-white border-[#C0392B] shadow-sm'
+                              : 'bg-[#F4F4F8] text-[#4A4A6A] border-transparent hover:border-[#C0392B]/30'
+                          }`}
+                        >
+                          {bt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Telepon */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-phone" className="text-xs font-semibold text-[#4A4A6A] flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5" /> Nomor Telepon
+                    </Label>
+                    <Input
+                      id="profile-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="08xxxxxxxxxx"
+                      className="bg-[#F4F4F8] border-transparent focus:border-[#C0392B] h-11 text-sm rounded-xl"
+                    />
+                  </div>
+
+                  {/* Alamat */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-address" className="text-xs font-semibold text-[#4A4A6A] flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5" /> Alamat
+                    </Label>
+                    <textarea
+                      id="profile-address"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Masukkan alamat lengkap..."
+                      rows={2}
+                      className="w-full bg-[#F4F4F8] border border-transparent focus:border-[#C0392B] focus:outline-none text-sm rounded-xl px-3 py-2.5 resize-none transition-colors"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Info Instansi */}
+              <div className="bg-[#F7F7FB] border border-border/80 rounded-xl p-3.5 flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-[#9B9BB5] flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] font-bold text-[#4A4A6A] uppercase tracking-wide">Instansi / Organisasi</p>
+                  <p className="text-xs text-[#9B9BB5] mt-0.5">Terdaftar sebagai bagian dari <span className="font-semibold text-[#1A1A2E]">{user.org}</span>. Hubungi admin untuk perubahan instansi.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tombol */}
+          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={onClose}
@@ -150,10 +250,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 rounded-xl text-white text-sm font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all"
+              disabled={isSaving || isLoadingProfile}
+              className="flex-1 py-3 rounded-xl text-white text-sm font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               style={{ background: `linear-gradient(135deg, ${roleCfg.color}, #1A1A2E)` }}
             >
-              Simpan
+              {isSaving ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
+              ) : (
+                <><Save className="w-4 h-4" /> Simpan Perubahan</>
+              )}
             </button>
           </div>
         </form>
