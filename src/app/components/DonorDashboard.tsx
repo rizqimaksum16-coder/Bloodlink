@@ -178,31 +178,41 @@ export default function DonorDashboard() {
     return diff <= 0 ? { daysLeft: 0, isReady: true } : { daysLeft: diff, isReady: false };
   })();
 
-  const cardBaseClass = "bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-sm transition-all duration-200";
-  const hoverCardClass = "hover:-translate-y-0.5 hover:border-slate-400 dark:hover:border-slate-500 cursor-pointer";
+  const cardBaseClass = "bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-all duration-200";
+  const hoverCardClass = "hover:-translate-y-1 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] pb-20 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
-      {/* ─── HEADER (Anti-Slop: Elegant Crimson) ─────────── */}
-      <div className="px-6 sm:px-10 pt-16 pb-12 bg-[#8B1A10] dark:bg-[#4A0E09] border-b border-[#6E140C] dark:border-[#380A06]">
-        <div className="max-w-6xl mx-auto flex flex-col">
+      {/* ─── HEADER (Premium Aesthetics) ─────────── */}
+      <div 
+        className="relative px-6 sm:px-10 pt-16 pb-12 overflow-hidden text-white"
+        style={{ background: 'linear-gradient(135deg, #C0392B 0%, #7B241C 100%)' }}
+      >
+        <div className="absolute top-[-80px] right-[-80px] w-80 h-80 rounded-full opacity-10 bg-white" />
+        <div className="absolute bottom-[-60px] left-[-60px] w-64 h-64 rounded-full opacity-10 bg-white" />
+
+        <div className="relative max-w-6xl mx-auto flex flex-col">
           <div className="max-w-2xl">
             <div className="flex items-center gap-3 mb-5">
-              <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-white/10 text-white border border-white/20 rounded-sm backdrop-blur-sm">
+              <span className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider bg-white/15 text-white border border-white/20 rounded-full backdrop-blur-sm shadow-sm flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 {badge.label} Donor
               </span>
               {needsProfileSetup && (
-                <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-500/30 rounded-sm flex items-center gap-1">
+                <span className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-500/30 rounded-full flex items-center gap-1 backdrop-blur-sm shadow-sm">
                   <AlertCircle className="w-3 h-3" /> Lengkapi Profil
                 </span>
               )}
             </div>
-            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4">
+            <h1 
+              className="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight"
+              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
               Halo, {user?.name?.split(' ')[0] || 'Pendonor'}.
             </h1>
-            <p className="text-red-100/90 leading-relaxed text-base">
-              Setiap donasi darahmu sangat berarti. Pantau kontribusimu dan temukan jadwal donor terdekat.
+            <p className="text-red-100/90 leading-relaxed text-base max-w-xl">
+              Setiap donasi darahmu sangat berarti. Pantau kontribusimu dan temukan jadwal donor terdekat di ekosistem Blood Link.
             </p>
           </div>
         </div>
@@ -225,7 +235,7 @@ export default function DonorDashboard() {
                 <p className="text-xs font-semibold uppercase tracking-wider">{stat.label}</p>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <p className="text-3xl font-sans font-extrabold tracking-tight text-slate-900 dark:text-slate-50">{stat.val}</p>
+                <p className="text-3xl font-extrabold tracking-tight text-[#1A1A2E] dark:text-slate-50" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{stat.val}</p>
                 <span className="text-sm font-medium text-slate-400 dark:text-slate-500">{stat.suffix}</span>
               </div>
             </div>
@@ -239,9 +249,9 @@ export default function DonorDashboard() {
           <div className="lg:col-span-8 flex flex-col gap-8">
             
             {/* DAFTAR TIKET DONOR (Tiket Aktif) */}
-            <div className={`${cardBaseClass} border-[#E11D48]/20 dark:border-[#E11D48]/20 overflow-hidden`}>
-              <div className="px-6 py-4 border-b border-[#E11D48]/10 dark:border-[#E11D48]/20 bg-red-50/80 dark:bg-[#E11D48]/10 flex items-center justify-between">
-                <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
+            <div className={`${cardBaseClass} border-l-4 border-l-[#C0392B] overflow-hidden`}>
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-[#FDF2F2] dark:bg-[#C0392B]/10 flex items-center justify-between">
+                <h3 className="font-bold text-lg text-[#C0392B] dark:text-red-400 flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   <Ticket className="w-5 h-5" /> Daftar Tiket Donor
                 </h3>
                 <button onClick={() => navigate('/alur')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
@@ -262,10 +272,10 @@ export default function DonorDashboard() {
                               <Calendar className="w-3.5 h-3.5" /> {ticket.eventDate}
                             </p>
                           </div>
-                          <p className="font-bold text-base text-slate-900 dark:text-slate-100">{ticket.eventName}</p>
+                          <p className="font-extrabold text-lg text-[#1A1A2E] dark:text-slate-100" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{ticket.eventName}</p>
                         </div>
                         <button onClick={() => navigate('/alur')}
-                          className="w-full sm:w-auto px-6 py-2.5 bg-[#E11D48] text-white text-xs font-bold rounded-sm hover:bg-[#BE123C] transition-colors shadow-sm flex items-center justify-center gap-2">
+                          className="w-full sm:w-auto px-6 py-2.5 bg-[#C0392B] text-white text-xs font-bold rounded-xl hover:bg-[#922B21] transition-colors shadow-md flex items-center justify-center gap-2">
                           <Search className="w-3.5 h-3.5" /> Tampilkan QR
                         </button>
                       </div>
@@ -290,9 +300,9 @@ export default function DonorDashboard() {
             
             {/* STATUS DONOR - Crucial Personal Context */}
             <div className={cardBaseClass}>
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 bg-white dark:bg-[#1E293B]">
-                <Droplets className="w-4 h-4 text-[#E11D48]" />
-                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Status Anda</h3>
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 bg-[#F7F7FB] dark:bg-[#1E293B] rounded-t-2xl">
+                <Droplets className="w-4 h-4 text-[#C0392B]" />
+                <h3 className="font-bold text-lg text-[#1A1A2E] dark:text-slate-100" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Status Anda</h3>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 <div className="px-6 py-5 flex flex-col gap-1">
@@ -306,7 +316,7 @@ export default function DonorDashboard() {
                 </div>
                 <div className="px-6 py-5 flex flex-col gap-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Golongan Darah</p>
-                  <p className="text-2xl font-sans font-extrabold tracking-tight text-[#E11D48] mt-1">
+                  <p className="text-3xl font-extrabold tracking-tight text-[#C0392B] mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     {donorStats.bloodType || <span className="text-slate-400 dark:text-slate-500 text-sm font-normal">Belum diisi</span>}
                   </p>
                 </div>
@@ -327,13 +337,13 @@ export default function DonorDashboard() {
               { icon: BookOpen, title: 'Edukasi', desc: 'Artikel kesehatan', to: '/education', color: 'text-emerald-500' },
             ].map((menu, i) => (
               <button key={i} onClick={() => navigate(menu.to)}
-                className={`${cardBaseClass} ${hoverCardClass} p-4 flex items-center gap-4 text-left group bg-white/50 dark:bg-[#1E293B]/50 hover:bg-white dark:hover:bg-[#1E293B]`}>
-                <div className={`p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm group-hover:bg-slate-50 dark:group-hover:bg-slate-700 transition-colors`}>
-                  <menu.icon className={`w-4 h-4 ${menu.color}`} />
+                className={`${cardBaseClass} ${hoverCardClass} p-5 flex items-center gap-4 text-left group bg-[#F7F7FB] dark:bg-[#1E293B]/50 hover:bg-white dark:hover:bg-[#1E293B]`}>
+                <div className={`p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl group-hover:bg-slate-50 dark:group-hover:bg-slate-700 transition-colors shadow-sm`}>
+                  <menu.icon className={`w-5 h-5 ${menu.color}`} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#E11D48] transition-colors">{menu.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{menu.desc}</p>
+                  <p className="text-sm font-bold text-[#1A1A2E] dark:text-slate-100 group-hover:text-[#C0392B] transition-colors" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{menu.title}</p>
+                  <p className="text-xs text-[#4A4A6A] dark:text-slate-400 mt-1">{menu.desc}</p>
                 </div>
               </button>
             ))}
