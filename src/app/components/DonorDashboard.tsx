@@ -74,6 +74,8 @@ export default function DonorDashboard() {
   const [loading, setLoading]                 = useState(true);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
 
+  const iconMap: Record<string, React.ElementType> = { Heart, Trophy, Star, Award };
+
   const getDynamicAchievements = (n: number): AchievementItem[] => [
     { id: 'A001', name: 'Donor Pertama', description: 'Selesaikan donasi pertamamu',
       icon: Heart,  color: '#ef4444', bg: '#fef2f2', earned: n >= 1,  progress: Math.min(n, 1),  total: 1 },
@@ -90,11 +92,12 @@ export default function DonorDashboard() {
       if (!user?.email) return;
       setLoading(true);
       try {
-        const [profileData, , bookingsData, eventsData] = await Promise.all([
+        const [profileData, , bookingsData, eventsData, achievementsData] = await Promise.all([
           api.donors.getProfile(user.email, null).catch(() => null),
           api.donors.getHistory(user.email, []).catch(() => []),
           api.events.getMyBookings([]).catch(() => []),
           api.events.getAll([]).catch(() => []),
+          api.donors.getAchievements([]).catch(() => []),
         ]);
 
         if (profileData) {
@@ -108,7 +111,21 @@ export default function DonorDashboard() {
             nextEligible: profileData.next_eligible || undefined,
             bloodType: profileData.blood_type || undefined,
           });
-          setDisplayAchievements(getDynamicAchievements(n));
+          if (achievementsData?.length) {
+            setDisplayAchievements(achievementsData.map((a: any) => ({
+              id: a.id,
+              name: a.name,
+              description: a.description,
+              icon: iconMap[a.icon_name] || Award,
+              color: a.color,
+              bg: a.bg_color,
+              earned: Boolean(a.is_earned),
+              progress: Math.min(n, a.min_donations),
+              total: a.min_donations
+            })));
+          } else {
+            setDisplayAchievements(getDynamicAchievements(n));
+          }
           if (!profileData.blood_type) setNeedsProfileSetup(true);
         } else {
           setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
@@ -476,9 +493,27 @@ export default function DonorDashboard() {
 
             {/* PENCAPAIAN */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center gap-2">
-                <Award className="w-4 h-4 text-[#C0392B]" />
-                <p className="text-sm font-semibold text-[#1A1A2E]">Pencapaian</p>
+              <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-[#C0392B]" />
+                  <p className="text-sm font-semibold text-[#1A1A2E]">Pencapaian</p>
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (confirm('Reset pencapaian, poin, dan donasi untuk demo?')) {
+                      try {
+                        await api.donors.resetAchievements();
+                        toast.success('Pencapaian direset untuk demo!');
+                        setTimeout(() => window.location.reload(), 1000);
+                      } catch (e) {
+                        toast.error('Gagal mereset pencapaian');
+                      }
+                    }
+                  }}
+                  className="text-[10px] text-gray-400 hover:text-red-500 font-medium transition-colors"
+                >
+                  Reset Data (Demo)
+                </button>
               </div>
               <div className="divide-y divide-gray-100">
                 {displayAchievements.map((a) => {

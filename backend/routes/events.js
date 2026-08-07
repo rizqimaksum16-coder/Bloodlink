@@ -231,6 +231,33 @@ router.post('/checkin', authMiddleware, async (req, res) => {
       [newTotal, newPoints, todayStr, nextEligibleStr, newStreak, newLevel, profile.id]
     );
 
+    // 🏆 OTOMATISASI PENCAPAIAN
+    const [achievementsToUnlock] = await conn.query(
+      `SELECT id, name FROM master_achievements 
+       WHERE min_donations <= ? 
+         AND id NOT IN (SELECT achievement_id FROM donor_achievements WHERE donor_id = ?)`,
+      [newTotal, profile.id]
+    );
+
+    for (const ach of achievementsToUnlock) {
+      await conn.query(
+        `INSERT INTO donor_achievements (id, donor_id, achievement_id) VALUES (?, ?, ?)`,
+        ['DA-' + Date.now() + Math.floor(Math.random() * 1000), profile.id, ach.id]
+      );
+      
+      const achNotifId = 'DN-ACH-' + Date.now() + Math.floor(Math.random() * 1000);
+      await conn.query(
+        `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)
+         VALUES (?, ?, 'achievement', ?, ?, false)`,
+        [
+          achNotifId,
+          profile.id,
+          'Pencapaian Baru!',
+          `Selamat! Anda telah membuka pencapaian: ${ach.name}.`
+        ]
+      );
+    }
+
     const notifId = 'DN-' + Date.now();
     await conn.query(
       `INSERT INTO donor_notifications (id, donor_id, type, title, message, read_status)

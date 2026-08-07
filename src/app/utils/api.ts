@@ -71,6 +71,15 @@ export const api = {
     getLeaderboard: (fallback?: any) =>
       apiFetch('/donors/leaderboard', {}, fallback),
 
+    getAchievements: (fallback?: any[]) =>
+      apiFetch('/donors/achievements', {}, fallback),
+
+    resetAchievements: () =>
+      apiFetch('/donors/reset-achievements', {
+        method: 'POST',
+        body: JSON.stringify({})
+      }),
+
     updateProfile: (data: any) =>
       apiFetch('/donors/profile', {
         method: 'PUT',

@@ -8,6 +8,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS donor_notifications;
 DROP TABLE IF EXISTS event_bookings;
 DROP TABLE IF EXISTS donation_records;
+DROP TABLE IF EXISTS donor_achievements;
 DROP TABLE IF EXISTS deliveries;
 DROP TABLE IF EXISTS donor_profiles;
 DROP TABLE IF EXISTS blood_stock;
@@ -19,6 +20,7 @@ DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS activity_logs;
 DROP TABLE IF EXISTS rewards;
 DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS master_achievements;
 
 DROP TABLE IF EXISTS bot_dictionary;
 
@@ -205,6 +207,27 @@ CREATE TABLE bot_dictionary (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE master_achievements (
+    id            VARCHAR(50) PRIMARY KEY,
+    name          VARCHAR(255) NOT NULL,
+    description   TEXT NOT NULL,
+    icon_name     VARCHAR(50) NOT NULL,
+    color         VARCHAR(50) NOT NULL,
+    bg_color      VARCHAR(50) NOT NULL,
+    min_donations INT NOT NULL DEFAULT 0,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE donor_achievements (
+    id             VARCHAR(50) PRIMARY KEY,
+    donor_id       VARCHAR(50) NOT NULL,
+    achievement_id VARCHAR(50) NOT NULL,
+    earned_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (donor_id) REFERENCES donor_profiles(id) ON DELETE CASCADE,
+    FOREIGN KEY (achievement_id) REFERENCES master_achievements(id) ON DELETE CASCADE,
+    UNIQUE(donor_id, achievement_id)
+);
+
 -- =============================================================================
 -- 4. SEED DATA
 -- =============================================================================
@@ -246,3 +269,8 @@ INSERT INTO bot_dictionary (id, keywords, response) VALUES
 ('bd6', '["poin","point","reward","hadiah","tukar","voucher"]', 'Setiap kali berhasil mendonorkan darah, Anda akan mendapatkan poin yang dapat ditukarkan dengan berbagai hadiah menarik di menu "Reward". Semakin sering Anda donor, semakin banyak poin terkumpul dan semakin tinggi level keanggotaan Anda!'),
 ('bd7', '["halo","hai","pagi","siang","sore","malam","assalamualaikum","hello","hi"]', 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah, syarat, alur, atau manfaatnya hari ini?');
 
+INSERT INTO master_achievements (id, name, description, icon_name, color, bg_color, min_donations) VALUES
+('A001', 'Donor Pertama', 'Selesaikan donasi pertamamu', 'Heart', '#ef4444', '#fef2f2', 1),
+('A002', 'Konsisten', 'Capai 3 kali donasi', 'Trophy', '#f59e0b', '#fffbeb', 3),
+('A003', 'Bintang 10', 'Capai 10 kali donasi', 'Star', '#8b5cf6', '#f5f3ff', 10),
+('A004', 'Pahlawan', 'Capai 25 kali donasi', 'Award', '#10b981', '#ecfdf5', 25);

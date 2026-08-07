@@ -11,7 +11,11 @@ router.get('/profile', authMiddleware, async (req, res) => {
   try {
     // donor_profiles tidak memiliki kolom email — JOIN ke users lewat user_id
     const [rows] = await pool.query(
-      `SELECT dp.*, u.name, u.email
+      `SELECT dp.*, u.name, u.email,
+        (SELECT COUNT(*) + 1 
+         FROM donor_profiles dp2 
+         WHERE dp2.points > dp.points OR (dp2.points = dp.points AND dp2.total_donations > dp.total_donations)
+        ) AS ranking
        FROM donor_profiles dp
        JOIN users u ON u.id = dp.user_id
        WHERE dp.user_id = ?`,
@@ -288,6 +292,49 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Error fetch leaderboard:', err);
     res.status(500).json({ error: 'Gagal mengambil data leaderboard' });
+  }
+});
+
+// GET /api/donors/achievements — Ambil status pencapaian donor
+router.get('/achievements', authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const [achievements] = await pool.query(
+      `SELECT ma.*, 
+              da.earned_at,
+              CASE WHEN da.id IS NOT NULL THEN true ELSE false END as is_earned
+       FROM master_achievements ma
+       LEFT JOIN donor_achievements da 
+         ON ma.id = da.achievement_id 
+         AND da.donor_id = (SELECT id FROM donor_profiles WHERE user_id = ?)
+       ORDER BY ma.min_donations ASC`,
+      [userId]
+    );
+    res.json(achievements);
+  } catch (err) {
+    console.error('Error fetch achievements:', err);
+    res.status(500).json({ error: 'Gagal mengambil data achievements' });
+  }
+});
+
+// POST /api/donors/reset-achievements — Reset semua pencapaian (Untuk testing/demo)
+router.post('/reset-achievements', authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const [profiles] = await pool.query('SELECT id FROM donor_profiles WHERE user_id = ?', [userId]);
+    if (profiles.length === 0) return res.status(404).json({ error: 'Profil tidak ditemukan' });
+    
+    const donorId = profiles[0].id;
+    await pool.query('DELETE FROM donor_achievements WHERE donor_id = ?', [donorId]);
+    
+    // Optional: jika butuh mereset donasi untuk demo ulang dari 0. 
+    // Kita reset donasi juga supaya match saat check-in baru.
+    await pool.query('UPDATE donor_profiles SET total_donations = 0, points = 0 WHERE id = ?', [donorId]);
+    
+    res.json({ message: 'Pencapaian, donasi, dan poin berhasil direset' });
+  } catch (err) {
+    console.error('Error reset achievements:', err);
+    res.status(500).json({ error: 'Gagal mereset achievements' });
   }
 });
 
