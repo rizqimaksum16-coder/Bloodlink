@@ -254,7 +254,8 @@ INSERT INTO rewards (id, name, description, points, icon, available) VALUES
 ('rw3', 'Diskon Lab 20% RS Mitra',    'Diskon cek kesehatan di RS mitra Suroboyo Blood',       1000, '🏥', true),
 ('rw4', 'Kaos Eksklusif Donor',       'Kaos edisi terbatas untuk Veteran Donor',               2000, '👕', true),
 ('rw5', 'Tiket Bioskop 2x',           'Dua tiket bioskop XXI untuk pendonor aktif',            1500, '🎬', false),
-('rw6', 'Badge Pahlawan Darah',        'Badge digital eksklusif setelah 10x donor',            0,    '🏅', false);
+('rw6', 'Badge Pahlawan Darah',        'Badge digital eksklusif setelah 10x donor',            0,    '🏅', false),
+('rw7', 'Voucher Alfamart Rp15.000',  'Dapat ditukarkan di seluruh Alfamart',                  300,  '🏪', true);
 
 INSERT INTO donor_profiles (id, user_id, blood_type, dob, phone, address, weight_kg, registered, total_donations, last_donation, next_eligible, points, level, streak) VALUES
 ('dp-1', 'usr-donor', 'O+', '1990-01-01', '081234567890', 'Surabaya', 70.0, true, 0, NULL, NULL, 0, 'Pemula', 0);

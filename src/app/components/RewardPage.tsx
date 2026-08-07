@@ -66,10 +66,10 @@ export default function RewardPage() {
       setIsLoading(true);
       try {
         const [profile, rewards, achieves, lb] = await Promise.all([
-          api.donors.getProfile(),
-          api.rewards.getAll(),
-          api.donors.getAchievements(),
-          api.donors.getLeaderboard()
+          api.donors.getProfile(user?.email, null),
+          api.rewards.getAll([]),
+          api.donors.getAchievements([]),
+          api.donors.getLeaderboard({ top10: [] })
         ]);
         if (profile) setDonorProfile({ points: profile.points, totalDonations: profile.total_donations, streak: profile.streak });
         if (rewards) setRewardsList(rewards);
@@ -141,7 +141,7 @@ export default function RewardPage() {
               </div>
               <div className="text-right">
                 <p className="text-white/70 text-xs font-semibold">Total Poin</p>
-                <p className="text-3xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{(donorProfile ? donorProfile.points : 350).toLocaleString('id-ID')}</p>
+                <p className="text-3xl font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{(donorProfile ? donorProfile.points : 0).toLocaleString('id-ID')}</p>
               </div>
             </div>
 
