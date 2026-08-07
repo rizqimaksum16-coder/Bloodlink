@@ -19,7 +19,6 @@ export default function Leaderboard() {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      setError('');
       // Fallback kosong agar tidak crash jika backend tidak tersedia
       const data = await api.donors.getLeaderboard({ top10: [], userRank: null, userStats: null });
       if (data) {
@@ -62,19 +61,20 @@ export default function Leaderboard() {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
-      <div className="bg-gradient-to-r from-[#1A1A2E] to-[#2C3E50] p-6 text-white relative overflow-hidden">
-        <div className="absolute right-0 top-0 opacity-10">
-          <Trophy className="w-48 h-48 -mr-10 -mt-10" />
+      <div className="bg-gradient-to-br from-[#C0392B] via-[#E05252] to-[#A93226] p-6 text-white relative overflow-hidden">
+        <div className="absolute -right-8 -top-8 opacity-10">
+          <Trophy className="w-48 h-48" />
         </div>
+        <div className="absolute left-0 bottom-0 w-40 h-40 bg-black/10 rounded-full blur-2xl -translate-x-1/2 translate-y-1/2" />
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <div className="bg-white/20 p-2 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-yellow-400" />
+            <div className="bg-white/20 backdrop-blur-sm p-2 rounded-xl border border-white/10">
+              <TrendingUp className="w-5 h-5 text-yellow-300" />
             </div>
-            <h2 className="text-xl font-bold">Top 10 Pendonor</h2>
+            <h2 className="text-2xl font-extrabold tracking-tight">Top 10 Pendonor</h2>
           </div>
-          <p className="text-gray-300 text-sm">
-            Pahlawan darah dengan kontribusi terbanyak bulan ini. Ayo tingkatkan poinmu!
+          <p className="text-red-100/80 text-sm font-medium">
+            Pahlawan darah dengan kontribusi terbanyak. Ayo tingkatkan poinmu! 🏆
           </p>
         </div>
       </div>
@@ -133,18 +133,18 @@ export default function Leaderboard() {
 
       {/* Current User Rank Sticky Footer */}
       {userRank !== null && userStats && (
-        <div className="border-t-2 border-gray-100 bg-[#F8F9FA] p-4 sm:px-6 flex items-center justify-between">
+        <div className="border-t-2 border-red-100 bg-red-50/40 p-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-[#1A1A2E] text-white flex items-center justify-center font-bold text-sm shadow-inner">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C0392B] to-[#E05252] text-white flex items-center justify-center font-extrabold text-sm shadow-lg shadow-red-300/40">
               #{userRank}
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Peringkat Anda</p>
+              <p className="text-xs font-semibold text-red-400 uppercase tracking-wide">Peringkat Anda</p>
               <p className="text-sm font-bold text-gray-900">Posisi Saat Ini</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-sm font-black text-[#1A1A2E]">{userStats.points.toLocaleString('id-ID')} Poin</p>
+            <p className="text-sm font-black text-[#C0392B]">{userStats.points.toLocaleString('id-ID')} Poin</p>
             <p className="text-xs font-semibold text-gray-500">{userStats.total_donations}x donasi</p>
           </div>
         </div>
