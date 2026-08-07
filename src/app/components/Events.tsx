@@ -47,38 +47,78 @@ export default function Events() {
 
   const [registeredEvents, setRegisteredEvents] = useState<(string | number)[]>([]);
 
-  // Load pendaftaran event dari API untuk donor saat ini
+  // Load events dan pendaftaran user dari API sekaligus
   useEffect(() => {
-    async function loadRegisteredEvents() {
+    async function loadData() {
       if (!user?.email) return;
       try {
-        const eventsData: any[] = await api.events.getAll([]);
+        const [eventsData, bookingsData]: [any[], any[]] = await Promise.all([
+          api.events.getAll([]).catch(() => []),
+          user.role === 'donor' ? api.events.getMyBookings([]).catch(() => []) : Promise.resolve([]),
+        ]);
+
         if (eventsData?.length) {
-          setEventList(eventsData.map((e: any) => ({
-            id: e.id,
-            name: e.name,
-            organizer: e.organizer || 'PMI',
-            date: e.date,
-            time: e.time || '08:00 - 14:00',
-            location: e.location,
-            address: e.address,
-            capacity: e.capacity || 100,
-            registered: e.registered || 0,
-            description: e.description || '',
-            requirements: Array.isArray(e.requirements)
-              ? e.requirements
-              : typeof e.requirements === 'string' && e.requirements.trim()
-                ? e.requirements.split('\n').map((r: string) => r.trim()).filter(Boolean)
-                : ['Usia minimal 17 tahun', 'Berat badan minimal 45 kg', 'Membawa kartu identitas'],
-            status: e.status || 'upcoming',
-            organizerType: 'pmi'
-          })));
+          setEventList(eventsData.map((e: any) => {
+            // Normalkan status dari backend ke nilai yang digunakan UI
+            let status: 'upcoming' | 'ongoing' | 'completed' = 'upcoming';
+            const rawStatus = (e.status || '').toLowerCase();
+            if (rawStatus === 'upcoming' || rawStatus === 'open') {
+              const eventDate = new Date(e.date || e.event_date || '');
+              const today = new Date(); today.setHours(0,0,0,0);
+              eventDate.setHours(0,0,0,0);
+              if (eventDate.getTime() === today.getTime()) status = 'ongoing';
+              else if (eventDate < today) status = 'completed';
+              else status = 'upcoming';
+            } else if (rawStatus === 'ongoing' || rawStatus === 'berlangsung') {
+              status = 'ongoing';
+            } else if (rawStatus === 'completed' || rawStatus === 'selesai' || rawStatus === 'closed') {
+              status = 'completed';
+            }
+
+            // Tentukan organizer_type: dari backend atau heuristic nama organizer
+            const orgName = (e.organizer || '').toLowerCase();
+            const orgType = e.organizer_type || (
+              orgName.includes('rs') || orgName.includes('rumah sakit') ||
+              orgName.includes('siloam') || orgName.includes('soetomo') ||
+              orgName.includes('hospital') || orgName.includes('klinik')
+                ? 'rs' : 'pmi'
+            );
+
+            return {
+              id: e.id,
+              name: e.name,
+              organizer: e.organizer || 'PMI',
+              organizerType: orgType as 'pmi' | 'rs',
+              date: e.date || e.event_date,
+              time: e.time || '08:00 - 14:00',
+              location: e.location,
+              address: e.address,
+              capacity: e.capacity || 100,
+              registered: e.registered || e.registered_count || 0,
+              description: e.description || '',
+              requirements: Array.isArray(e.requirements)
+                ? e.requirements
+                : typeof e.requirements === 'string' && e.requirements.trim()
+                  ? e.requirements.split('\n').map((r: string) => r.trim()).filter(Boolean)
+                  : ['Usia minimal 17 tahun', 'Berat badan minimal 45 kg', 'Membawa kartu identitas'],
+              status,
+            };
+          }));
         }
+
+        // Isi registeredEvents dari data booking database — persisten setelah logout
+        if (bookingsData?.length) {
+          const bookedEventIds = bookingsData
+            .filter((b: any) => b.status !== 'dibatalkan' && b.status !== 'cancelled')
+            .map((b: any) => b.event_id);
+          setRegisteredEvents(bookedEventIds);
+        }
+
       } catch (err) {
-        console.warn('Gagal memuat events dari API, menggunakan data lokal.');
+        console.warn('Gagal memuat data events dari API.');
       }
     }
-    loadRegisteredEvents();
+    loadData();
   }, [user]);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,11 +185,13 @@ export default function Events() {
   }, []);
 
   const filtered = eventList.filter((e) => {
-    const bySearch = searchQuery === '' || e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.location.toLowerCase().includes(searchQuery.toLowerCase()) || e.organizer.toLowerCase().includes(searchQuery.toLowerCase());
+    const bySearch = searchQuery === ''
+      || e.name.toLowerCase().includes(searchQuery.toLowerCase())
+      || e.location.toLowerCase().includes(searchQuery.toLowerCase())
+      || e.organizer.toLowerCase().includes(searchQuery.toLowerCase());
     const byStatus = filterStatus === 'all' || e.status === filterStatus;
-    const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
-
-    const byOrganizer = filterOrganizer === 'all' || (filterOrganizer === 'rs' ? isRs : !isRs);
+    // Filter penyelenggara: gunakan organizerType yang sudah dinormalisasi saat load
+    const byOrganizer = filterOrganizer === 'all' || e.organizerType === filterOrganizer;
     return bySearch && byStatus && byOrganizer;
   });
 
@@ -202,48 +244,66 @@ export default function Events() {
     setHbLevel(13.8);
   };
 
-  const handleOpenExistingTicket = (event: Event) => {
+  const handleOpenExistingTicket = async (event: Event) => {
     setSelectedEventForReg(event);
     setWizardStep(3);
-    const ticketId = `EVT-SUB-${event.id}-8841`;
-    const registeredAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
+    // Coba ambil data tiket asli dari API
+    try {
+      const bookings: any[] = await api.events.getMyBookings([]).catch(() => []);
+      const booking = bookings.find((b: any) => String(b.event_id) === String(event.id));
+      if (booking) {
+        setEventTicketData({
+          ticketId: booking.id || `EVT-SUB-${event.id}`,
+          registeredAt: booking.created_at
+            ? new Date(booking.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+            : new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
+          eventName: event.name,
+          organizer: event.organizer,
+          date: event.date,
+          time: event.time,
+          location: event.location,
+          address: event.address,
+          donorName: user?.name || 'Pendonor',
+          bloodType: regBloodType,
+          rhesus: regRhesus,
+        });
+        return;
+      }
+    } catch { /* fallback ke data lokal */ }
+
+    // Fallback jika API gagal
     setEventTicketData({
-      ticketId,
-      registeredAt,
+      ticketId: `EVT-SUB-${event.id}-8841`,
+      registeredAt: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
       eventName: event.name,
       organizer: event.organizer,
       date: event.date,
       time: event.time,
       location: event.location,
       address: event.address,
-      donorName: user?.name || 'Rizky Pratama',
+      donorName: user?.name || 'Pendonor',
       bloodType: regBloodType,
       rhesus: regRhesus,
     });
   };
 
   const handleCancelRegistration = async (eventId: any) => {
-    // Batalkan booking di API MySQL
     try {
-      // Tidak ada endpoint cancel booking, cukup hapus di frontend
-    } catch (e) { console.warn('Cancel booking:', e); }
+      // Ambil booking id dari API untuk event ini
+      const bookings: any[] = await api.events.getMyBookings([]).catch(() => []);
+      const booking = bookings.find((b: any) => String(b.event_id) === String(eventId));
+      if (booking?.id) {
+        await api.events.cancelBooking(booking.id);
+      }
+    } catch (e) {
+      console.warn('Cancel booking API error:', e);
+    }
 
-    setEventList(prev => {
-      const updated = prev.map(ev => {
-        if (ev.id === eventId) {
-          return { ...ev, registered: Math.max(0, ev.registered - 1) };
-        }
-        return ev;
-      });
-      return updated;
-    });
-
-    setRegisteredEvents(prev => {
-      const updated = prev.filter(id => id !== eventId);
-      return updated;
-    });
-
+    setEventList(prev => prev.map(ev =>
+      ev.id === eventId ? { ...ev, registered: Math.max(0, ev.registered - 1) } : ev
+    ));
+    setRegisteredEvents(prev => prev.filter(id => id !== eventId));
     setSelectedEventForReg(null);
     setEventTicketData(null);
     toast.info('Pendaftaran event berhasil dibatalkan.');
@@ -461,15 +521,8 @@ export default function Events() {
     }
   };
 
-  const pmiEvents = filtered.filter((e) => {
-    const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
-    return !isRs;
-  });
-
-  const rsEvents = filtered.filter((e) => {
-    const isRs = e.organizerType === 'rs' || e.organizer.toLowerCase().includes('rs') || e.organizer.toLowerCase().includes('siloam') || e.organizer.toLowerCase().includes('soetomo');
-    return isRs;
-  });
+  const pmiEvents = filtered.filter(e => e.organizerType !== 'rs');
+  const rsEvents  = filtered.filter(e => e.organizerType === 'rs');
 
   const renderEventCard = (event: Event) => {
     const s = statusConfig[event.status] || { label: event.status, bg: '#F4F4F8', text: '#9B9BB5' };
@@ -768,7 +821,7 @@ export default function Events() {
                   Coba ubah filter status atau kata kunci pencarian.
                 </p>
                 <button
-                  onClick={() => { setSearchQuery(''); setFilterStatus('all'); }}
+                  onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterOrganizer('all'); }}
                   className="flex items-center gap-2 mx-auto bg-[#C0392B] text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#922B21] transition-colors"
                 >
                   Tampilkan Semua Event

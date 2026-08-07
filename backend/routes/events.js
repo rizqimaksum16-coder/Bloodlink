@@ -7,7 +7,29 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM events ORDER BY date ASC');
-    res.json(rows);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Normalisasi status berdasarkan tanggal aktual agar selalu akurat
+    const normalized = rows.map(e => {
+      const rawStatus = (e.status || '').toLowerCase();
+      let status = e.status;
+
+      if (rawStatus === 'open' || rawStatus === 'upcoming') {
+        const eventDate = new Date(e.date);
+        eventDate.setHours(0, 0, 0, 0);
+        if (eventDate.getTime() === today.getTime()) status = 'ongoing';
+        else if (eventDate < today) status = 'completed';
+        else status = 'upcoming';
+      } else if (rawStatus === 'closed') {
+        status = 'completed';
+      }
+
+      return { ...e, status };
+    });
+
+    res.json(normalized);
   } catch (err) {
     console.error('Error fetch events:', err);
     res.status(500).json({ error: 'Gagal mengambil daftar event' });
