@@ -208,11 +208,10 @@ export default function DonorDashboard() {
 
       <div className="relative z-20 max-w-6xl mx-auto px-4 sm:px-6 -mt-16 space-y-8">
         
-        {/* ─── STAT CARDS ──────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        {/* ─── STAT CARDS ────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-4 md:gap-6">
           {[
             { label: 'Poin Reward', value: donorStats.totalPoints.toLocaleString('id-ID'), icon: Trophy, color: 'text-amber-500', bg: 'bg-amber-100/50' },
-            { label: 'Hari Berturut', value: donorStats.currentStreak, icon: Zap, color: 'text-violet-500', bg: 'bg-violet-100/50' },
             { label: 'Status Badge', value: badge.label, icon: Award, color: 'text-emerald-500', bg: 'bg-emerald-100/50' },
             { label: 'Peringkat', value: `#${donorStats.ranking || '–'}`, icon: Star, color: 'text-blue-500', bg: 'bg-blue-100/50' },
           ].map((stat, i) => (
