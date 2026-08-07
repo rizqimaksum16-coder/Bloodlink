@@ -138,7 +138,6 @@ export default function RewardPage() {
 
         {/* Header */}
         <div className="mb-8">
-          <p className="text-xs font-semibold text-[#C0392B] uppercase tracking-wider mb-1">Gamifikasi</p>
           <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A2E] flex items-center gap-2"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             <Trophy className="w-7 h-7 text-[#E67E22]" />
