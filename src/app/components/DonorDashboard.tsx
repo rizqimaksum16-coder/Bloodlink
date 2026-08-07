@@ -372,51 +372,7 @@ export default function DonorDashboard() {
               </div>
             </div>
 
-            {/* PENCAPAIAN - Gamification */}
-            <div className={cardBaseClass}>
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1E293B]">
-                <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Award className="w-5 h-5 text-emerald-500" /> Pencapaian
-                </h3>
-              </div>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                {displayAchievements.map((a) => {
-                  const Icon = a.icon;
-                  return (
-                    <div key={a.id} className="px-6 py-5 flex gap-4 group">
-                      <div className={`w-10 h-10 border flex items-center justify-center flex-shrink-0 rounded-sm transition-colors
-                        ${a.earned 
-                          ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700' 
-                          : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'}`}
-                      >
-                        <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${a.earned ? 'text-[#E11D48]' : 'text-slate-400 dark:text-slate-600'}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className={`text-sm font-bold truncate ${a.earned ? 'text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-500'}`}>
-                            {a.name}
-                          </p>
-                          {a.earned && <CheckCircle className="w-3.5 h-3.5 text-[#E11D48] flex-shrink-0" />}
-                        </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3 truncate">{a.description}</p>
-                        
-                        {!a.earned && a.progress !== undefined && a.total && (
-                          <div className="w-full">
-                            <div className="flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1.5">
-                              <span>Progres</span>
-                              <span>{a.progress}/{a.total}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-none overflow-hidden flex">
-                               <div className="h-full bg-slate-300 dark:bg-slate-500 transition-all duration-1000" style={{ width: `${(a.progress / a.total) * 100}%` }} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+
 
           </div>
         </div>
