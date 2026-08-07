@@ -165,8 +165,8 @@ export default function DonorDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] bg-[#F8FAFC] dark:bg-[#0F172A]">
-        <div className="w-8 h-8 rounded-full border-2 border-slate-200 dark:border-slate-800 border-t-[#E11D48] animate-spin" />
+      <div className="flex items-center justify-center min-h-[60vh] bg-[#F7F7FB]">
+        <div className="w-8 h-8 rounded-full border-2 border-border border-t-[#E11D48] animate-spin" />
       </div>
     );
   }
@@ -178,11 +178,11 @@ export default function DonorDashboard() {
     return diff <= 0 ? { daysLeft: 0, isReady: true } : { daysLeft: diff, isReady: false };
   })();
 
-  const cardBaseClass = "bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-all duration-200";
-  const hoverCardClass = "hover:-translate-y-1 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer";
+  const cardBaseClass = "bg-white border border-border rounded-2xl shadow-sm transition-all duration-200";
+  const hoverCardClass = "hover:-translate-y-1 hover:shadow-md hover:border-[#C0392B]/30 cursor-pointer";
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] pb-20 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className="min-h-screen bg-[#F7F7FB] pb-20 text-[#1A1A2E] transition-colors duration-200">
       
       {/* ─── HEADER (Premium Aesthetics) ─────────── */}
       <div 
@@ -230,13 +230,13 @@ export default function DonorDashboard() {
             { label: 'Level', val: badge.label, suffix: 'donor', icon: Award, color: 'text-emerald-500' },
           ].map((stat, i) => (
             <div key={i} className={`${cardBaseClass} ${hoverCardClass} p-5 flex flex-col justify-between`}>
-              <div className="flex items-center gap-3 mb-4 text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-3 mb-4 text-[#4A4A6A]">
                 <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 <p className="text-xs font-semibold uppercase tracking-wider">{stat.label}</p>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <p className="text-3xl font-extrabold tracking-tight text-[#1A1A2E] dark:text-slate-50" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{stat.val}</p>
-                <span className="text-sm font-medium text-slate-400 dark:text-slate-500">{stat.suffix}</span>
+                <p className="text-3xl font-extrabold tracking-tight text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{stat.val}</p>
+                <span className="text-sm font-medium text-[#9B9BB5]">{stat.suffix}</span>
               </div>
             </div>
           ))}
@@ -250,15 +250,15 @@ export default function DonorDashboard() {
             
             {/* DAFTAR TIKET DONOR (Tiket Aktif) */}
             <div className={`${cardBaseClass} border-l-4 border-l-[#C0392B] overflow-hidden`}>
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-[#FDF2F2] dark:bg-[#C0392B]/10 flex items-center justify-between">
-                <h3 className="font-bold text-lg text-[#C0392B] dark:text-red-400 flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <div className="px-6 py-4 border-b border-border bg-[#FDEDEC] flex items-center justify-between">
+                <h3 className="font-bold text-lg text-[#C0392B] flex items-center gap-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   <Ticket className="w-5 h-5" /> Daftar Tiket Donor
                 </h3>
                 <button onClick={() => navigate('/alur')} className="text-xs font-bold text-[#E11D48] hover:underline">Lihat Semua</button>
               </div>
               
               {activeTickets.length > 0 ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                <div className="divide-y divide-border">
                   {activeTickets.map(ticket => {
                     const st = ticketStatusMap[ticket.status] || ticketStatusMap.ready;
                     return (
@@ -268,11 +268,11 @@ export default function DonorDashboard() {
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm whitespace-nowrap ${st.style}`}>
                               {st.label}
                             </span>
-                            <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-[#4A4A6A] flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5" /> {ticket.eventDate}
                             </p>
                           </div>
-                          <p className="font-extrabold text-lg text-[#1A1A2E] dark:text-slate-100" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{ticket.eventName}</p>
+                          <p className="font-extrabold text-lg text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{ticket.eventName}</p>
                         </div>
                         <button onClick={() => navigate('/alur')}
                           className="w-full sm:w-auto px-6 py-2.5 bg-[#C0392B] text-white text-xs font-bold rounded-xl hover:bg-[#922B21] transition-colors shadow-md flex items-center justify-center gap-2">
@@ -283,12 +283,12 @@ export default function DonorDashboard() {
                   })}
                 </div>
               ) : (
-                <div className="m-6 border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-sm p-10 flex flex-col items-center justify-center text-center">
-                  <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm flex items-center justify-center mb-4 shadow-sm">
-                    <Ticket className="w-5 h-5 text-slate-400" />
+                <div className="m-6 border-2 border-dashed border-border bg-[#F7F7FB] rounded-xl p-10 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 bg-white border border-border rounded-xl flex items-center justify-center mb-4 shadow-sm">
+                    <Ticket className="w-5 h-5 text-[#9B9BB5]" />
                   </div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Belum Ada Tiket Aktif</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">Anda belum terdaftar di event donor apa pun saat ini. Silakan cari event dan daftar untuk mendapatkan tiket.</p>
+                  <p className="text-sm font-bold text-[#1A1A2E] mb-1">Belum Ada Tiket Aktif</p>
+                  <p className="text-xs text-[#4A4A6A] max-w-xs">Anda belum terdaftar di event donor apa pun saat ini. Silakan cari event dan daftar untuk mendapatkan tiket.</p>
                 </div>
               )}
             </div>
@@ -300,24 +300,24 @@ export default function DonorDashboard() {
             
             {/* STATUS DONOR - Crucial Personal Context */}
             <div className={cardBaseClass}>
-              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 bg-[#F7F7FB] dark:bg-[#1E293B] rounded-t-2xl">
+              <div className="px-6 py-5 border-b border-border flex items-center gap-2 bg-[#F7F7FB] rounded-t-2xl">
                 <Droplets className="w-4 h-4 text-[#C0392B]" />
-                <h3 className="font-bold text-lg text-[#1A1A2E] dark:text-slate-100" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Status Anda</h3>
+                <h3 className="font-bold text-lg text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Status Anda</h3>
               </div>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              <div className="divide-y divide-border">
                 <div className="px-6 py-5 flex flex-col gap-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kesiapan Donor</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#9B9BB5]">Kesiapan Donor</p>
                   <div className="flex items-center gap-2 mt-1">
                     <div className={`w-2 h-2 rounded-full ${eligibility.isReady ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'}`} />
-                    <p className={`text-sm font-bold ${eligibility.isReady ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                    <p className={`text-sm font-bold ${eligibility.isReady ? 'text-[#27AE60]' : 'text-[#E67E22]'}`}>
                       {eligibility.isReady ? 'Siap Donor' : `Belum siap (${eligibility.daysLeft} hari lagi)`}
                     </p>
                   </div>
                 </div>
                 <div className="px-6 py-5 flex flex-col gap-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Golongan Darah</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#9B9BB5]">Golongan Darah</p>
                   <p className="text-3xl font-extrabold tracking-tight text-[#C0392B] mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {donorStats.bloodType || <span className="text-slate-400 dark:text-slate-500 text-sm font-normal">Belum diisi</span>}
+                    {donorStats.bloodType || <span className="text-[#9B9BB5] text-sm font-normal">Belum diisi</span>}
                   </p>
                 </div>
               </div>
@@ -329,21 +329,21 @@ export default function DonorDashboard() {
         </div>
 
         {/* ─── PINTASAN CEPAT (Quick Links - Secondary Menu) ──────────────── */}
-        <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4 px-1">Pintasan Cepat</h4>
+        <div className="pt-8 border-t border-border">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#9B9BB5] mb-4 px-1">Pintasan Cepat</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { icon: Gift, title: 'Tukar Reward', desc: 'Lihat hadiah tersedia', to: '/rewards', color: 'text-amber-500' },
-              { icon: BookOpen, title: 'Edukasi', desc: 'Artikel kesehatan', to: '/education', color: 'text-emerald-500' },
+              { icon: BookOpen, title: 'Edukasi', desc: 'Artikel kesehatan', to: '/education', color: 'text-[#27AE60]' },
             ].map((menu, i) => (
               <button key={i} onClick={() => navigate(menu.to)}
-                className={`${cardBaseClass} ${hoverCardClass} p-5 flex items-center gap-4 text-left group bg-[#F7F7FB] dark:bg-[#1E293B]/50 hover:bg-white dark:hover:bg-[#1E293B]`}>
-                <div className={`p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl group-hover:bg-slate-50 dark:group-hover:bg-slate-700 transition-colors shadow-sm`}>
+                className={`${cardBaseClass} ${hoverCardClass} p-5 flex items-center gap-4 text-left group bg-[#F7F7FB] hover:bg-white`}>
+                <div className={`p-3 bg-white border border-border rounded-xl group-hover:bg-[#F4F4F8] transition-colors shadow-sm`}>
                   <menu.icon className={`w-5 h-5 ${menu.color}`} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-[#1A1A2E] dark:text-slate-100 group-hover:text-[#C0392B] transition-colors" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{menu.title}</p>
-                  <p className="text-xs text-[#4A4A6A] dark:text-slate-400 mt-1">{menu.desc}</p>
+                  <p className="text-sm font-bold text-[#1A1A2E] group-hover:text-[#C0392B] transition-colors" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{menu.title}</p>
+                  <p className="text-xs text-[#4A4A6A] mt-1">{menu.desc}</p>
                 </div>
               </button>
             ))}
