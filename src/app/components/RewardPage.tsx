@@ -51,42 +51,64 @@ export default function RewardPage() {
   const { user } = useAuth();
   usePageTitle('Reward & Pencapaian');
 
-  const [rewardsList, setRewardsList] = useState<RewardItem[]>(initialRewards);
+  const [rewardsList, setRewardsList] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'rewards' | 'achievements' | 'leaderboard'>('rewards');
   const [filter, setFilter] = useState('all');
   const [claimed, setClaimed] = useState<string[]>([]);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
   const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
-
-  const defaultLeaderboard: any[] = [];
-
-  const [leaderboardList, setLeaderboardList] = useState(defaultLeaderboard);
+  const [leaderboardList, setLeaderboardList] = useState<any[]>([]);
+  const [achievementsList, setAchievementsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
-      // Mock mode
-      return;
+      setIsLoading(true);
+      try {
+        const [profile, rewards, achieves, lb] = await Promise.all([
+          api.donors.getProfile(),
+          api.rewards.getAll(),
+          api.donors.getAchievements(),
+          api.donors.getLeaderboard()
+        ]);
+        if (profile) setDonorProfile({ points: profile.points, totalDonations: profile.total_donations, streak: profile.streak });
+        if (rewards) setRewardsList(rewards);
+        if (achieves) setAchievementsList(achieves);
+        if (lb && lb.top10) setLeaderboardList(lb.top10);
+      } catch (error) {
+        console.error('Failed to load reward data:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
   }, [user?.email]);
 
-  const filtered = filter === 'all' ? rewardsList : rewardsList.filter(r => r.category === filter);
+  const userPoints = donorProfile ? donorProfile.points : 0;
 
-  const handleClaim = (id: string, cost: number) => {
-    if (donorProfile && donorProfile.points < cost) {
+  const filteredRewards = rewardsList.filter(r => {
+    if (filter === 'all') return true;
+    if (filter === 'affordable') return r.points <= userPoints && r.available;
+    if (filter === 'available') return r.available;
+    return true;
+  });
+
+  const handleClaim = async (id: string, cost: number) => {
+    if (userPoints < cost) {
       toast.error('Poin Anda tidak mencukupi untuk menukarkan reward ini.');
       return;
     }
-
     setClaimAnim(id);
-
-    // Local points simulasi untuk offline mode
-    toast.success('Poin berhasil ditukarkan (Simulasi)!');
-
-    setTimeout(() => {
+    try {
+      await api.rewards.redeem(id, user?.email || '');
+      toast.success('Poin berhasil ditukarkan!');
+      setDonorProfile(prev => prev ? { ...prev, points: prev.points - cost } : null);
       setClaimed(prev => [...prev, id]);
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menukarkan reward');
+    } finally {
       setClaimAnim(null);
-    }, 800);
+    }
   };
 
 
@@ -126,11 +148,11 @@ export default function RewardPage() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Droplets className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">{donorProfile ? donorProfile.totalDonations : 9}× donor</span>
+                <span className="text-sm font-bold">{donorProfile ? donorProfile.totalDonations : 0}× donor</span>
               </div>
               <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl">
                 <Flame className="w-3.5 h-3.5" />
-                <span className="text-sm font-bold">Konsistensi {donorProfile ? donorProfile.streak : 4}</span>
+                <span className="text-sm font-bold">Konsistensi {donorProfile ? donorProfile.streak : 0}</span>
               </div>
             </div>
           </div>
@@ -158,17 +180,31 @@ export default function RewardPage() {
         {activeTab === 'rewards' && (
           <div>
             <div className="flex gap-2 flex-wrap mb-4">
-              {Object.entries(categoryLabels).map(([key, label]) => (
-                <button key={key} onClick={() => setFilter(key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${filter === key ? 'bg-[#C0392B] text-white' : 'bg-white border border-border text-[#4A4A6A] hover:border-[#C0392B]'}`}>
-                  {label}
+              {[
+                { id: 'all', label: 'Semua Reward' },
+                { id: 'affordable', label: 'Bisa Diklaim (Sesuai Poin)' },
+                { id: 'available', label: 'Tersedia' },
+              ].map(f => (
+                <button key={f.id} onClick={() => setFilter(f.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${filter === f.id ? 'bg-[#C0392B] text-white' : 'bg-white border border-border text-[#4A4A6A] hover:border-[#C0392B]'}`}>
+                  {f.label}
                 </button>
               ))}
             </div>
+            {isLoading ? (
+              <div className="py-12 flex justify-center">
+                <div className="w-8 h-8 border-4 border-[#C0392B]/20 border-t-[#C0392B] rounded-full animate-spin" />
+              </div>
+            ) : filteredRewards.length === 0 ? (
+              <div className="py-12 text-center text-[#9B9BB5] bg-white rounded-2xl border border-border">
+                <Gift className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="font-semibold">Tidak ada reward yang sesuai filter</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filtered.map(r => {
+              {filteredRewards.map(r => {
                 const isClaimed = claimed.includes(r.id);
-                const canAfford = (donorProfile ? donorProfile.points : 350) >= r.points;
+                const canAfford = userPoints >= r.points;
                 const isAnimating = claimAnim === r.id;
                 return (
                   <div key={r.id} className={`bg-white rounded-2xl border p-5 transition-all ${isClaimed ? 'border-[#27AE60]/40 bg-[#EAFAF1]/20' : 'border-border hover:shadow-sm'}`}>
@@ -212,38 +248,39 @@ export default function RewardPage() {
                 );
               })}
             </div>
+            )}
           </div>
         )}
 
         {/* Tab: Achievements */}
         {activeTab === 'achievements' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {achievements.map(a => {
-              const Icon = a.icon;
+            {isLoading ? (
+              <div className="col-span-full py-12 flex justify-center">
+                <div className="w-8 h-8 border-4 border-[#C0392B]/20 border-t-[#C0392B] rounded-full animate-spin" />
+              </div>
+            ) : achievementsList.map((a: any) => {
+              const Icon = Award; // Fallback icon
               return (
-                <div key={a.id} className={`bg-white rounded-2xl border p-5 transition-all ${a.earned ? 'border-border' : 'border-border opacity-70'}`}>
+                <div key={a.id} className={`bg-white rounded-2xl border p-5 transition-all ${a.is_earned ? 'border-border' : 'border-border opacity-70'}`}>
                   <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${a.earned ? '' : 'opacity-40'}`}
-                      style={{ background: a.bg }}>
-                      <Icon className="w-6 h-6" style={{ color: a.color }} />
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${a.is_earned ? '' : 'opacity-40'}`}
+                      style={{ background: a.bg_color || '#FDEDEC' }}>
+                      <Icon className="w-6 h-6" style={{ color: a.color || '#C0392B' }} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-[#1A1A2E] text-sm">{a.name}</p>
-                        {a.earned && <CheckCircle className="w-3.5 h-3.5 text-[#27AE60]" />}
+                        {a.is_earned && <CheckCircle className="w-3.5 h-3.5 text-[#27AE60]" />}
                       </div>
                       <p className="text-xs text-[#9B9BB5] mt-0.5">{a.description}</p>
-                      {a.earned && a.earnedAt && (
-                        <p className="text-[10px] text-[#27AE60] font-semibold mt-1">Diraih {a.earnedAt}</p>
+                      {a.is_earned && a.earned_at && (
+                        <p className="text-[10px] text-[#27AE60] font-semibold mt-1">Diraih pada {new Date(a.earned_at).toLocaleDateString('id-ID')}</p>
                       )}
-                      {!a.earned && a.progress !== undefined && a.total !== undefined && (
+                      {!a.is_earned && (
                         <div className="mt-2">
                           <div className="flex justify-between text-[10px] text-[#9B9BB5] mb-1">
-                            <span>Progress</span>
-                            <span>{a.progress}/{a.total}</span>
-                          </div>
-                          <div className="h-1.5 bg-[#F4F4F8] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${(a.progress / a.total) * 100}%`, background: a.color }} />
+                            <span>Selesaikan {a.min_donations} donasi</span>
                           </div>
                         </div>
                       )}
@@ -265,27 +302,35 @@ export default function RewardPage() {
               <p className="text-xs text-[#9B9BB5] mt-0.5">Update setiap minggu • Total {leaderboardList.length} peserta</p>
             </div>
             <div className="divide-y divide-border">
-              {leaderboardList.map((entry) => {
+              {isLoading ? (
+                <div className="py-12 flex justify-center">
+                  <div className="w-8 h-8 border-4 border-[#C0392B]/20 border-t-[#C0392B] rounded-full animate-spin" />
+                </div>
+              ) : leaderboardList.length === 0 ? (
+                <div className="py-12 text-center text-[#9B9BB5]">Belum ada data skor</div>
+              ) : leaderboardList.map((entry: any, index: number) => {
+                const rank = index + 1;
                 const rankColors: Record<number, { bg: string; text: string }> = {
                   1: { bg: '#FEFCE8', text: '#F1C40F' },
                   2: { bg: '#F4F4F8', text: '#9B9BB5' },
                   3: { bg: '#FEF9E7', text: '#E67E22' },
                 };
-                const rankCfg = rankColors[entry.rank] || { bg: 'transparent', text: '#9B9BB5' };
+                const rankCfg = rankColors[rank] || { bg: 'transparent', text: '#9B9BB5' };
+                const isMe = entry.id === user?.id; // Assuming leaderboard returns user id
                 return (
-                  <div key={entry.rank} className={`flex items-center gap-4 px-5 py-4 transition-colors ${entry.isMe ? 'bg-[#FDEDEC]/30' : 'hover:bg-[#F7F7FB]'}`}>
+                  <div key={rank} className={`flex items-center gap-4 px-5 py-4 transition-colors ${isMe ? 'bg-[#FDEDEC]/30' : 'hover:bg-[#F7F7FB]'}`}>
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0`}
                       style={{ background: rankCfg.bg, color: rankCfg.text }}>
-                      {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                      {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <p className={`font-semibold text-sm ${entry.isMe ? 'text-[#C0392B]' : 'text-[#1A1A2E]'}`}>{entry.name}</p>
-                        {entry.isMe && <span className="text-[10px] bg-[#FDEDEC] text-[#C0392B] font-bold px-1.5 py-0.5 rounded-full">Kamu</span>}
+                        <p className={`font-semibold text-sm ${isMe ? 'text-[#C0392B]' : 'text-[#1A1A2E]'}`}>{entry.name}</p>
+                        {isMe && <span className="text-[10px] bg-[#FDEDEC] text-[#C0392B] font-bold px-1.5 py-0.5 rounded-full">Kamu</span>}
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-[#1A1A2E]">{entry.donations}</p>
+                      <p className="font-bold text-[#1A1A2E]">{entry.total_donations || 0}</p>
                       <p className="text-[10px] text-[#9B9BB5]">donasi</p>
                     </div>
                   </div>
