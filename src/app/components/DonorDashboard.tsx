@@ -225,8 +225,8 @@ export default function DonorDashboard() {
                 <p className="text-xs font-semibold uppercase tracking-wider">{stat.label}</p>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <p className="text-3xl font-heading font-bold text-slate-900 dark:text-slate-50">{stat.val}</p>
-                <span className="text-sm text-slate-400 dark:text-slate-500">{stat.suffix}</span>
+                <p className="text-3xl font-sans font-extrabold tracking-tight text-slate-900 dark:text-slate-50">{stat.val}</p>
+                <span className="text-sm font-medium text-slate-400 dark:text-slate-500">{stat.suffix}</span>
               </div>
             </div>
           ))}
@@ -357,7 +357,7 @@ export default function DonorDashboard() {
                 </div>
                 <div className="px-6 py-5 flex flex-col gap-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Golongan Darah</p>
-                  <p className="text-2xl font-heading font-bold text-[#E11D48] mt-1">
+                  <p className="text-2xl font-sans font-extrabold tracking-tight text-[#E11D48] mt-1">
                     {donorStats.bloodType || <span className="text-slate-400 dark:text-slate-500 text-sm font-normal">Belum diisi</span>}
                   </p>
                 </div>
