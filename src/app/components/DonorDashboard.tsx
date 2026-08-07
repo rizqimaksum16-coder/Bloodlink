@@ -128,7 +128,7 @@ export default function DonorDashboard() {
           }
           if (!profileData.blood_type) setNeedsProfileSetup(true);
         } else {
-          setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 99, badgeLevel: 'none' });
+          setDonorStats({ totalDonations: 0, totalPoints: 0, currentStreak: 0, ranking: 0, badgeLevel: 'none' });
           setDisplayAchievements(getDynamicAchievements(0));
         }
 
