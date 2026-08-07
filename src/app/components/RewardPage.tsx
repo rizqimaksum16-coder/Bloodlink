@@ -52,12 +52,11 @@ export default function RewardPage() {
   usePageTitle('Reward & Pencapaian');
 
   const [rewardsList, setRewardsList] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'rewards' | 'achievements' | 'leaderboard'>('rewards');
+  const [activeTab, setActiveTab] = useState<'rewards' | 'achievements'>('rewards');
   const [filter, setFilter] = useState('all');
   const [claimed, setClaimed] = useState<string[]>([]);
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
   const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
-  const [leaderboardList, setLeaderboardList] = useState<any[]>([]);
   const [achievementsList, setAchievementsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -65,16 +64,14 @@ export default function RewardPage() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [profile, rewards, achieves, lb] = await Promise.all([
+        const [profile, rewards, achieves] = await Promise.all([
           api.donors.getProfile(user?.email, null),
           api.rewards.getAll([]),
-          api.donors.getAchievements([]),
-          api.donors.getLeaderboard({ top10: [] })
+          api.donors.getAchievements([])
         ]);
         if (profile) setDonorProfile({ points: profile.points, totalDonations: profile.total_donations, streak: profile.streak });
         if (rewards) setRewardsList(rewards);
         if (achieves) setAchievementsList(achieves);
-        if (lb && lb.top10) setLeaderboardList(lb.top10);
       } catch (error) {
         console.error('Failed to load reward data:', error);
       } finally {
@@ -163,7 +160,6 @@ export default function RewardPage() {
           {[
             { id: 'rewards', label: 'Toko Reward', icon: Gift },
             { id: 'achievements', label: 'Pencapaian', icon: Award },
-            { id: 'leaderboard', label: 'Papan Skor', icon: Trophy },
           ].map(t => {
             const Icon = t.icon;
             return (
@@ -292,53 +288,7 @@ export default function RewardPage() {
           </div>
         )}
 
-        {/* Tab: Leaderboard */}
-        {activeTab === 'leaderboard' && (
-          <div className="bg-white rounded-2xl border border-border overflow-hidden">
-            <div className="p-5 border-b border-border">
-              <h3 className="font-bold text-[#1A1A2E] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Papan Skor Donor Surabaya
-              </h3>
-              <p className="text-xs text-[#9B9BB5] mt-0.5">Update setiap minggu • Total {leaderboardList.length} peserta</p>
-            </div>
-            <div className="divide-y divide-border">
-              {isLoading ? (
-                <div className="py-12 flex justify-center">
-                  <div className="w-8 h-8 border-4 border-[#C0392B]/20 border-t-[#C0392B] rounded-full animate-spin" />
-                </div>
-              ) : leaderboardList.length === 0 ? (
-                <div className="py-12 text-center text-[#9B9BB5]">Belum ada data skor</div>
-              ) : leaderboardList.map((entry: any, index: number) => {
-                const rank = index + 1;
-                const rankColors: Record<number, { bg: string; text: string }> = {
-                  1: { bg: '#FEFCE8', text: '#F1C40F' },
-                  2: { bg: '#F4F4F8', text: '#9B9BB5' },
-                  3: { bg: '#FEF9E7', text: '#E67E22' },
-                };
-                const rankCfg = rankColors[rank] || { bg: 'transparent', text: '#9B9BB5' };
-                const isMe = entry.id === user?.id; // Assuming leaderboard returns user id
-                return (
-                  <div key={rank} className={`flex items-center gap-4 px-5 py-4 transition-colors ${isMe ? 'bg-[#FDEDEC]/30' : 'hover:bg-[#F7F7FB]'}`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0`}
-                      style={{ background: rankCfg.bg, color: rankCfg.text }}>
-                      {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className={`font-semibold text-sm ${isMe ? 'text-[#C0392B]' : 'text-[#1A1A2E]'}`}>{entry.name}</p>
-                        {isMe && <span className="text-[10px] bg-[#FDEDEC] text-[#C0392B] font-bold px-1.5 py-0.5 rounded-full">Kamu</span>}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-[#1A1A2E]">{entry.total_donations || 0}</p>
-                      <p className="text-[10px] text-[#9B9BB5]">donasi</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );
