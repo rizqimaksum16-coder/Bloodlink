@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap");
 @import "../default_shadcn_theme.css";
 @import "tailwindcss";
 
@@ -16,6 +17,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.font-heading {
+  font-family: 'Playfair Display', serif;
 }
 
 /* Improve keyboard focus visibility */
