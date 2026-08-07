@@ -498,22 +498,6 @@ export default function DonorDashboard() {
                   <Award className="w-4 h-4 text-[#C0392B]" />
                   <p className="text-sm font-semibold text-[#1A1A2E]">Pencapaian</p>
                 </div>
-                <button 
-                  onClick={async () => {
-                    if (confirm('Reset pencapaian, poin, dan donasi untuk demo?')) {
-                      try {
-                        await api.donors.resetAchievements();
-                        toast.success('Pencapaian direset untuk demo!');
-                        setTimeout(() => window.location.reload(), 1000);
-                      } catch (e) {
-                        toast.error('Gagal mereset pencapaian');
-                      }
-                    }
-                  }}
-                  className="text-[10px] text-gray-400 hover:text-red-500 font-medium transition-colors"
-                >
-                  Reset Data (Demo)
-                </button>
               </div>
               <div className="divide-y divide-gray-100">
                 {displayAchievements.map((a) => {
