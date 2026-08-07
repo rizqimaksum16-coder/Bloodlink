@@ -372,10 +372,9 @@ export default function DonorDashboard() {
         {/* ─── PINTASAN CEPAT (Quick Links - Secondary Menu) ──────────────── */}
         <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4 px-1">Pintasan Cepat</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { icon: Gift, title: 'Tukar Reward', desc: 'Lihat hadiah tersedia', to: '/rewards', color: 'text-amber-500' },
-              { icon: Trophy, title: 'Leaderboard', desc: 'Peringkat pendonor', to: '/leaderboard', color: 'text-blue-500' },
               { icon: BookOpen, title: 'Edukasi', desc: 'Artikel kesehatan', to: '/education', color: 'text-emerald-500' },
             ].map((menu, i) => (
               <button key={i} onClick={() => navigate(menu.to)}
