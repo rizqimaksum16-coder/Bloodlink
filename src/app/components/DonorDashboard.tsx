@@ -183,24 +183,24 @@ export default function DonorDashboard() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F172A] pb-20 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
-      {/* ─── HEADER (Anti-Slop: No gradients, strong typography) ─────────── */}
-      <div className="px-6 sm:px-10 pt-16 pb-8 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1E293B]">
+      {/* ─── HEADER (Anti-Slop: Elegant Crimson) ─────────── */}
+      <div className="px-6 sm:px-10 pt-16 pb-12 bg-[#8B1A10] dark:bg-[#4A0E09] border-b border-[#6E140C] dark:border-[#380A06]">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-sm">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-white/10 text-white border border-white/20 rounded-sm backdrop-blur-sm">
                 {badge.label} Donor
               </span>
               {needsProfileSetup && (
-                <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 rounded-sm flex items-center gap-1">
+                <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-500/30 rounded-sm flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Lengkapi Profil
                 </span>
               )}
             </div>
-            <h1 className="text-4xl md:text-5xl font-heading font-bold text-slate-900 dark:text-slate-50 mb-2">
+            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-3">
               Halo, {user?.name?.split(' ')[0] || 'Pendonor'}.
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 max-w-lg">
+            <p className="text-red-100/90 max-w-lg leading-relaxed">
               Setiap donasi darahmu sangat berarti. Pantau kontribusimu dan temukan jadwal donor terdekat.
             </p>
           </div>
@@ -208,7 +208,7 @@ export default function DonorDashboard() {
           {/* Quick Action */}
           <div className="flex-shrink-0">
             <button onClick={() => navigate('/events')}
-              className="group flex items-center gap-2 bg-slate-900 dark:bg-slate-100 hover:bg-[#E11D48] dark:hover:bg-[#E11D48] text-white dark:text-slate-900 hover:text-white dark:hover:text-white px-6 py-3 text-sm font-semibold rounded-sm transition-colors border border-transparent">
+              className="group flex items-center gap-2 bg-white text-[#8B1A10] hover:bg-red-50 px-6 py-3 text-sm font-bold rounded-sm transition-colors border border-transparent shadow-sm">
               <Droplets className="w-4 h-4" /> Mulai Donor
             </button>
           </div>
