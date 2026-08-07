@@ -175,28 +175,37 @@ export default function DonorDashboard() {
         className="px-6 sm:px-10 pt-10 pb-24"
         style={{ background: 'linear-gradient(135deg, #C0392B 0%, #7B241C 100%)' }}
       >
-        <div className="max-w-4xl mx-auto flex items-start justify-between gap-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-6">
           <div>
             <p className="text-red-200 text-sm font-medium mb-1">{badge.label} Donor</p>
             <h1 className="text-2xl md:text-3xl font-bold text-white">
               Halo, {user?.name?.split(' ')[0] || 'Pendonor'}
             </h1>
-            <p className="text-red-200/80 text-sm mt-1">
+            <p className="text-red-200/80 text-sm mt-1.5 max-w-sm">
               Setiap donasi darahmu menyelamatkan nyawa seseorang.
             </p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className="text-red-200/70 text-xs font-medium mb-0.5">Total Donasi</p>
-            <p className="text-white text-3xl font-bold leading-none">{donorStats.totalDonations}</p>
-            <p className="text-red-200/70 text-xs mt-0.5">kali</p>
+          {/* Stat summary di header untuk desktop */}
+          <div className="hidden md:flex items-center gap-6 flex-shrink-0">
+            {[
+              { label: 'Total Donasi', value: donorStats.totalDonations, unit: 'kali' },
+              { label: 'Poin Reward', value: donorStats.totalPoints.toLocaleString('id-ID'), unit: 'pts' },
+              { label: 'Peringkat', value: `#${donorStats.ranking || '–'}`, unit: '' },
+            ].map((s) => (
+              <div key={s.label} className="text-center">
+                <p className="text-red-200/70 text-xs font-medium mb-0.5">{s.label}</p>
+                <p className="text-white text-2xl font-bold leading-none">{s.value}</p>
+                {s.unit && <p className="text-red-200/60 text-xs mt-0.5">{s.unit}</p>}
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 -mt-12 space-y-5 pb-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-12 space-y-5 pb-6">
 
-        {/* ─── STAT CARDS ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* ─── STAT CARDS — mobile only ────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-3 md:hidden">
           {[
             { label: 'Poin Reward', value: donorStats.totalPoints.toLocaleString('id-ID'), icon: Trophy, iconColor: 'text-amber-500' },
             { label: 'Status Badge', value: badge.label, icon: Award, iconColor: 'text-[#C0392B]' },
@@ -206,6 +215,22 @@ export default function DonorDashboard() {
               <stat.icon className={`w-5 h-5 ${stat.iconColor} mb-2`} />
               <p className="text-xl font-bold text-[#1A1A2E] leading-none">{stat.value}</p>
               <p className="text-xs text-[#9B9BB5] mt-1">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+        {/* Desktop: stat row */}
+        <div className="hidden md:grid grid-cols-3 gap-4">
+          {[
+            { label: 'Poin Reward', value: donorStats.totalPoints.toLocaleString('id-ID'), icon: Trophy, iconColor: 'text-amber-500', desc: 'Poin terkumpul' },
+            { label: 'Status Badge', value: badge.label, icon: Award, iconColor: 'text-[#C0392B]', desc: 'Level pendonor' },
+            { label: 'Peringkat Global', value: `#${donorStats.ranking || '–'}`, icon: Star, iconColor: 'text-blue-500', desc: 'Posisi kamu' },
+          ].map((stat) => (
+            <div key={stat.label} className="bg-white rounded-2xl px-6 py-5 border border-gray-100 shadow-sm flex items-center gap-4">
+              <stat.icon className={`w-6 h-6 ${stat.iconColor} flex-shrink-0`} />
+              <div>
+                <p className="text-2xl font-bold text-[#1A1A2E] leading-none">{stat.value}</p>
+                <p className="text-xs text-[#9B9BB5] mt-1">{stat.desc}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -259,17 +284,17 @@ export default function DonorDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
 
           {/* ─── KIRI ────────────────────────────────────────────────────── */}
-          <div className="lg:col-span-2 space-y-5">
+          <div className="lg:col-span-3 space-y-5">
 
             {/* MENU CEPAT */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 pt-5 pb-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-[#1A1A2E]">Menu</p>
               </div>
-              <div className="grid grid-cols-2 divide-x divide-y divide-gray-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-gray-100">
                 {[
                   { icon: Activity, label: 'Tiket Aktif', route: '/alur' },
                   { icon: Gift,     label: 'Rewards',     route: '/rewards' },
