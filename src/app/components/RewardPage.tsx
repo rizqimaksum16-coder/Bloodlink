@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   Trophy, Star, Gift, Flame, Award, CheckCircle, Lock,
-  Droplets, ArrowRight, Crown, Zap, Heart, Shield, Users
+  Droplets, Crown, Zap, Heart, Shield, Ticket, Copy, Wallet
 } from 'lucide-react';
-import { Progress } from './ui/progress';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
@@ -52,9 +51,10 @@ export default function RewardPage() {
   usePageTitle('Reward & Pencapaian');
 
   const [rewardsList, setRewardsList] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'rewards' | 'achievements'>('rewards');
+  const [activeTab, setActiveTab] = useState<'rewards' | 'achievements' | 'myclaims'>('rewards');
   const [filter, setFilter] = useState('all');
   const [claimAnim, setClaimAnim] = useState<string | null>(null);
+  const [copyAnim, setCopyAnim] = useState<string | null>(null);
   const [donorProfile, setDonorProfile] = useState<{ points: number; totalDonations: number; streak: number } | null>(null);
   const [achievementsList, setAchievementsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,15 +98,37 @@ export default function RewardPage() {
     try {
       await api.rewards.redeem(id, user?.email || '');
       toast.success('🎉 Reward berhasil diklaim!');
-      // Update poin di state lokal
       setDonorProfile(prev => prev ? { ...prev, points: Math.max(0, prev.points - cost) } : null);
-      // Tandai reward sebagai diklaim di list
-      setRewardsList(prev => prev.map(r => r.id === id ? { ...r, is_claimed: true } : r));
+      // Tandai reward sebagai diklaim + simpan claimed_at
+      setRewardsList(prev => prev.map(r =>
+        r.id === id ? { ...r, is_claimed: true, claimed_at: new Date().toISOString() } : r
+      ));
     } catch (err: any) {
       toast.error(err.message || 'Gagal menukarkan reward');
     } finally {
       setClaimAnim(null);
     }
+  };
+
+  // Buat kode voucher unik dari user id + reward id (deterministik)
+  function makeVoucherCode(userId: string, rewardId: string, claimedAt: string): string {
+    const base = `${userId}-${rewardId}-${claimedAt}`.toUpperCase();
+    let hash = 0;
+    for (let i = 0; i < base.length; i++) {
+      hash = ((hash << 5) - hash + base.charCodeAt(i)) | 0;
+    }
+    const code = Math.abs(hash).toString(36).toUpperCase().padStart(8, '0');
+    return `BL-${code.slice(0, 4)}-${code.slice(4, 8)}`;
+  }
+
+  const myClaims = rewardsList.filter(r => r.is_claimed);
+
+  const handleCopyCode = (code: string, id: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopyAnim(id);
+      toast.success('Kode voucher disalin!');
+      setTimeout(() => setCopyAnim(null), 2000);
+    });
   };
 
 
@@ -160,14 +182,25 @@ export default function RewardPage() {
         <div className="flex gap-1 bg-white border border-border rounded-xl p-1 mb-6">
           {[
             { id: 'rewards', label: 'Toko Reward', icon: Gift },
+            { id: 'myclaims', label: 'Voucher Saya', icon: Wallet, badge: myClaims.length },
             { id: 'achievements', label: 'Pencapaian', icon: Award },
           ].map(t => {
             const Icon = t.icon;
+            const isActive = activeTab === t.id;
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id as typeof activeTab)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === t.id ? 'bg-[#C0392B] text-white shadow-sm' : 'text-[#4A4A6A] hover:bg-[#F4F4F8]'}`}>
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all relative ${
+                  isActive ? 'bg-[#C0392B] text-white shadow-sm' : 'text-[#4A4A6A] hover:bg-[#F4F4F8]'
+                }`}>
                 <Icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{t.label}</span>
+                {'badge' in t && (t.badge as number) > 0 && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isActive ? 'bg-white text-[#C0392B]' : 'bg-[#C0392B] text-white'
+                  }`}>
+                    {t.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -305,7 +338,104 @@ export default function RewardPage() {
             })}
           </div>
         )}
+        {/* Tab: Voucher Saya */}
+        {activeTab === 'myclaims' && (
+          <div>
+            {isLoading ? (
+              <div className="py-12 flex justify-center">
+                <div className="w-8 h-8 border-4 border-[#C0392B]/20 border-t-[#C0392B] rounded-full animate-spin" />
+              </div>
+            ) : myClaims.length === 0 ? (
+              <div className="py-16 text-center bg-white rounded-2xl border border-border">
+                <div className="w-16 h-16 bg-[#F7F7FB] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Ticket className="w-8 h-8 text-[#9B9BB5]" />
+                </div>
+                <p className="font-bold text-[#1A1A2E] mb-1">Belum ada voucher diklaim</p>
+                <p className="text-sm text-[#9B9BB5]">Kunjungi Toko Reward dan tukarkan poin kamu!</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {/* Info banner */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                  <Ticket className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-700 font-medium">
+                    Tunjukkan kode voucher ini kepada petugas/mitra untuk penukaran. Kode bersifat unik dan hanya berlaku untuk akun kamu.
+                  </p>
+                </div>
 
+                {myClaims.map(r => {
+                  const code = makeVoucherCode(user?.id || user?.email || '', r.id, r.claimed_at || '');
+                  const isCopied = copyAnim === r.id;
+                  return (
+                    <div key={r.id} className="bg-white rounded-2xl border border-[#27AE60]/30 overflow-hidden">
+                      {/* Top strip */}
+                      <div className="bg-gradient-to-r from-[#27AE60] to-[#2ECC71] px-5 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{r.icon}</span>
+                          <div>
+                            <p className="text-white font-bold text-sm">{r.name}</p>
+                            <p className="text-white/70 text-[10px]">{r.description}</p>
+                          </div>
+                        </div>
+                        <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> Diklaim
+                        </span>
+                      </div>
+
+                      {/* Voucher body */}
+                      <div className="px-5 py-4">
+                        {/* Dashed separator */}
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="flex-1 border-t-2 border-dashed border-[#E8E8F0]" />
+                          <Ticket className="w-4 h-4 text-[#9B9BB5]" />
+                          <div className="flex-1 border-t-2 border-dashed border-[#E8E8F0]" />
+                        </div>
+
+                        {/* Kode voucher */}
+                        <div className="bg-[#F7F7FB] rounded-xl p-4 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] text-[#9B9BB5] font-semibold uppercase tracking-wider mb-1">Kode Voucher</p>
+                            <p className="font-mono text-lg font-bold text-[#1A1A2E] tracking-widest">{code}</p>
+                          </div>
+                          <button
+                            onClick={() => handleCopyCode(code, r.id)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                              isCopied
+                                ? 'bg-[#27AE60] text-white'
+                                : 'bg-white border border-border text-[#4A4A6A] hover:border-[#27AE60] hover:text-[#27AE60]'
+                            }`}>
+                            {isCopied ? (
+                              <><CheckCircle className="w-3.5 h-3.5" /> Disalin!</>
+                            ) : (
+                              <><Copy className="w-3.5 h-3.5" /> Salin</>  
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Info diklaim */}
+                        <div className="flex items-center justify-between mt-3">
+                          <p className="text-[11px] text-[#9B9BB5]">
+                            Diklaim: <span className="font-semibold text-[#4A4A6A]">
+                              {r.claimed_at
+                                ? new Date(r.claimed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                                : 'Baru saja'
+                              }
+                            </span>
+                          </p>
+                          {r.points > 0 && (
+                            <p className="text-[11px] text-[#9B9BB5]">
+                              Ditukar: <span className="font-semibold text-[#C0392B]">-{r.points.toLocaleString('id-ID')} poin</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
