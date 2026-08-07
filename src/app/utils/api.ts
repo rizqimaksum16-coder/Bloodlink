@@ -53,7 +53,13 @@ export const api = {
         body: JSON.stringify(data)
       }),
 
-    getProfile: () => apiFetch('/auth/me')
+    getProfile: () => apiFetch('/auth/me'),
+
+    updateProfile: (name: string, email: string) =>
+      apiFetch('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify({ name, email })
+      })
   },
 
   // Donors API

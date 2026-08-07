@@ -138,4 +138,43 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// PUT /api/auth/me
+router.put('/me', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token otentikasi tidak ditemukan' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const { name, email } = req.body;
+    
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Nama dan email wajib diisi' });
+    }
+    
+    const avatar = name.substring(0, 2).toUpperCase();
+    
+    // Cek apakah email sudah dipakai user lain
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ? AND id != ?', [email, decoded.id]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Email sudah digunakan oleh akun lain' });
+    }
+
+    await pool.query(
+      'UPDATE users SET name = ?, email = ?, avatar = ? WHERE id = ?',
+      [name, email, avatar, decoded.id]
+    );
+
+    res.json({ message: 'Profil berhasil diperbarui' });
+  } catch (err) {
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token tidak valid' });
+    }
+    console.error('Error update auth/me:', err);
+    res.status(500).json({ error: 'Gagal memperbarui profil pengguna' });
+  }
+});
+
 module.exports = router;

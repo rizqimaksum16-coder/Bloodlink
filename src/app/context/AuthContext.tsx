@@ -191,14 +191,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (name: string, email: string) => {
     if (user) {
-      const updated: AuthUser = {
-        ...user,
-        name,
-        email,
-        avatar: name.slice(0, 2).toUpperCase()
-      };
-      setUser(updated);
-      setCookie(JSON.stringify(updated), COOKIE_DAYS);
+      try {
+        await api.auth.updateProfile(name, email);
+        const updated: AuthUser = {
+          ...user,
+          name,
+          email,
+          avatar: name.slice(0, 2).toUpperCase()
+        };
+        setUser(updated);
+        setCookie(JSON.stringify(updated), COOKIE_DAYS);
+      } catch (err: any) {
+        console.error('Update profile error:', err.message);
+        throw err;
+      }
     }
   };
 
