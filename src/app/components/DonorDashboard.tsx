@@ -165,7 +165,7 @@ export default function DonorDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] bg-[#FAFAFA] dark:bg-[#0F172A]">
+      <div className="flex items-center justify-center min-h-[60vh] bg-[#F8FAFC] dark:bg-[#0F172A]">
         <div className="w-8 h-8 rounded-full border-2 border-slate-200 dark:border-slate-800 border-t-[#E11D48] animate-spin" />
       </div>
     );
@@ -178,10 +178,11 @@ export default function DonorDashboard() {
     return diff <= 0 ? { daysLeft: 0, isReady: true } : { daysLeft: diff, isReady: false };
   })();
 
-  const cardBaseClass = "bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-sm";
+  const cardBaseClass = "bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-sm transition-all duration-200";
+  const hoverCardClass = "hover:-translate-y-0.5 hover:border-slate-400 dark:hover:border-slate-500 cursor-pointer";
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F172A] pb-20 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] pb-20 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
       {/* ─── HEADER (Anti-Slop: Elegant Crimson) ─────────── */}
       <div className="px-6 sm:px-10 pt-16 pb-12 bg-[#8B1A10] dark:bg-[#4A0E09] border-b border-[#6E140C] dark:border-[#380A06]">
@@ -208,7 +209,7 @@ export default function DonorDashboard() {
           {/* Quick Action */}
           <div className="flex-shrink-0">
             <button onClick={() => navigate('/events')}
-              className="group flex items-center gap-2 bg-white text-[#8B1A10] hover:bg-red-50 px-6 py-3 text-sm font-bold rounded-sm transition-colors border border-transparent shadow-sm">
+              className="group flex items-center gap-2 bg-white text-[#8B1A10] hover:bg-red-50 px-6 py-3 text-sm font-bold rounded-sm transition-transform hover:-translate-y-0.5 active:translate-y-0 border border-transparent shadow-sm">
               <Droplets className="w-4 h-4" /> Mulai Donor
             </button>
           </div>
@@ -226,7 +227,7 @@ export default function DonorDashboard() {
             { label: 'Peringkat', val: `#${donorStats.ranking || '-'}`, suffix: 'global', icon: Trophy, color: 'text-blue-500' },
             { label: 'Level', val: badge.label, suffix: 'donor', icon: Award, color: 'text-emerald-500' },
           ].map((stat, i) => (
-            <div key={i} className={`${cardBaseClass} p-5 flex flex-col justify-between`}>
+            <div key={i} className={`${cardBaseClass} ${hoverCardClass} p-5 flex flex-col justify-between`}>
               <div className="flex items-center gap-3 mb-4 text-slate-500 dark:text-slate-400">
                 <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 <p className="text-xs font-semibold uppercase tracking-wider">{stat.label}</p>
@@ -254,7 +255,7 @@ export default function DonorDashboard() {
                 { icon: BookOpen, title: 'Edukasi', desc: 'Artikel & tips kesehatan', to: '/education', color: 'text-emerald-500' },
               ].map((menu, i) => (
                 <button key={i} onClick={() => navigate(menu.to)}
-                  className={`${cardBaseClass} p-5 flex items-start gap-4 hover:border-slate-400 dark:hover:border-slate-600 transition-colors text-left group`}>
+                  className={`${cardBaseClass} ${hoverCardClass} p-5 flex items-start gap-4 text-left group`}>
                   <div className={`p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-sm group-hover:bg-slate-100 dark:group-hover:bg-slate-700 transition-colors`}>
                     <menu.icon className={`w-5 h-5 ${menu.color}`} />
                   </div>
@@ -268,7 +269,7 @@ export default function DonorDashboard() {
 
             {/* EVENT TERDEKAT */}
             <div className={cardBaseClass}>
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1E293B]">
                 <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Event Donor Terdekat</h3>
                 <button onClick={() => navigate('/events')}
                   className="text-xs font-semibold text-[#E11D48] hover:text-[#BE123C] flex items-center gap-1 transition-colors">
@@ -283,9 +284,9 @@ export default function DonorDashboard() {
                     const sisa = event.quota - event.registered;
                     return (
                       <button key={event.id} onClick={() => navigate('/events')}
-                        className="w-full px-6 py-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        className="w-full px-6 py-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-slate-900 dark:text-slate-100 truncate mb-2">{event.name}</p>
+                          <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#E11D48] transition-colors truncate mb-2">{event.name}</p>
                           <div className="flex flex-wrap items-center gap-4">
                             <span className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {event.date}
@@ -304,8 +305,8 @@ export default function DonorDashboard() {
                             </span>
                           </div>
                           {event.quota > 0 && (
-                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-none">
-                              <div className="h-full bg-[#E11D48]" style={{ width: `${pct}%` }} />
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-none overflow-hidden">
+                              <div className="h-full bg-[#E11D48] transition-all duration-1000" style={{ width: `${pct}%` }} />
                             </div>
                           )}
                         </div>
@@ -314,12 +315,12 @@ export default function DonorDashboard() {
                   })}
                 </div>
               ) : (
-                <div className="px-6 py-12 text-center flex flex-col items-center">
-                  <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-sm flex items-center justify-center mb-4">
+                <div className="m-6 border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-sm p-10 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm flex items-center justify-center mb-4 shadow-sm">
                     <Calendar className="w-5 h-5 text-slate-400" />
                   </div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Tidak ada event terbuka</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Periksa kembali nanti untuk jadwal terbaru.</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Belum Ada Jadwal Terdekat</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">Jadwal donor darah di area Anda sedang kosong. Kami akan memperbarui daftar ini segera.</p>
                 </div>
               )}
             </div>
@@ -331,23 +332,23 @@ export default function DonorDashboard() {
             
             {/* PROFIL RINGKAS */}
             <div className={cardBaseClass}>
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 bg-white dark:bg-[#1E293B]">
                 <Droplets className="w-4 h-4 text-[#E11D48]" />
                 <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Status Donor</h3>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                <div className="px-6 py-4 flex flex-col gap-1">
+                <div className="px-6 py-5 flex flex-col gap-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kesiapan Donor</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <div className={`w-2 h-2 rounded-full ${eligibility.isReady ? 'bg-emerald-500' : 'bg-orange-500'}`} />
+                    <div className={`w-2 h-2 rounded-full ${eligibility.isReady ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'}`} />
                     <p className={`text-sm font-bold ${eligibility.isReady ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
                       {eligibility.isReady ? 'Siap Donor' : `Belum siap (${eligibility.daysLeft} hari lagi)`}
                     </p>
                   </div>
                 </div>
-                <div className="px-6 py-4 flex flex-col gap-1">
+                <div className="px-6 py-5 flex flex-col gap-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Golongan Darah</p>
-                  <p className="text-lg font-heading font-bold text-[#E11D48] mt-1">
+                  <p className="text-2xl font-heading font-bold text-[#E11D48] mt-1">
                     {donorStats.bloodType || <span className="text-slate-400 dark:text-slate-500 text-sm font-normal">Belum diisi</span>}
                   </p>
                 </div>
@@ -356,9 +357,11 @@ export default function DonorDashboard() {
 
             {/* TIKET AKTIF (Mini) */}
             {activeTickets.length > 0 && (
-              <div className={cardBaseClass}>
-                <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-                  <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Tiket Aktif</h3>
+              <div className={`${cardBaseClass} border-[#E11D48]/20 dark:border-[#E11D48]/20`}>
+                <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-red-50/50 dark:bg-[#E11D48]/10">
+                  <h3 className="font-heading font-bold text-lg text-[#E11D48] dark:text-red-400 flex items-center gap-2">
+                    <Ticket className="w-4 h-4" /> Tiket Aktif
+                  </h3>
                 </div>
                 <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                   {activeTickets.map(ticket => {
@@ -375,7 +378,7 @@ export default function DonorDashboard() {
                           <Calendar className="w-3.5 h-3.5" /> {ticket.eventDate}
                         </p>
                         <button onClick={() => navigate(`/tickets/${ticket.id}`)}
-                          className="w-full text-xs font-bold text-center py-2 border border-slate-200 dark:border-slate-700 rounded-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                          className="w-full text-xs font-bold text-center py-2 border border-[#E11D48]/30 dark:border-[#E11D48]/30 rounded-sm text-[#E11D48] dark:text-red-400 hover:bg-[#E11D48] hover:text-white transition-colors">
                           Lihat QR Code
                         </button>
                       </div>
@@ -387,20 +390,20 @@ export default function DonorDashboard() {
 
             {/* PENCAPAIAN */}
             <div className={cardBaseClass}>
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1E293B]">
                 <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-slate-100">Pencapaian</h3>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 {displayAchievements.map((a) => {
                   const Icon = a.icon;
                   return (
-                    <div key={a.id} className="px-6 py-4 flex gap-4">
-                      <div className={`w-10 h-10 border flex items-center justify-center flex-shrink-0 rounded-sm
+                    <div key={a.id} className="px-6 py-5 flex gap-4 group">
+                      <div className={`w-10 h-10 border flex items-center justify-center flex-shrink-0 rounded-sm transition-colors
                         ${a.earned 
                           ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700' 
                           : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'}`}
                       >
-                        <Icon className={`w-4 h-4 ${a.earned ? 'text-[#E11D48]' : 'text-slate-400 dark:text-slate-600'}`} />
+                        <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${a.earned ? 'text-[#E11D48]' : 'text-slate-400 dark:text-slate-600'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
@@ -409,16 +412,16 @@ export default function DonorDashboard() {
                           </p>
                           {a.earned && <CheckCircle className="w-3.5 h-3.5 text-[#E11D48] flex-shrink-0" />}
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-2 truncate">{a.description}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3 truncate">{a.description}</p>
                         
                         {!a.earned && a.progress !== undefined && a.total && (
                           <div className="w-full">
-                            <div className="flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                              <span>Progress</span>
+                            <div className="flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1.5">
+                              <span>Progres</span>
                               <span>{a.progress}/{a.total}</span>
                             </div>
-                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1 rounded-none">
-                              <div className="h-full bg-slate-300 dark:bg-slate-600" style={{ width: `${(a.progress / a.total) * 100}%` }} />
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-none overflow-hidden flex">
+                               <div className="h-full bg-slate-300 dark:bg-slate-500 transition-all duration-1000" style={{ width: `${(a.progress / a.total) * 100}%` }} />
                             </div>
                           </div>
                         )}
