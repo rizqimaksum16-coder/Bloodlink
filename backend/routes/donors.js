@@ -258,7 +258,7 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
 
   try {
     const [topDonors] = await pool.query(
-      `SELECT dp.id, u.name, dp.total_donations, dp.points, dp.level
+      `SELECT dp.id, u.name, dp.total_donations, dp.points
        FROM donor_profiles dp
        JOIN users u ON u.id = dp.user_id
        ORDER BY dp.points DESC, dp.total_donations DESC

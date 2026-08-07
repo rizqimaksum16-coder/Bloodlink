@@ -44,11 +44,14 @@ export default function Leaderboard() {
   const [userRank, setUserRank] = useState<number | null>(null);
   const [userStats, setUserStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      const data = await api.donors.getLeaderboard({ top10: [], userRank: null, userStats: null });
+      setErrorMsg(null);
+      // Notice: we do not pass fallback data here so that it throws an error if it fails
+      const data = await api.donors.getLeaderboard();
       if (data) {
         setTop10(data.top10 || []);
         setUserRank(data.userRank ?? null);
@@ -56,6 +59,7 @@ export default function Leaderboard() {
       }
     } catch (err: any) {
       console.error('Failed to load leaderboard:', err);
+      setErrorMsg(err.message || 'Gagal memuat leaderboard');
       setTop10([]);
       setUserRank(null);
       setUserStats(null);
@@ -113,18 +117,20 @@ export default function Leaderboard() {
 
         {top10.length === 0 ? (
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-center gap-4">
-            <div className="w-20 h-20 bg-[#F7F7FB] rounded-full flex items-center justify-center">
-              <Trophy className="w-10 h-10 text-gray-300" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${errorMsg ? 'bg-red-50' : 'bg-[#F7F7FB]'}`}>
+              {errorMsg ? <Trophy className="w-10 h-10 text-red-300" /> : <Trophy className="w-10 h-10 text-gray-300" />}
             </div>
             <div>
-              <p className="text-base font-bold text-gray-600">Data Belum Tersedia</p>
+              <p className={`text-base font-bold ${errorMsg ? 'text-red-600' : 'text-gray-600'}`}>
+                {errorMsg ? 'Terjadi Kesalahan' : 'Belum Ada Data'}
+              </p>
               <p className="text-sm text-gray-400 mt-1 max-w-xs">
-                Data leaderboard belum bisa dimuat. Pastikan koneksi internet Anda baik dan coba lagi.
+                {errorMsg || 'Belum ada data pendonor yang masuk ke dalam leaderboard saat ini.'}
               </p>
             </div>
             <button
               onClick={fetchLeaderboard}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#C0392B] text-white rounded-xl text-sm font-bold hover:bg-[#A93226] transition-colors shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#C0392B] text-white rounded-xl text-sm font-bold hover:bg-[#A93226] transition-colors shadow-sm mt-2"
             >
               <RefreshCw className="w-4 h-4" /> Coba Lagi
             </button>
