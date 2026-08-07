@@ -165,10 +165,13 @@ export default function DonorDashboard() {
   const eligibility = getEligibilityInfo();
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-red-500/30">
+    <div className="min-h-screen bg-[#F7F7FB] pb-20 font-sans selection:bg-red-500/30">
       
       {/* ─── HERO BANNER ─────────────────────────────────────────────────────── */}
-      <div className="relative bg-gradient-to-br from-red-600 via-rose-600 to-red-800 pt-12 pb-28 px-6 sm:px-12 overflow-hidden shadow-xl shadow-red-900/10">
+      <div 
+        className="relative text-white pt-12 pb-28 px-6 sm:px-12 overflow-hidden shadow-xl"
+        style={{ background: 'linear-gradient(135deg, #C0392B 0%, #7B241C 100%)' }}
+      >
         <div className="absolute inset-0 opacity-10 mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/3"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-rose-500/20 blur-2xl rounded-full translate-y-1/2 -translate-x-1/4"></div>
@@ -213,7 +216,7 @@ export default function DonorDashboard() {
             { label: 'Status Badge', value: badge.label, icon: Award, color: 'text-emerald-500', bg: 'bg-emerald-100/50' },
             { label: 'Peringkat', value: `#${donorStats.ranking || '–'}`, icon: Star, color: 'text-blue-500', bg: 'bg-blue-100/50' },
           ].map((stat, i) => (
-            <div key={i} className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 sm:p-6 border border-white shadow-xl shadow-slate-200/40 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300 group">
+            <div key={i} className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-100 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group">
               <div className={`w-12 h-12 ${stat.bg} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
@@ -224,23 +227,23 @@ export default function DonorDashboard() {
         </div>
 
         {/* ─── ELIGIBILITY BANNER ───────────────────────────────────────────────── */}
-        <div className={`rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl relative overflow-hidden transition-all duration-500
+        <div className={`rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm relative overflow-hidden transition-all duration-500
           ${eligibility.isReady
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-emerald-500/20'
-            : 'bg-gradient-to-r from-slate-800 to-slate-900 shadow-slate-900/20'
+            ? 'bg-[#EAFAF1] border border-[#27AE60]/20'
+            : 'bg-[#F4F4F8] border border-[#9B9BB5]/20'
           }`}>
           
-          <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
+          <div className="absolute right-0 top-0 w-64 h-64 bg-white/40 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
           
           <div className="flex items-center gap-5 relative z-10">
-            <div className={`p-4 rounded-2xl flex-shrink-0 shadow-inner ${eligibility.isReady ? 'bg-emerald-600/50 text-white' : 'bg-slate-700/50 text-slate-300'}`}>
+            <div className={`p-4 rounded-2xl flex-shrink-0 shadow-inner ${eligibility.isReady ? 'bg-[#27AE60] text-white' : 'bg-[#9B9BB5] text-white'}`}>
               {eligibility.isReady ? <Heart className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
             </div>
             <div>
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">
+              <h3 className={`text-xl sm:text-2xl font-bold mb-1 tracking-tight ${eligibility.isReady ? 'text-[#1E8449]' : 'text-[#1A1A2E]'}`}>
                 {eligibility.isReady ? 'Waktunya Menyelamatkan Nyawa! 🎉' : 'Sedang Masa Pemulihan'}
               </h3>
-              <p className={`text-sm sm:text-base font-medium ${eligibility.isReady ? 'text-emerald-50' : 'text-slate-400'}`}>
+              <p className={`text-sm sm:text-base font-medium ${eligibility.isReady ? 'text-[#27AE60]' : 'text-[#4A4A6A]'}`}>
                 {eligibility.isReady
                   ? 'Kondisimu sudah siap untuk melakukan donor darah kembali.'
                   : 'Berdasarkan donasi terakhir, Anda harus menunggu sebelum donor lagi.'}
