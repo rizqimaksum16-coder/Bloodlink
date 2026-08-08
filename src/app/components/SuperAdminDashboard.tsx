@@ -244,7 +244,7 @@ export default function SuperAdminDashboard() {
       }
     }
     loadOrgs();
-  }, []);
+  }, [user]);
 
   // Modal states
   const [showOrgModal, setShowOrgModal] = useState(false);

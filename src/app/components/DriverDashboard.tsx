@@ -93,7 +93,7 @@ export default function DriverDashboard() {
       }
     }
     loadDeliveries();
-  }, []);
+  }, [user]);
 
   // Mapping status delivery driver → status pesanan di RS/PMI
   // PENTING: 'tiba' → 'tiba' (bukan 'selesai') agar RS bisa melakukan konfirmasi penerimaan!
