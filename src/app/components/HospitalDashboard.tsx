@@ -10,6 +10,7 @@ import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { api } from '../utils/api';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
+import StockActionModal, { StockActionType } from './StockActionModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -190,6 +191,11 @@ export default function HospitalDashboard() {
   const [ledger, setLedger] = useState<any[]>([]);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
 
+  // State untuk modal stok
+  const [stockModalConfig, setStockModalConfig] = useState<{isOpen: boolean; actionType: StockActionType; bloodType: string; currentStock: number}>({
+    isOpen: false, actionType: 'in', bloodType: 'A+', currentStock: 0
+  });
+
   // Riwayat pemakaian darah bulanan — diisi dari Supabase atau fallback statis
   const staticBloodHistory = [
     { month: 'Jan', used: 120 }, { month: 'Feb', used: 145 }, { month: 'Mar', used: 138 },
@@ -202,23 +208,53 @@ export default function HospitalDashboard() {
     if (!user) return;
     async function fetchHospitalData() {
       try {
-        const [stockData, orderData, deliveryData] = await Promise.all([
+        const [stockData, orderData, deliveryData, bagsData] = await Promise.all([
           api.stock.getHospitalStock([]),
           api.orders.getRequests([]),
-          api.orders.getDeliveries([])
+          api.orders.getDeliveries([]),
+          api.stock.getBags({ status: 'available' }).catch(() => [])
         ]);
+
+        // Kelompokkan kantong by blood_type → batches (group by exp_date + source_name)
+        const bagsByType: Record<string, StockBatch[]> = {};
+        if (Array.isArray(bagsData)) {
+          bagsData
+            .filter((b: any) => b.owner_id === user.id)
+            .forEach((b: any) => {
+              if (!bagsByType[b.blood_type]) bagsByType[b.blood_type] = [];
+              // Cari batch dengan exp_date + source_name yang sama
+              const batchKey = `${b.exp_date}||${b.source_name || ''}`;
+              const existing = bagsByType[b.blood_type].find(
+                (bt: StockBatch) => `${bt.expDate}||${bt.sourceName || ''}` === batchKey
+              );
+              if (existing) {
+                existing.qty += 1;
+              } else {
+                bagsByType[b.blood_type].push({
+                  id: b.bag_code,
+                  qty: 1,
+                  entryDate: b.collected_at ? b.collected_at.split('T')[0] : '',
+                  expDate: b.exp_date ? b.exp_date.split('T')[0] : '',
+                  sourceName: b.source_name,
+                  addedByName: b.added_by_name,
+                  direction: 'in'
+                });
+              }
+            });
+        }
 
         const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
         const myStocks = stockData?.filter((s: any) => s.hospital_id === user.id) || [];
         const mergedStocks = baseTypes.map(type => {
           const found = myStocks.find((s: any) => s.blood_type === type);
+          const batches = bagsByType[type] || [];
           if (found) {
             return {
               type: found.blood_type, stock: found.stock, target: 40,
-              status: found.status, expiringSoon: 0, batches: []
+              status: found.status, expiringSoon: 0, batches
             };
           }
-          return { type, stock: 0, target: 40, status: 'critical', expiringSoon: 0, batches: [] };
+          return { type, stock: 0, target: 40, status: 'critical', expiringSoon: 0, batches };
         });
         setStocks(mergedStocks);
 
@@ -441,6 +477,73 @@ export default function HospitalDashboard() {
   };
 
   // Direct Inline Stock Modification
+  const handleStockActionSubmit = async (data: any) => {
+    setIsSaving(true);
+    try {
+      if (stockModalConfig.actionType === 'in') {
+        await api.stock.addLedger({
+          blood_type: stockModalConfig.bloodType,
+          ...data
+        });
+      } else {
+        const newStock = stockModalConfig.currentStock - data.quantity;
+        await api.stock.updateHospitalStock(stockModalConfig.bloodType, newStock, data.reason, data.reason_detail);
+      }
+      toast.success('Stok berhasil diperbarui');
+      setStockModalConfig(prev => ({...prev, isOpen: false}));
+      
+      // Refresh stok + kantong setelah aksi modal
+      const [updatedStock, updatedBags] = await Promise.all([
+        api.stock.getHospitalStock([]),
+        api.stock.getBags({ status: 'available' }).catch(() => [])
+      ]);
+
+      // Grouping ulang batch dari data kantong terbaru
+      const bagsByType: Record<string, StockBatch[]> = {};
+      if (Array.isArray(updatedBags)) {
+        updatedBags
+          .filter((b: any) => b.owner_id === user?.id)
+          .forEach((b: any) => {
+            if (!bagsByType[b.blood_type]) bagsByType[b.blood_type] = [];
+            const bk = `${b.exp_date}||${b.source_name || ''}`;
+            const ex = bagsByType[b.blood_type].find((bt: StockBatch) => `${bt.expDate}||${bt.sourceName || ''}` === bk);
+            if (ex) { ex.qty += 1; }
+            else { bagsByType[b.blood_type].push({ id: b.bag_code, qty: 1, entryDate: b.collected_at?.split('T')[0] || '', expDate: b.exp_date?.split('T')[0] || '', sourceName: b.source_name, addedByName: b.added_by_name, direction: 'in' }); }
+          });
+      }
+
+      if (updatedStock) {
+        setStocks(stocks.map(s => {
+          const found = updatedStock.find((us: any) => us.blood_type === s.type && us.hospital_id === user?.id);
+          if (found) {
+            return { ...s, stock: found.stock, status: found.status, batches: bagsByType[s.type] || s.batches };
+          }
+          return { ...s, batches: bagsByType[s.type] || s.batches };
+        }));
+      }
+
+      // Refresh ledger kalau tab-nya aktif
+      if (activeTab === 'ledger') {
+        const d = await api.stock.getLedger();
+        setLedger(Array.isArray(d) ? d : []);
+      }
+    } catch (e) {
+      toast.error('Gagal memperbarui stok');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openStockModal = (bloodType: string, actionType: StockActionType) => {
+    const blood = stocks.find(s => s.type === bloodType);
+    setStockModalConfig({
+      isOpen: true,
+      actionType,
+      bloodType,
+      currentStock: blood ? blood.stock : 0
+    });
+  };
+
   const updateSingleStock = (type: string, key: 'stock' | 'target' | 'expiringSoon', val: number) => {
     setIsDirty(true);
     setStocks(prev => prev.map(s => {
@@ -696,23 +799,27 @@ export default function HospitalDashboard() {
                 </div>
               ) : null}
 
-              <hr className="border-border/40 my-3" />
+              {/* Action Buttons for Stock Management */}
+              <div className="flex items-center gap-2 mt-4 mb-2">
+                <button
+                  onClick={() => openStockModal(blood.type, 'in')}
+                  className="flex-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <ArrowDownCircle className="w-4 h-4" /> Darah Masuk
+                </button>
+                <button
+                  onClick={() => openStockModal(blood.type, 'out')}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <ArrowUpCircle className="w-4 h-4" /> Darah Keluar
+                </button>
+              </div>
 
-              {/* Direct Inline Inputs for Stock & Expired (Expert UX design: Zero Friction) */}
-              <div className="grid grid-cols-2 gap-2 py-1">
+              <div className="grid grid-cols-1 gap-2 py-1">
                 <div>
-                  <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1">Stok Saat Ini</span>
-                  <div className="flex items-center gap-1 justify-center bg-[#F9F9FC] border border-border rounded-lg px-1.5 py-0.5">
-                    <button onClick={() => updateSingleStock(blood.type, 'stock', blood.stock - 1)} className="w-5 h-5 bg-white hover:bg-border rounded flex items-center justify-center text-[11px] font-extrabold text-[#4A4A6A] border border-border/10 shadow-sm">-</button>
-                    <input type="number" min={0} value={blood.stock} onKeyDown={preventNegativeInput} onChange={(e) => updateSingleStock(blood.type, 'stock', Number(e.target.value))}
-                      className="w-8 text-center text-xs font-bold bg-transparent border-0 focus:ring-0 p-0 text-[#1A1A2E]" />
-                    <button onClick={() => updateSingleStock(blood.type, 'stock', blood.stock + 1)} className="w-5 h-5 bg-white hover:bg-border rounded flex items-center justify-center text-[11px] font-extrabold text-[#4A4A6A] border border-border/10 shadow-sm">+</button>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1 text-center">Expired (7 hr)</span>
+                  <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1">Expired (7 hr)</span>
                   <input type="number" min={0} value={blood.expiringSoon} onKeyDown={preventNegativeInput} onChange={(e) => updateSingleStock(blood.type, 'expiringSoon', Number(e.target.value))}
-                    className="w-full text-center text-xs font-bold bg-[#F9F9FC] border border-border rounded-lg py-1 focus:border-[#2980B9] focus:ring-0 text-orange-600 shadow-inner" />
+                    className="w-full text-center text-xs font-bold bg-[#F9F9FC] border border-border rounded-lg py-2 focus:border-[#2980B9] focus:ring-0 text-orange-600 shadow-inner" />
                 </div>
               </div>
 
@@ -1221,6 +1328,14 @@ export default function HospitalDashboard() {
           </div>
         </div>
       )}
+      <StockActionModal
+        isOpen={stockModalConfig.isOpen}
+        onClose={() => setStockModalConfig(prev => ({...prev, isOpen: false}))}
+        onSubmit={handleStockActionSubmit}
+        actionType={stockModalConfig.actionType}
+        bloodType={stockModalConfig.bloodType}
+        currentStock={stockModalConfig.currentStock}
+      />
     </div>
   );
 }

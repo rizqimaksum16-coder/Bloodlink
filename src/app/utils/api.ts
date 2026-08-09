@@ -166,16 +166,16 @@ export const api = {
 
     getPMIStock: (fallback?: any[]) => apiFetch('/stock/pmi', {}, fallback),
 
-    updatePMIStock: (pmi_name: string, blood_type: string, stock: number) =>
+    updatePMIStock: (pmi_name: string, blood_type: string, stock: number, reason?: string, reason_detail?: string) =>
       apiFetch('/stock/pmi', {
         method: 'PUT',
-        body: JSON.stringify({ pmi_name, blood_type, stock })
+        body: JSON.stringify({ pmi_name, blood_type, stock, reason, reason_detail })
       }),
 
-    updateHospitalStock: (blood_type: string, stock: number) =>
+    updateHospitalStock: (blood_type: string, stock: number, reason?: string, reason_detail?: string) =>
       apiFetch('/stock/hospital', {
         method: 'PUT',
-        body: JSON.stringify({ blood_type, stock })
+        body: JSON.stringify({ blood_type, stock, reason, reason_detail })
       }),
 
     getActivityLogs: (fallback?: any[]) => apiFetch('/stock/activity-logs', {}, fallback),

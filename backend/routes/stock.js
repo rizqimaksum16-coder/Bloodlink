@@ -31,6 +31,32 @@ async function writeLedger({ ownerType, ownerId, bloodType, direction, quantity,
   return id;
 }
 
+// ─── Helper: Konsumsi kantong FIFO (First In, First Out by exp_date) ─────────
+async function consumeBagsFIFO({ ownerType, ownerId, bloodType, qty, reason }) {
+  // Tentukan status baru berdasarkan alasan
+  const newBagStatus = reason === 'expired' ? 'expired'
+    : reason === 'discarded' ? 'discarded'
+    : 'used';
+
+  // Cari kantong available yang paling dekat exp_date (FIFO)
+  const [bagRows] = await pool.query(
+    `SELECT bag_code FROM blood_bags
+     WHERE owner_type = ? AND owner_id = ? AND blood_type = ? AND status = 'available'
+     ORDER BY exp_date ASC
+     LIMIT ?`,
+    [ownerType, ownerId, bloodType, qty]
+  );
+
+  const codes = bagRows.map(r => r.bag_code);
+  if (codes.length > 0) {
+    await pool.query(
+      `UPDATE blood_bags SET status = ? WHERE bag_code IN (?)`,
+      [newBagStatus, codes]
+    );
+  }
+  return codes; // kembalikan daftar bag_code yang terdampak
+}
+
 // GET /api/stock/hospital — 🔒 Harus login
 router.get('/hospital', authMiddleware, async (req, res) => {
   try {
@@ -67,7 +93,7 @@ router.get('/pmi', authMiddleware, async (req, res) => {
 
 // PUT /api/stock/hospital — 🔒 Harus login + Role RS atau SuperAdmin
 router.put('/hospital', authMiddleware, requireRole('rs', 'superadmin'), async (req, res) => {
-  const { hospital_id, blood_type, stock } = req.body;
+  const { hospital_id, blood_type, stock, reason = 'manual_adjustment', reason_detail } = req.body;
 
   let hospitalRef = hospital_id;
   if (req.user.role === 'rs') {
@@ -105,14 +131,26 @@ router.put('/hospital', authMiddleware, requireRole('rs', 'superadmin'), async (
 
     // Catat ke stock_ledger jika ada perubahan
     if (diff !== 0) {
+      let affectedBagCodes = [];
+      // Jika darah keluar, konsumsi kantong secara FIFO
+      if (diff < 0) {
+        affectedBagCodes = await consumeBagsFIFO({
+          ownerType: 'rs',
+          ownerId: hospitalRef,
+          bloodType: blood_type,
+          qty: Math.abs(diff),
+          reason
+        });
+      }
       await writeLedger({
         ownerType: 'rs',
         ownerId: hospitalRef,
         bloodType: blood_type,
         direction: diff > 0 ? 'in' : 'out',
         quantity: Math.abs(diff),
-        reason: 'manual_adjustment',
-        reasonDetail: `Penyesuaian manual stok ${blood_type} dari ${oldQty} → ${stock}`,
+        bagCodes: affectedBagCodes,
+        reason,
+        reasonDetail: reason_detail || `Penyesuaian manual stok ${blood_type} dari ${oldQty} → ${stock}`,
         actorId: req.user.id,
         actorName: req.user.name || req.user.org || 'Admin RS',
         actorRole: req.user.role
@@ -128,7 +166,7 @@ router.put('/hospital', authMiddleware, requireRole('rs', 'superadmin'), async (
 
 // PUT /api/stock/pmi — 🔒 Harus login + Role PMI atau SuperAdmin
 router.put('/pmi', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
-  const { pmi_id, pmi_name, blood_type, stock, quantity } = req.body;
+  const { pmi_id, pmi_name, blood_type, stock, quantity, reason = 'manual_adjustment', reason_detail } = req.body;
   const qtyVal = quantity !== undefined ? quantity : stock;
 
   let pmiRef = pmi_id || pmi_name;
@@ -172,14 +210,26 @@ router.put('/pmi', authMiddleware, requireRole('pmi', 'superadmin'), async (req,
 
     // Catat ke stock_ledger jika ada perubahan
     if (diff !== 0) {
+      let affectedBagCodes = [];
+      // Jika darah keluar, konsumsi kantong secara FIFO
+      if (diff < 0) {
+        affectedBagCodes = await consumeBagsFIFO({
+          ownerType: 'pmi',
+          ownerId: pmiRef,
+          bloodType: blood_type,
+          qty: Math.abs(diff),
+          reason
+        });
+      }
       await writeLedger({
         ownerType: 'pmi',
         ownerId: pmiRef,
         bloodType: blood_type,
         direction: diff > 0 ? 'in' : 'out',
         quantity: Math.abs(diff),
-        reason: 'manual_adjustment',
-        reasonDetail: `Penyesuaian manual stok ${blood_type} dari ${oldQty} → ${qtyVal}`,
+        bagCodes: affectedBagCodes,
+        reason,
+        reasonDetail: reason_detail || `Penyesuaian manual stok ${blood_type} dari ${oldQty} → ${qtyVal}`,
         actorId: req.user.id,
         actorName: req.user.name || req.user.org || 'Admin PMI',
         actorRole: req.user.role
