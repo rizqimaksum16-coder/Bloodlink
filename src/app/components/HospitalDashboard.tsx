@@ -58,11 +58,10 @@ interface StockBatch {
 interface HospitalStock {
   type: string;
   stock: number;
-  target: number;
+  status: 'available' | 'low' | 'critical';
   expiringSoon: number;
   lastUpdated?: string;
   batches?: StockBatch[];
-  status?: string;
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -255,11 +254,11 @@ export default function HospitalDashboard() {
           const batches = bagsByType[type] || [];
           if (found) {
             return {
-              type: found.blood_type, stock: found.stock, target: 40,
-              status: found.status, expiringSoon: 0, batches
+              type: found.blood_type, stock: found.stock,
+              status: found.status as any, expiringSoon: 0, batches
             };
           }
-          return { type, stock: 0, target: 40, status: 'critical', expiringSoon: 0, batches };
+          return { type, stock: 0, status: 'critical', expiringSoon: 0, batches };
         });
         setStocks(mergedStocks);
 
@@ -330,7 +329,7 @@ export default function HospitalDashboard() {
   };
 
   const activeOrders = orders.filter(o => o.status !== 'selesai' && o.status !== 'ditolak').length;
-  const criticalStock = stocks.filter(s => s.stock / s.target < 0.3).length;
+  const criticalStock = stocks.filter(s => s.stock < 10).length;
   const expiringSoon = stocks.reduce((sum, s) => sum + s.expiringSoon, 0);
   const totalStock = stocks.reduce((sum, s) => sum + s.stock, 0);
 
@@ -413,10 +412,13 @@ export default function HospitalDashboard() {
             },
             ...(s.batches || [])
           ];
+          const newStock = s.stock + order.qty;
+          const status = newStock >= 25 ? 'available' : newStock >= 10 ? 'low' : 'critical';
           return {
             ...s,
-            stock: s.stock + order.qty,
+            stock: newStock,
             lastUpdated: 'Baru saja',
+            status: status as any,
             batches: newBatches
           };
         }
@@ -462,13 +464,12 @@ export default function HospitalDashboard() {
           const newStock = Math.max(0, s.stock - discardQty);
           const newExpiringSoon = Math.max(0, s.expiringSoon - discardQty);
           // Recalculate status
-          const pct = Math.round((newStock / s.target) * 100);
-          const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
+          const status = newStock >= 25 ? 'available' : newStock >= 10 ? 'low' : 'critical';
           return {
             ...s,
             stock: newStock,
             expiringSoon: newExpiringSoon,
-            status: newStatus,
+            status: status as any,
             batches: newBatches,
             lastUpdated: 'Baru saja'
           };
@@ -514,7 +515,9 @@ export default function HospitalDashboard() {
             const ex = bagsByType[b.blood_type].find((bt: StockBatch) => `${bt.expDate}||${bt.sourceName || ''}` === bk);
             if (ex) { 
               ex.qty += 1; 
-              if (ex.codes && b.bag_code) ex.codes.push(b.bag_code);
+              if (ex.codes && b.bag_code) {
+                if(!ex.codes.includes(b.bag_code)) ex.codes.push(b.bag_code);
+              }
             }
             else { 
               bagsByType[b.blood_type].push({ 
@@ -535,7 +538,7 @@ export default function HospitalDashboard() {
         setStocks(stocks.map(s => {
           const found = updatedStock.find((us: any) => us.blood_type === s.type && us.hospital_id === user?.id);
           if (found) {
-            return { ...s, stock: found.stock, status: found.status, batches: bagsByType[s.type] || s.batches };
+            return { ...s, stock: found.stock, status: found.status as any, batches: bagsByType[s.type] || s.batches };
           }
           return { ...s, batches: bagsByType[s.type] || s.batches };
         }));
@@ -563,24 +566,17 @@ export default function HospitalDashboard() {
     });
   };
 
-  const updateSingleStock = (type: string, key: 'stock' | 'target' | 'expiringSoon', val: number) => {
+  const updateSingleStock = (type: string, key: 'stock' | 'expiringSoon', val: number) => {
     setIsDirty(true);
     setStocks(prev => prev.map(s => {
       if (s.type === type) {
         const newStock = key === 'stock' ? Math.max(0, val) : s.stock;
-        const newTarget = key === 'target' ? Math.max(1, val) : s.target;
-        const newExpiringSoon = key === 'expiringSoon' ? Math.max(0, val) : s.expiringSoon;
-        
-        // Recalculate status
-        const pct = Math.round((newStock / newTarget) * 100);
-        const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
-
+        const status = newStock >= 25 ? 'available' : newStock >= 10 ? 'low' : 'critical';
         return {
           ...s,
           stock: newStock,
-          target: newTarget,
-          expiringSoon: newExpiringSoon,
-          status: newStatus,
+          expiringSoon: key === 'expiringSoon' ? Math.max(0, val) : s.expiringSoon,
+          status: status as any,
           lastUpdated: 'Baru saja'
         };
       }
@@ -646,7 +642,7 @@ export default function HospitalDashboard() {
       ) : (
         <div className="space-y-4">
           {orders.map(order => {
-            const u = urgencyConfig[order.urgency as OrderUrgency] || { label: order.urgency, bg: '#F4F4F8', text: '#9B9BB5', dot: '#9B9BB5' };
+            const u = urgencyConfig[order.urgency as Urgency] || { label: order.urgency, bg: '#F4F4F8', text: '#9B9BB5', dot: '#9B9BB5' };
             const s = orderStatusConfig[order.status as OrderStatus] || orderStatusConfig['menunggu'] || { label: order.status, bg: '#F4F4F8', text: '#9B9BB5', icon: Clock };
             const StatusIcon = s.icon;
             const isActive = order.status === 'dikirim' || order.status === 'diproses' || order.status === 'tiba';
@@ -749,8 +745,7 @@ export default function HospitalDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {stocks.map(blood => {
-          const pct = Math.round((blood.stock / Math.max(1, blood.target)) * 100);
-          const status = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
+          const status = blood.stock >= 25 ? 'good' : blood.stock >= 10 ? 'low' : 'critical';
           const statusColors = {
             good: { bg: '#EAFAF1', text: '#1E8449', bar: '#27AE60', label: 'Cukup' },
             low: { bg: '#FEF9E7', text: '#E67E22', bar: '#E67E22', label: 'Rendah' },
@@ -770,7 +765,7 @@ export default function HospitalDashboard() {
                   </div>
                   <div>
                     <p className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Golongan {blood.type}</p>
-                    <p className="text-xs text-[#9B9BB5]">{blood.stock} / {blood.target} kantong</p>
+                    <p className="text-xs text-[#9B9BB5]">{blood.stock} kantong</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
@@ -784,15 +779,10 @@ export default function HospitalDashboard() {
                 </div>
               </div>
 
-              {/* Progress bar reflects changes instantly */}
-              <div className="h-2 bg-[#F4F4F8] rounded-full overflow-hidden mt-3 mb-2">
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, background: sc.bar }} />
-              </div>
-              <div className="flex items-center justify-between text-xs mt-1 mb-3">
+              <div className="flex items-center justify-between text-xs mt-3 mb-3">
                 <span className="text-[#9B9BB5] flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" /> Terakhir: {blood.lastUpdated || 'Tidak ada data'}
                 </span>
-                <span className="text-[#9B9BB5] font-semibold">{pct}% dari target</span>
               </div>
 
               {/* Expired warning / Expiring soon warning */}
