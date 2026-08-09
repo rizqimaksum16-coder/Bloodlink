@@ -233,7 +233,7 @@ export default function PMIDashboard() {
   });
 
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [printBagInfo, setPrintBagInfo] = useState<{bagCode: string, bloodType: string, expDate: string, sourceName?: string} | null>(null);
+  const [printBagInfo, setPrintBagInfo] = useState<{bagCodes: string[], bloodType: string, expDate: string, sourceName?: string} | null>(null);
 
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -694,10 +694,10 @@ export default function PMIDashboard() {
       return;
     }
     const latestBatch = bloodStock.batches[0];
-    const bagCodeToPrint = (latestBatch.codes && latestBatch.codes.length > 0) ? latestBatch.codes[0] : latestBatch.id;
+    const bagCodesToPrint = (latestBatch.codes && latestBatch.codes.length > 0) ? latestBatch.codes : [latestBatch.id];
     
     setPrintBagInfo({
-      bagCode: bagCodeToPrint,
+      bagCodes: bagCodesToPrint,
       bloodType: bloodType,
       expDate: latestBatch.expDate,
       sourceName: latestBatch.sourceName
@@ -1150,7 +1150,7 @@ export default function PMIDashboard() {
                         onClick={() => handleFastPrint(blood.type)}
                         className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                       >
-                        <Printer className="w-4 h-4" /> Cetak
+                        <Printer className="w-4 h-4" /> Cetak Terakhir
                       </button>
                     </div>
 
@@ -1208,7 +1208,7 @@ export default function PMIDashboard() {
                                           <button 
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setPrintBagInfo({ bagCode: b.codes && b.codes.length > 0 ? b.codes[0] : b.id, bloodType: blood.type, expDate: b.expDate, sourceName: b.sourceName });
+                                              setPrintBagInfo({ bagCodes: b.codes && b.codes.length > 0 ? b.codes : [b.id], bloodType: blood.type, expDate: b.expDate, sourceName: b.sourceName });
                                               setShowPrintModal(true);
                                             }}
                                             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -1466,6 +1466,7 @@ export default function PMIDashboard() {
                         <th className="py-2 text-center">Jumlah</th>
                         <th className="py-2 text-left">Keterangan</th>
                         <th className="py-2 text-left">Dicatat Oleh</th>
+                        <th className="py-2 text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1490,6 +1491,23 @@ export default function PMIDashboard() {
                               )}
                             </td>
                           <td className="py-2.5 text-[#4A4A6A]">{entry.actor_name}</td>
+                          <td className="py-2.5 text-center">
+                            {entry.direction === 'in' && entry.bag_codes && (
+                              <button 
+                                onClick={() => {
+                                  let codes = [];
+                                  try { codes = typeof entry.bag_codes === 'string' ? JSON.parse(entry.bag_codes) : entry.bag_codes; } catch(e) {}
+                                  if (!Array.isArray(codes)) codes = [entry.bag_codes];
+                                  setPrintBagInfo({ bagCodes: codes, bloodType: entry.blood_type, expDate: entry.exp_date || '-', sourceName: entry.source_name || entry.source_type });
+                                  setShowPrintModal(true);
+                                }}
+                                className="text-blue-500 hover:text-blue-700 p-1.5 bg-blue-50 hover:bg-blue-100 rounded transition-colors inline-block"
+                                title="Cetak Label Barcode"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1906,13 +1924,17 @@ export default function PMIDashboard() {
               <h3 className="font-bold text-gray-800 flex items-center gap-2"><Printer className="w-5 h-5 text-gray-500"/> Cetak Label Stiker</h3>
               <button onClick={() => setShowPrintModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 bg-gray-50 flex-1 flex flex-col items-center justify-center">
-              <BarcodeLabel 
-                bagCode={printBagInfo.bagCode} 
-                bloodType={printBagInfo.bloodType} 
-                expDate={printBagInfo.expDate} 
-                sourceName={printBagInfo.sourceName} 
-              />
+            <div className="p-6 bg-gray-50 flex-1 flex flex-col gap-6 items-center overflow-y-auto max-h-[60vh]">
+              {printBagInfo.bagCodes.map((code, idx) => (
+                <div key={idx} className="print:break-after-page">
+                  <BarcodeLabel 
+                    bagCode={code} 
+                    bloodType={printBagInfo.bloodType} 
+                    expDate={printBagInfo.expDate} 
+                    sourceName={printBagInfo.sourceName} 
+                  />
+                </div>
+              ))}
             </div>
             <div className="p-4 border-t border-gray-100 flex gap-3">
               <button onClick={() => setShowPrintModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Tutup</button>
