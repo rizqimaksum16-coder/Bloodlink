@@ -227,6 +227,7 @@ export default function PMIDashboard() {
   const [activeTab, setActiveTab] = useState<'overview'|'requests'|'stock'|'drivers'|'ledger'>('overview');
   const [ledger, setLedger] = useState<any[]>([]);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+  const [ledgerFilter, setLedgerFilter] = useState<'all' | 'in' | 'out'>('all');
 
   // State untuk modal stok
   const [stockModalConfig, setStockModalConfig] = useState<{isOpen: boolean; actionType: StockActionType; bloodType: string; currentStock: number}>({
@@ -1452,18 +1453,25 @@ export default function PMIDashboard() {
           {/* ── Tab: Riwayat Stok (Audit Trail) ─────────────── */}
           <TabsContent value="ledger" className="space-y-4">
             <div className="bg-white rounded-2xl border border-border p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
                 <div>
                   <h3 className="font-bold text-[#1A1A2E] text-sm">Riwayat Masuk & Keluar Stok Darah</h3>
                   <p className="text-xs text-[#9B9BB5] mt-0.5">Setiap perubahan stok tercatat lengkap dengan pelaku dan waktu</p>
                 </div>
-                <button onClick={async () => {
-                  setIsLoadingLedger(true);
-                  try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
-                  finally { setIsLoadingLedger(false); }
-                }} className="flex items-center gap-1.5 text-xs text-[#C0392B] font-semibold hover:underline">
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
-                </button>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-[#F4F4F8] rounded-xl p-1">
+                    <button onClick={() => setLedgerFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${ledgerFilter === 'all' ? 'bg-white shadow-sm text-[#1A1A2E]' : 'text-[#9B9BB5] hover:text-[#4A4A6A]'}`}>Semua</button>
+                    <button onClick={() => setLedgerFilter('in')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${ledgerFilter === 'in' ? 'bg-white shadow-sm text-green-600' : 'text-[#9B9BB5] hover:text-[#4A4A6A]'}`}>▲ Masuk</button>
+                    <button onClick={() => setLedgerFilter('out')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${ledgerFilter === 'out' ? 'bg-white shadow-sm text-red-600' : 'text-[#9B9BB5] hover:text-[#4A4A6A]'}`}>▼ Keluar</button>
+                  </div>
+                  <button onClick={async () => {
+                    setIsLoadingLedger(true);
+                    try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
+                    finally { setIsLoadingLedger(false); }
+                  }} className="flex items-center gap-1.5 text-xs text-[#C0392B] font-semibold hover:underline">
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
+                  </button>
+                </div>
               </div>
               {isLoadingLedger ? (
                 <div className="py-10 text-center"><RefreshCw className="w-6 h-6 text-[#C0392B] animate-spin mx-auto" /></div>
@@ -1484,7 +1492,7 @@ export default function PMIDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {ledger.map((entry: any) => (
+                      {ledger.filter(entry => ledgerFilter === 'all' ? true : entry.direction === ledgerFilter).map((entry: any) => (
                         <tr key={entry.id} className="border-b border-border/50 hover:bg-[#FDF0EE] transition-colors">
                           <td className="py-2.5 text-[#4A4A6A]">{new Date(entry.recorded_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td className="py-2.5">
