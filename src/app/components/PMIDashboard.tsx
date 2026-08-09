@@ -34,10 +34,14 @@ interface BloodRequest {
 }
 
 interface StockBatch {
-  id: string;
+  id: string;           // bag_code
   qty: number;
   entryDate: string;
   expDate: string;
+  sourceName?: string;  // dari mana darah berasal
+  addedByName?: string; // siapa yang menginput
+  direction?: 'in' | 'out';
+  reason?: string;
 }
 
 interface BloodStock {
@@ -215,7 +219,9 @@ export default function PMIDashboard() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<'overview'|'requests'|'stock'|'drivers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview'|'requests'|'stock'|'drivers'|'ledger'>('overview');
+  const [ledger, setLedger] = useState<any[]>([]);
+  const [isLoadingLedger, setIsLoadingLedger] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -711,6 +717,7 @@ export default function PMIDashboard() {
               { value: 'donors', label: 'Database Donor', icon: Users },
               { value: 'drivers', label: 'Kelola Driver', icon: Truck },
               { value: 'events', label: 'Event Donor', icon: Calendar },
+              { value: 'ledger', label: 'Riwayat Stok', icon: RefreshCw },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-sm data-[state=active]:bg-[#C0392B] data-[state=active]:text-white flex items-center gap-1.5">
                 <Icon className="w-3.5 h-3.5" />
@@ -1218,6 +1225,62 @@ export default function PMIDashboard() {
                 ))}
               </div>
             )}
+          </TabsContent>
+          {/* ── Tab: Riwayat Stok (Audit Trail) ─────────────── */}
+          <TabsContent value="ledger" className="space-y-4">
+            <div className="bg-white rounded-2xl border border-border p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-[#1A1A2E] text-sm">Riwayat Masuk & Keluar Stok Darah</h3>
+                  <p className="text-xs text-[#9B9BB5] mt-0.5">Setiap perubahan stok tercatat lengkap dengan pelaku dan waktu</p>
+                </div>
+                <button onClick={async () => {
+                  setIsLoadingLedger(true);
+                  try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
+                  finally { setIsLoadingLedger(false); }
+                }} className="flex items-center gap-1.5 text-xs text-[#C0392B] font-semibold hover:underline">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
+                </button>
+              </div>
+              {isLoadingLedger ? (
+                <div className="py-10 text-center"><RefreshCw className="w-6 h-6 text-[#C0392B] animate-spin mx-auto" /></div>
+              ) : ledger.length === 0 ? (
+                <div className="py-10 text-center text-sm text-[#9B9BB5]">Belum ada riwayat stok tercatat.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-[#4A4A6A] font-bold">
+                        <th className="py-2 text-left">Tanggal</th>
+                        <th className="py-2 text-left">Jenis</th>
+                        <th className="py-2 text-left">Gol. Darah</th>
+                        <th className="py-2 text-center">Jumlah</th>
+                        <th className="py-2 text-left">Keterangan</th>
+                        <th className="py-2 text-left">Dicatat Oleh</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledger.map((entry: any) => (
+                        <tr key={entry.id} className="border-b border-border/50 hover:bg-[#FDF0EE] transition-colors">
+                          <td className="py-2.5 text-[#4A4A6A]">{new Date(entry.recorded_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="py-2.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              entry.direction === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                            }`}>
+                              {entry.direction === 'in' ? '▲ Masuk' : '▼ Keluar'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 font-bold text-[#1A1A2E]">{entry.blood_type}</td>
+                          <td className="py-2.5 text-center font-bold">{entry.quantity} ktg</td>
+                          <td className="py-2.5 text-[#4A4A6A] max-w-[180px] truncate">{entry.reason_detail || entry.reason}</td>
+                          <td className="py-2.5 text-[#4A4A6A]">{entry.actor_name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

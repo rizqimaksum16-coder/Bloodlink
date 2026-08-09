@@ -178,7 +178,27 @@ export const api = {
         body: JSON.stringify({ blood_type, stock })
       }),
 
-    getActivityLogs: (fallback?: any[]) => apiFetch('/stock/activity-logs', {}, fallback)
+    getActivityLogs: (fallback?: any[]) => apiFetch('/stock/activity-logs', {}, fallback),
+
+    getLedger: (params?: { blood_type?: string; direction?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.blood_type) qs.set('blood_type', params.blood_type);
+      if (params?.direction) qs.set('direction', params.direction);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return apiFetch(`/stock/ledger${qs.toString() ? '?' + qs.toString() : ''}`, {}, []);
+    },
+
+    addLedger: (data: {
+      blood_type: string; quantity: number; source_type?: string; source_name: string;
+      collected_at: string; exp_date: string; reason?: string; reason_detail?: string;
+    }) => apiFetch('/stock/ledger', { method: 'POST', body: JSON.stringify(data) }),
+
+    getBags: (params?: { blood_type?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.blood_type) qs.set('blood_type', params.blood_type);
+      if (params?.status) qs.set('status', params.status);
+      return apiFetch(`/stock/bags${qs.toString() ? '?' + qs.toString() : ''}`, {}, []);
+    },
   },
 
   // Orders & Deliveries API
