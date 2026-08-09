@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle
+  RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { api } from '../utils/api';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 import StockActionModal, { StockActionType } from './StockActionModal';
+import { BarcodeLabel } from './BarcodeLabel';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,15 @@ export default function HospitalDashboard() {
     isOpen: false, actionType: 'in', bloodType: 'A+', currentStock: 0
   });
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Scan & Print Label Modal States
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanBagCode, setScanBagCode] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printBagInfo, setPrintBagInfo] = useState<{bagCode: string, bloodType: string, expDate: string, sourceName?: string} | null>(null);
+
   // Riwayat pemakaian darah bulanan — diisi dari Supabase atau fallback statis
   const staticBloodHistory = [
     { month: 'Jan', used: 120 }, { month: 'Feb', used: 145 }, { month: 'Mar', used: 138 },
@@ -219,7 +229,7 @@ export default function HospitalDashboard() {
         const bagsByType: Record<string, StockBatch[]> = {};
         if (Array.isArray(bagsData)) {
           bagsData
-            .filter((b: any) => b.owner_id === user.id)
+            .filter((b: any) => b.owner_id === user?.id)
             .forEach((b: any) => {
               if (!bagsByType[b.blood_type]) bagsByType[b.blood_type] = [];
               // Cari batch dengan exp_date + source_name yang sama
@@ -248,7 +258,7 @@ export default function HospitalDashboard() {
         }
 
         const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-        const myStocks = stockData?.filter((s: any) => s.hospital_id === user.id) || [];
+        const myStocks = stockData?.filter((s: any) => s.hospital_id === user?.id) || [];
         const mergedStocks = baseTypes.map(type => {
           const found = myStocks.find((s: any) => s.blood_type === type);
           const batches = bagsByType[type] || [];
@@ -263,7 +273,7 @@ export default function HospitalDashboard() {
         setStocks(mergedStocks);
 
         if (orderData?.length) {
-          const myOrders = orderData.filter((r: any) => r.hospital_id === user.id);
+          const myOrders = orderData.filter((r: any) => r.hospital_id === user?.id);
           setOrders(myOrders.map((o: any) => {
             const delivery = deliveryData?.find((d: any) => d.order_id === o.id);
             return {
@@ -301,12 +311,31 @@ export default function HospitalDashboard() {
             setBloodHistory(computedHistory);
           }
         }
-      } catch (err) {
-        console.warn('Gagal memuat data RS dari API, menggunakan data lokal.');
+      } catch (err: any) {
+        console.error('Error fetching hospital data:', err);
+        toast.error('Gagal memuat data dashboard: ' + err.message);
       }
     }
     fetchHospitalData();
-  }, [user]);
+  }, [user, refreshKey]);
+
+  const handleScanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scanBagCode.trim()) return;
+    setIsScanning(true);
+    try {
+      const res: any = await api.stock.scanReceive(scanBagCode.trim());
+      toast.success(res?.message || 'Kantong berhasil diterima');
+      setScanBagCode('');
+      setShowScanModal(false);
+      setRefreshKey(prev => prev + 1);
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menerima kantong darah');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   // Realtime dihapus
   useEffect(() => {
     return;
@@ -554,6 +583,7 @@ export default function HospitalDashboard() {
     } finally {
       setIsSaving(false);
     }
+    setRefreshKey(prev => prev + 1);
   };
 
   const openStockModal = (bloodType: string, actionType: StockActionType) => {
@@ -734,6 +764,12 @@ export default function HospitalDashboard() {
             <p className="text-xs text-[#2E7D32] mt-0.5">Ada data stok darah yang Anda ubah namun belum disinkronkan ke database.</p>
           </div>
           <button
+            onClick={() => setShowScanModal(true)}
+            className="bg-[#2980B9] hover:bg-[#2471A3] text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow transition-all transform active:scale-95 text-xs uppercase tracking-wider"
+          >
+            <Scan className="w-4 h-4" /> Scan Penerimaan
+          </button>
+          <button
             onClick={saveStocksToDatabase}
             disabled={isSaving}
             className="bg-[#27AE60] hover:bg-[#219653] disabled:opacity-50 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow transition-all transform active:scale-95 text-xs uppercase tracking-wider"
@@ -868,7 +904,23 @@ export default function HospitalDashboard() {
                                   <span className="font-semibold text-[#1A1A2E]">
                                     {b.sourceName || 'Donor'}
                                   </span>
-                                  <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} kantong</span>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} ktg</span>
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPrintBagInfo({ bagCode: b.codes && b.codes.length > 0 ? b.codes[0] : b.id, bloodType: blood.type, expDate: b.expDate, sourceName: b.sourceName });
+                                          setShowPrintModal(true);
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                                        title="Cetak Label Barcode"
+                                      >
+                                        <Printer className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    <span className={`text-[9px] font-medium ${expired ? 'text-[#C0392B]/85' : 'text-[#4A4A6A]'}`}>Exp: {b.expDate}</span>
+                                  </div>
                                 </div>
                                 <div className={`font-mono text-[9px] max-w-[130px] flex flex-wrap gap-1 mt-0.5 ${expired ? 'line-through text-[#C0392B]/70' : 'text-[#9B9BB5]'}`}>
                                   {b.codes && b.codes.length > 0 ? b.codes.map(c => <span key={c}>{c}</span>) : b.id}
@@ -1359,6 +1411,71 @@ export default function HospitalDashboard() {
         bloodType={stockModalConfig.bloodType}
         currentStock={stockModalConfig.currentStock}
       />
+
+      {/* Modal Cetak Label */}
+      {showPrintModal && printBagInfo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#F8F9FA]">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2"><Printer className="w-5 h-5 text-gray-500"/> Cetak Label Stiker</h3>
+              <button onClick={() => setShowPrintModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 bg-gray-50 flex-1 flex flex-col items-center justify-center">
+              <BarcodeLabel 
+                bagCode={printBagInfo.bagCode} 
+                bloodType={printBagInfo.bloodType} 
+                expDate={printBagInfo.expDate} 
+                sourceName={printBagInfo.sourceName} 
+              />
+            </div>
+            <div className="p-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowPrintModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Tutup</button>
+              <button onClick={() => window.print()} className="flex-1 py-2.5 rounded-xl bg-[#2980B9] text-white font-bold text-sm hover:bg-[#2471A3] transition-colors flex items-center justify-center gap-2">
+                <Printer className="w-4 h-4" /> Print
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Scan Penerimaan */}
+      {showScanModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#F8F9FA]">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2"><Scan className="w-5 h-5 text-[#2980B9]"/> Scan Penerimaan Kantong</h3>
+              <button onClick={() => setShowScanModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleScanSubmit} className="p-6">
+              <p className="text-sm text-gray-500 mb-4">Gunakan alat pemindai barcode atau ketik kode kantong secara manual untuk menerima stok darah dari PMI.</p>
+              
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">Kode Kantong (Bag Code)</label>
+                <div className="relative">
+                  <Scan className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="Contoh: BB-PMI-2026..."
+                    value={scanBagCode}
+                    onChange={(e) => setScanBagCode(e.target.value)}
+                    className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2980B9]/20 focus:border-[#2980B9] transition-all text-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={() => setShowScanModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Batal</button>
+                <button type="submit" disabled={isScanning || !scanBagCode.trim()} className="flex-1 py-2.5 rounded-xl bg-[#2980B9] text-white font-bold text-sm hover:bg-[#2471A3] transition-colors disabled:opacity-50">
+                  {isScanning ? 'Memproses...' : 'Terima Darah'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

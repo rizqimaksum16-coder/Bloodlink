@@ -39,6 +39,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}, f
 
 // API Services
 export const api = {
+  baseUrl: API_BASE_URL,
   // Auth API
   auth: {
     login: (email: string, password: string) =>
@@ -192,6 +193,9 @@ export const api = {
       blood_type: string; quantity: number; source_type?: string; source_name: string;
       collected_at: string; exp_date: string; reason?: string; reason_detail?: string;
     }) => apiFetch('/stock/ledger', { method: 'POST', body: JSON.stringify(data) }),
+
+    scanReceive: (bagCode: string) =>
+      apiFetch('/stock/scan-receive', { method: 'POST', body: JSON.stringify({ bag_code: bagCode }) }),
 
     getBags: (params?: { blood_type?: string; status?: string }) => {
       const qs = new URLSearchParams();

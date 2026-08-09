@@ -363,7 +363,7 @@ export default function RewardPage() {
                 </div>
 
                 {myClaims.map(r => {
-                  const code = makeVoucherCode(user?.id || user?.email || '', r.id, r.claimed_at || '');
+                  const code = makeVoucherCode(String(user?.id || user?.email || ''), String(r.id), r.claimed_at || '');
                   const isCopied = copyAnim === r.id;
                   return (
                     <div key={r.id} className="bg-white rounded-2xl border border-[#27AE60]/30 overflow-hidden">

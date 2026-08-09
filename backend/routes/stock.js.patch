@@ -1,0 +1,116 @@
+--- backend/routes/stock.js
++++ backend/routes/stock.js
+@@ -361,6 +361,114 @@
+   }
+ });
+ 
++// POST /api/stock/scan-receive — Scan barcode untuk memindahkan kepemilikan kantong darah
++router.post('/scan-receive', authMiddleware, requireRole('rs', 'pmi', 'superadmin'), async (req, res) => {
++  const { bag_code } = req.body;
++  if (!bag_code) return res.status(400).json({ error: 'Kode kantong (bag_code) wajib diisi' });
++
++  const newOwnerId = req.user.id;
++  const newOwnerType = req.user.role === 'rs' ? 'rs' : 'pmi';
++
++  const connection = await pool.getConnection();
++  try {
++    await connection.beginTransaction();
++
++    // 1. Cari kantong
++    const [bags] = await connection.query('SELECT * FROM blood_bags WHERE bag_code = ?', [bag_code]);
++    if (bags.length === 0) {
++      await connection.rollback();
++      return res.status(404).json({ error: 'Kantong darah tidak ditemukan dalam sistem' });
++    }
++    const bag = bags[0];
++
++    if (bag.owner_id === newOwnerId) {
++      await connection.rollback();
++      return res.status(400).json({ error: 'Kantong darah ini sudah ada di inventaris Anda' });
++    }
++
++    const oldOwnerId = bag.owner_id;
++    const oldOwnerType = bag.owner_type;
++    const bloodType = bag.blood_type;
++
++    // 2. Ubah kepemilikan kantong
++    await connection.query(
++      'UPDATE blood_bags SET owner_id = ?, owner_type = ? WHERE bag_code = ?',
++      [newOwnerId, newOwnerType, bag_code]
++    );
++
++    // 3. Update stok lama (Kurangi 1)
++    const [oldStockRows] = await connection.query(
++      `SELECT stock_qty FROM blood_stock 
++       WHERE (owner_pmi_id = ? OR owner_hospital_id = ?) AND blood_type = ?`,
++      [oldOwnerId, oldOwnerId, bloodType]
++    );
++    
++    if (oldStockRows.length > 0) {
++      const newOldQty = Math.max(0, oldStockRows[0].stock_qty - 1);
++      let oldStatus = 'available';
++      if (newOldQty < 10) oldStatus = 'critical';
++      else if (newOldQty < 25) oldStatus = 'low';
++
++      await connection.query(
++        `UPDATE blood_stock SET stock_qty = ?, status = ? 
++         WHERE (owner_pmi_id = ? OR owner_hospital_id = ?) AND blood_type = ?`,
++        [newOldQty, oldStatus, oldOwnerId, oldOwnerId, bloodType]
++      );
++    }
++
++    // 4. Update stok baru (Tambah 1)
++    const [newStockRows] = await connection.query(
++      `SELECT stock_qty FROM blood_stock 
++       WHERE (owner_pmi_id = ? OR owner_hospital_id = ?) AND blood_type = ?`,
++      [newOwnerId, newOwnerId, bloodType]
++    );
++
++    let newQty = 1;
++    if (newStockRows.length > 0) {
++      newQty = newStockRows[0].stock_qty + 1;
++      let newStatus = 'available';
++      if (newQty < 10) newStatus = 'critical';
++      else if (newQty < 25) newStatus = 'low';
++
++      await connection.query(
++        `UPDATE blood_stock SET stock_qty = ?, status = ? 
++         WHERE (owner_pmi_id = ? OR owner_hospital_id = ?) AND blood_type = ?`,
++        [newQty, newStatus, newOwnerId, newOwnerId, bloodType]
++      );
++    } else {
++      const ownerCol = newOwnerType === 'rs' ? 'owner_hospital_id' : 'owner_pmi_id';
++      await connection.query(
++        `INSERT INTO blood_stock (id, ${ownerCol}, blood_type, stock_qty, status) VALUES (UUID(), ?, ?, 1, 'critical')`,
++        [newOwnerId, bloodType]
++      );
++    }
++
++    // 5. Catat Ledger (Keluarnya barang dari pemilik lama)
++    await writeLedger({
++      ownerType: oldOwnerType, ownerId: oldOwnerId, bloodType, direction: 'out', quantity: 1, bagCodes: [bag_code],
++      reason: 'transfer_out', reasonDetail: `Kantong ${bag_code} di-scan dan diterima oleh ${req.user.name || newOwnerId}`,
++      actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role
++    });
++
++    // 6. Catat Ledger (Masuknya barang ke pemilik baru)
++    await writeLedger({
++      ownerType: newOwnerType, ownerId: newOwnerId, bloodType, direction: 'in', quantity: 1, bagCodes: [bag_code],
++      reason: 'scan_receive', reasonDetail: `Penerimaan kantong ${bag_code} via Scan Barcode`,
++      actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role
++    });
++
++    await connection.commit();
++    res.json({ message: `Berhasil menerima kantong darah ${bag_code}`, bag_code, blood_type: bloodType });
++  } catch (err) {
++    await connection.rollback();
++    console.error('Error in scan-receive:', err);
++    res.status(500).json({ error: 'Gagal memproses scan barcode: ' + err.message });
++  } finally {
++    connection.release();
++  }
++});
++
+ // GET /api/stock/bags — Get list of bags owned by user
+ router.get('/bags', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
+   const { blood_type } = req.query;

@@ -11,9 +11,11 @@ import { Badge } from './ui/badge';
 import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
 import { api } from '../utils/api';
+import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 import StockActionModal, { StockActionType } from './StockActionModal';
-import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { BarcodeLabel } from './BarcodeLabel';
+import { ArrowDownCircle, ArrowUpCircle, Printer } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -230,6 +232,9 @@ export default function PMIDashboard() {
     isOpen: false, actionType: 'in', bloodType: 'A+', currentStock: 0
   });
 
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printBagInfo, setPrintBagInfo] = useState<{bagCode: string, bloodType: string, expDate: string, sourceName?: string} | null>(null);
+
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -293,7 +298,7 @@ export default function PMIDashboard() {
         const bagsByType: Record<string, StockBatch[]> = {};
         if (Array.isArray(bagsData)) {
           bagsData
-            .filter((b: any) => b.owner_id === user.id)
+            .filter((b: any) => b.owner_id === user?.id)
             .forEach((b: any) => {
               if (!bagsByType[b.blood_type]) bagsByType[b.blood_type] = [];
               const batchKey = `${b.exp_date}||${b.source_name || ''}`;
@@ -319,20 +324,20 @@ export default function PMIDashboard() {
         }
 
         const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-        const myStocks = stockData?.filter((s: any) => s.pmi_id === user.id) || [];
+        const myStocks = stockData?.filter((s: any) => s.pmi_id === user?.id) || [];
         const mergedStocks = baseTypes.map(type => {
           const found = myStocks.find((s: any) => s.blood_type === type);
           const batches = bagsByType[type] || [];
           if (found) {
             return {
               type: found.blood_type, stock: found.stock, target: found.target || 50,
-              status: found.status, expiringSoon: found.expiring_soon || 0,
+              status: (found.status as StockStatus) || 'critical', expiringSoon: found.expiring_soon || 0,
               predictedShortfall: found.stock < (found.target || 50) * 0.3,
               lastUpdated: found.updated_at ? new Date(found.updated_at).toLocaleString('id-ID') : undefined,
               batches
             };
           }
-          return { type, stock: 0, target: 50, status: 'critical', expiringSoon: 0, predictedShortfall: true, batches };
+          return { type, stock: 0, target: 50, status: 'critical' as StockStatus, expiringSoon: 0, predictedShortfall: true, batches };
         });
         setStocks(mergedStocks);
         if (driverData?.length) {
@@ -535,6 +540,48 @@ export default function PMIDashboard() {
     toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
     setApprovingRequestId(null);
   };
+
+  const handleApprovePublic = (id: string) => {
+    const req = publicRequests.find(r => r.id === id);
+    if (req) {
+      setApprovingRequestId(id);
+      if (drivers.length > 0) {
+        setChosenDriverId(drivers[0].id);
+      } else {
+        setChosenDriverId('');
+      }
+    }
+  };
+
+  const confirmPublicApprovalWithDriver = async () => {
+    if (!approvingRequestId) return;
+    const req = publicRequests.find(r => r.id === approvingRequestId);
+    if (!req) return;
+
+    if (!chosenDriverId) {
+      toast.error('Silakan daftarkan atau pilih driver terlebih dahulu!');
+      return;
+    }
+
+    const selectedDriver = drivers.find(d => d.id === chosenDriverId);
+    if (!selectedDriver) {
+      toast.error('Driver terpilih tidak valid.');
+      return;
+    }
+
+    try {
+      await fetch(`${api.baseUrl}/orders/public-requests/${req.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('bloodlink_token')}` },
+        body: JSON.stringify({ status: 'accepted', driver_id: chosenDriverId })
+      });
+      setPublicRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted' } : r));
+      toast.success(`Request diproses! Driver ${selectedDriver.name} ditugaskan.`);
+      setApprovingRequestId(null);
+    } catch (e) {
+      toast.error('Gagal menyetujui request');
+    }
+  };
   const handleReject = (id: string) => {
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'ditolak' as const } : r));
   };
@@ -627,7 +674,7 @@ export default function PMIDashboard() {
             ...s,
             stock: newStock,
             expiringSoon: newExpiringSoon,
-            status: newStatus,
+            status: newStatus as StockStatus,
             batches: newBatches,
             lastUpdated: 'Baru saja'
           };
@@ -1132,7 +1179,20 @@ export default function PMIDashboard() {
                                         </div>
                                       </div>
                                       <div className="flex flex-col items-end gap-1">
-                                        <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} ktg</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} ktg</span>
+                                          <button 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPrintBagInfo({ bagCode: b.codes && b.codes.length > 0 ? b.codes[0] : b.id, bloodType: blood.type, expDate: b.expDate, sourceName: b.sourceName });
+                                              setShowPrintModal(true);
+                                            }}
+                                            className="text-gray-400 hover:text-gray-600 transition-colors"
+                                            title="Cetak Label Barcode"
+                                          >
+                                            <Printer className="w-4 h-4" />
+                                          </button>
+                                        </div>
                                         <span className={`text-[9px] font-medium ${expired ? 'text-[#C0392B]/85' : 'text-[#4A4A6A]'}`}>Exp: {b.expDate}</span>
                                       </div>
                                     </div>
@@ -1813,6 +1873,33 @@ export default function PMIDashboard() {
         bloodType={stockModalConfig.bloodType}
         currentStock={stockModalConfig.currentStock}
       />
+
+      {/* Modal Cetak Label */}
+      {showPrintModal && printBagInfo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#F8F9FA]">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2"><Printer className="w-5 h-5 text-gray-500"/> Cetak Label Stiker</h3>
+              <button onClick={() => setShowPrintModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 bg-gray-50 flex-1 flex flex-col items-center justify-center">
+              <BarcodeLabel 
+                bagCode={printBagInfo.bagCode} 
+                bloodType={printBagInfo.bloodType} 
+                expDate={printBagInfo.expDate} 
+                sourceName={printBagInfo.sourceName} 
+              />
+            </div>
+            <div className="p-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowPrintModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Tutup</button>
+              <button onClick={() => window.print()} className="flex-1 py-2.5 rounded-xl bg-[#2980B9] text-white font-bold text-sm hover:bg-[#2471A3] transition-colors flex items-center justify-center gap-2">
+                <Printer className="w-4 h-4" /> Print
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

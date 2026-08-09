@@ -12,7 +12,6 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import { OrgAccount, ActiveTab, OrgType } from '@/types/bloodlink';
 import { api, apiFetch } from '../utils/api';
 import { hashPassword } from '../context/AuthContext';
 

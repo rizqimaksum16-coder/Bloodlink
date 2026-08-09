@@ -46,9 +46,9 @@ export default function ChatBot() {
 
       const response = await api.ai.chat(messagesToSend);
       
-      setMessages(prev => [...prev, { role: 'assistant', content: response.reply }]);
-      if (response.usage && response.provider) {
-        setTokenInfo({ total: response.usage.total_tokens || response.usage.totalTokenCount || 0, provider: response.provider });
+      setMessages(prev => [...prev, { role: 'assistant', content: (response as any).reply }]);
+      if (response && (response as any).usage) {
+        setTokenInfo({ total: (response as any).usage.total_tokens || (response as any).usage.totalTokenCount || 0, provider: (response as any).provider });
       }
     } catch (error) {
       console.error('Chat error:', error);
