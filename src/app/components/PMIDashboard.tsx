@@ -887,10 +887,9 @@ export default function PMIDashboard() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {[
             { label: 'Request Pending', value: String(pendingCount), sub: 'Butuh persetujuan', icon: Bell, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]', pulse: pendingCount > 0 },
-            { label: 'Stok Kritis', value: String(criticalStocks), sub: 'Golongan darah', icon: AlertTriangle, iconBg: 'bg-[#FDEDEC]', iconColor: 'text-[#C0392B]', subColor: 'text-[#C0392B]', pulse: false },
             { label: 'Hampir Kadaluarsa', value: `${expiringSoon} ktg`, sub: 'Dalam 7 hari', icon: Clock, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]', pulse: false },
             { label: 'Donor Aktif', value: `${eligibleDonors}/${totalDonors}`, sub: 'Siap donor', icon: Users, iconBg: 'bg-[#EAF7FB]', iconColor: 'text-[#2980B9]', subColor: 'text-[#2980B9]', pulse: false },
           ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, subColor, pulse }) => (

@@ -1069,10 +1069,9 @@ export default function HospitalDashboard() {
         </div>
 
         {/* Interactive Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {[
             { label: 'Total Stok RS', value: `${totalStock} ktg`, sub: 'Semua golongan', icon: Package, iconBg: 'bg-[#EAF7FB]', iconColor: 'text-[#2980B9]', subColor: 'text-[#2980B9]' },
-            { label: 'Stok Kritis', value: `${criticalStock} tipe`, sub: 'Perlu dipesan', icon: AlertTriangle, iconBg: 'bg-[#FDEDEC]', iconColor: 'text-[#C0392B]', subColor: 'text-[#C0392B]' },
             { label: 'Order Aktif', value: String(activeOrders), sub: 'Sedang diproses', icon: Truck, iconBg: 'bg-[#E8DAEF]', iconColor: 'text-[#8E44AD]', subColor: 'text-[#8E44AD]' },
             { label: 'Hampir Kadaluarsa', value: `${expiringSoon} ktg`, sub: 'Dalam 7 hari', icon: Clock, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]' },
           ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, subColor }) => (
