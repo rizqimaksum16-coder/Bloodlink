@@ -160,7 +160,7 @@ router.put('/hospital', authMiddleware, requireRole('rs', 'superadmin'), async (
     res.json({ message: 'Stok RS berhasil diperbarui', stock, status });
   } catch (err) {
     console.error('Error update Hospital stock:', err);
-    res.status(500).json({ error: 'Gagal memperbarui stok darah Rumah Sakit' });
+    res.status(500).json({ error: 'Gagal memperbarui stok darah Rumah Sakit: ' + err.message });
   }
 });
 
@@ -239,7 +239,7 @@ router.put('/pmi', authMiddleware, requireRole('pmi', 'superadmin'), async (req,
     res.json({ message: 'Stok PMI berhasil diperbarui', quantity: qtyVal, status });
   } catch (err) {
     console.error('Error update PMI stock:', err);
-    res.status(500).json({ error: 'Gagal memperbarui stok darah PMI' });
+    res.status(500).json({ error: 'Gagal memperbarui stok darah PMI: ' + err.message });
   }
 });
 

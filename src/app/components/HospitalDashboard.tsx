@@ -527,8 +527,8 @@ export default function HospitalDashboard() {
         const d = await api.stock.getLedger();
         setLedger(Array.isArray(d) ? d : []);
       }
-    } catch (e) {
-      toast.error('Gagal memperbarui stok');
+    } catch (e: any) {
+      toast.error('Gagal: ' + (e.message || 'Gagal memperbarui stok'));
     } finally {
       setIsSaving(false);
     }
