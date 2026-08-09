@@ -563,7 +563,7 @@ export default function PMIDashboard() {
   const handleApprovePublic = (id: string) => {
     const req = publicRequests.find(r => r.id === id);
     if (req) {
-      setApprovingRequestId(id);
+      setApprovingPublicRequestId(id);
       if (drivers.length > 0) {
         setChosenDriverId(drivers[0].id);
       } else {
@@ -573,8 +573,8 @@ export default function PMIDashboard() {
   };
 
   const confirmPublicApprovalWithDriver = async () => {
-    if (!approvingRequestId) return;
-    const req = publicRequests.find(r => r.id === approvingRequestId);
+    if (!approvingPublicRequestId) return;
+    const req = publicRequests.find(r => r.id === approvingPublicRequestId);
     if (!req) return;
 
     if (!chosenDriverId) {
@@ -596,7 +596,7 @@ export default function PMIDashboard() {
       });
       setPublicRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted' } : r));
       toast.success(`Request diproses! Driver ${selectedDriver.name} ditugaskan.`);
-      setApprovingRequestId(null);
+      setApprovingPublicRequestId(null);
     } catch (e) {
       toast.error('Gagal menyetujui request');
     }
