@@ -276,14 +276,15 @@ export default function PMIDashboard() {
     if (!user) return;
     async function loadPMIData() {
       try {
-        const [reqData, stockData, driverData, eventsData, publicReqData, bagsData, donorData] = await Promise.all([
+        const [reqData, stockData, driverData, eventsData, publicReqData, bagsData, donorData, ledgerData] = await Promise.all([
           api.orders.getRequests([]),
           api.stock.getPMIStock([]),
           api.users.getAll('driver', []),
           api.events.getAll([]),
           api.orders.getPublicRequests([]),
           api.stock.getBags({ status: 'available' }).catch(() => []),
-          api.users.getAll('donor', []).catch(() => [])
+          api.users.getAll('donor', []).catch(() => []),
+          api.stock.getLedger().catch(() => [])
         ]);
         if (reqData?.length) {
           setRequests(reqData.map((r: any) => ({
@@ -367,6 +368,9 @@ export default function PMIDashboard() {
             eligible: d.last_donor_date ? (Date.now() - new Date(d.last_donor_date).getTime() > 60 * 24 * 60 * 60 * 1000) : true,
             totalDonations: d.total_donations || 0
           })));
+        }
+        if (ledgerData && Array.isArray(ledgerData)) {
+          setLedger(ledgerData);
         }
       } catch (err) {
         console.warn('Gagal memuat data PMI dari API, menggunakan data lokal.');
@@ -724,16 +728,23 @@ export default function PMIDashboard() {
     setIsSaving(true);
     try {
       if (stockModalConfig.actionType === 'in') {
-        await api.stock.addLedger({
+        const res: any = await api.stock.addLedger({
           blood_type: stockModalConfig.bloodType,
           ...data
         });
+        toast.success('Stok berhasil diperbarui');
+        setStockModalConfig(prev => ({...prev, isOpen: false}));
+        
+        if (res?.bagCodes && res.bagCodes.length > 0) {
+          setPrintBagInfo({ bagCodes: res.bagCodes, bloodType: stockModalConfig.bloodType, expDate: data.exp_date, sourceName: data.source_name || data.source_type });
+          setShowPrintModal(true);
+        }
       } else {
         const newStock = stockModalConfig.currentStock - data.quantity;
         await api.stock.updatePMIStock(user?.org || user?.name || 'PMI', stockModalConfig.bloodType, newStock, data.reason, data.reason_detail);
+        toast.success('Stok berhasil diperbarui');
+        setStockModalConfig(prev => ({...prev, isOpen: false}));
       }
-      toast.success('Stok berhasil diperbarui');
-      setStockModalConfig(prev => ({...prev, isOpen: false}));
       
       // Refresh stok + kantong setelah aksi modal
       const [updatedStock, updatedBags] = await Promise.all([
@@ -1047,18 +1058,7 @@ export default function PMIDashboard() {
 
           {/* ── Tab: Manajemen Stok ─────────────────────────── */}
           <TabsContent value="stock" className="space-y-6">
-            {/* Prediksi shortfall banner */}
-            {stocks.some(s => s.predictedShortfall) && (
-              <div className="bg-[#FEF9E7] border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
-                <TrendingUp className="w-5 h-5 text-[#E67E22] flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold text-[#E67E22]">Prediksi Kekurangan Stok</p>
-                  <p className="text-xs text-[#7D6608] mt-0.5">
-                    Berdasarkan tren permintaan: {stocks.filter(s => s.predictedShortfall).map(s => s.type).join(', ')} diprediksi habis dalam 3–5 hari. Segera rencanakan event donor darurat.
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* Prediksi shortfall banner dihilangkan sesuai permintaan user */}
 
             {/* Tombol Simpan Perubahan ke Database */}
             {isDirty && (
@@ -1106,9 +1106,6 @@ export default function PMIDashboard() {
                       </div>
                       <div className="flex flex-col items-end gap-1.5">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.text }}>{sc.label}</span>
-                        {blood.predictedShortfall && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF9E7] text-[#E67E22] mt-1 shadow-sm">⚠ Prediksi Habis</span>
-                        )}
                       </div>
                     </div>
 
