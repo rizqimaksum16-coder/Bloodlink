@@ -275,13 +275,14 @@ export default function PMIDashboard() {
     if (!user) return;
     async function loadPMIData() {
       try {
-        const [reqData, stockData, driverData, eventsData, publicReqData, bagsData] = await Promise.all([
+        const [reqData, stockData, driverData, eventsData, publicReqData, bagsData, donorData] = await Promise.all([
           api.orders.getRequests([]),
           api.stock.getPMIStock([]),
           api.users.getAll('driver', []),
           api.events.getAll([]),
           api.orders.getPublicRequests([]),
-          api.stock.getBags({ status: 'available' }).catch(() => [])
+          api.stock.getBags({ status: 'available' }).catch(() => []),
+          api.users.getAll('donor', []).catch(() => [])
         ]);
         if (reqData?.length) {
           setRequests(reqData.map((r: any) => ({
@@ -352,6 +353,18 @@ export default function PMIDashboard() {
             id: e.id, name: e.name,
             date: e.date, location: e.location,
             target: e.capacity || 100, registered: e.registered || 0
+          })));
+        }
+        if (donorData?.length) {
+          setDonorList(donorData.map((d: any) => ({
+            id: String(d.id),
+            name: d.name,
+            bloodType: d.blood_type || 'Belum Tahu',
+            lastDonor: d.last_donor_date || new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+            phone: d.phone || '081234567890',
+            // Default rule: eligible if last donor > 60 days
+            eligible: d.last_donor_date ? (Date.now() - new Date(d.last_donor_date).getTime() > 60 * 24 * 60 * 60 * 1000) : true,
+            totalDonations: d.total_donations || 0
           })));
         }
       } catch (err) {

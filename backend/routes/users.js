@@ -8,13 +8,18 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { role } = req.query;
   try {
-    let query = 'SELECT id, email, name, role, created_at, address, phone, latitude, longitude FROM users';
+    let query = `
+      SELECT u.id, u.email, u.name, u.role, u.created_at, u.address, u.phone, u.latitude, u.longitude,
+             dp.blood_type, dp.last_donation AS last_donor_date, dp.total_donations
+      FROM users u
+      LEFT JOIN donor_profiles dp ON dp.user_id = u.id
+    `;
     const params = [];
     if (role) {
-      query += ' WHERE role = ?';
+      query += ' WHERE u.role = ?';
       params.push(role);
     }
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY u.created_at DESC';
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {

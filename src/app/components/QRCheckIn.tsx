@@ -50,18 +50,40 @@ export default function QRCheckIn() {
   const [searchParams] = useSearchParams();
   const ticketFromUrl = searchParams.get('ticket');
 
+  const eventIdFromUrl = searchParams.get('eventId');
   const [eventList, setEventList] = useState<DonorEvent[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>(eventIdFromUrl || '');
 
-  const [selectedEventId, setSelectedEventId] = useState<string>('');
-
-  // Load events from Supabase
+  // Load events from API
   useEffect(() => {
     async function fetchEvents() {
-      // Mock events 
-      setEventList([]);
+      try {
+        const eventsData: any[] = await api.events.getAll([]).catch(() => []);
+        if (eventsData?.length) {
+          const formattedEvents = eventsData.map((e: any) => ({
+            id: String(e.id),
+            name: e.name,
+            date: e.date || e.event_date,
+            time: e.time || '08:00 - 14:00',
+            location: e.location,
+            registered: e.registered || e.registered_count || 0,
+            checkedIn: 0,
+            target: e.capacity || 100,
+            status: e.status === 'completed' || e.status === 'closed' ? 'closed' : 'open'
+          }));
+          setEventList(formattedEvents);
+          if (eventIdFromUrl) {
+            setSelectedEventId(String(eventIdFromUrl));
+          } else if (formattedEvents.length > 0 && !selectedEventId) {
+            setSelectedEventId(formattedEvents[0].id);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat events:', err);
+      }
     }
     fetchEvents();
-  }, []);
+  }, [eventIdFromUrl, selectedEventId]);
 
   const activeEvent = eventList.find((e) => e.id === selectedEventId) || eventList[0] || {
     id: '',
@@ -411,22 +433,33 @@ export default function QRCheckIn() {
         {/* Dynamic Event Selector Bar */}
         <div className="bg-white rounded-2xl border border-border p-5 shadow-sm mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <label className="text-xs font-bold text-[#4A4A6A] uppercase tracking-wide block mb-1">
-                PILIH EVENT AKTIF
-              </label>
-              <select
-                value={activeEvent.id}
-                onChange={(e) => setSelectedEventId(e.target.value)}
-                className="bg-[#F4F4F8] border border-border rounded-xl px-4 py-2.5 text-sm font-extrabold text-[#1A1A2E] outline-none focus:border-[#C0392B] w-full md:w-96 shadow-sm"
-              >
-                {eventList.map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.name} ({ev.date})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!eventIdFromUrl ? (
+              <div>
+                <label className="text-xs font-bold text-[#4A4A6A] uppercase tracking-wide block mb-1">
+                  PILIH EVENT AKTIF
+                </label>
+                <select
+                  value={activeEvent.id}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  className="bg-[#F4F4F8] border border-border rounded-xl px-4 py-2.5 text-sm font-extrabold text-[#1A1A2E] outline-none focus:border-[#C0392B] w-full md:w-96 shadow-sm"
+                >
+                  {eventList.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.name} ({ev.date})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs font-bold text-[#4A4A6A] uppercase tracking-wide block mb-1">
+                  EVENT AKTIF
+                </label>
+                <div className="bg-[#F4F4F8] border border-border rounded-xl px-4 py-2.5 text-sm font-extrabold text-[#1A1A2E] w-full md:w-96 shadow-sm truncate">
+                  {activeEvent.name} ({activeEvent.date})
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-4 text-xs font-semibold text-[#4A4A6A] bg-[#F8F9FA] px-4 py-3 rounded-xl border border-border">
               <span>📅 {activeEvent.date}</span>
