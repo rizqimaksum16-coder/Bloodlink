@@ -86,7 +86,7 @@ export default function BloodSearch() {
   const [selectedBloodType, setSelectedBloodType] = useState<string>('O+');
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [qty, setQty] = useState<number | string>(5);
+  const [qty, setQty] = useState<number | string>(1);
   const [urgency, setUrgency] = useState<'darurat' | 'mendesak' | 'normal'>('normal');
 
   // AI Matching animation & results state
@@ -417,7 +417,7 @@ export default function BloodSearch() {
   const clearFilters = () => {
     setSelectedBloodType('all');
     setSearchQuery('');
-    setQty(5);
+    setQty(1);
     setUrgency('normal');
     setPmiResults(null);
   };

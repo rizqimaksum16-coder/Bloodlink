@@ -171,7 +171,7 @@ export default function HospitalDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedBlood, setSelectedBlood] = useState('O+');
-  const [selectedQty, setSelectedQty] = useState<number | string>(5);
+  const [selectedQty, setSelectedQty] = useState<number | string>(1);
   const [selectedUrgency, setSelectedUrgency] = useState<Urgency>('normal');
   const [selectedPMI, setSelectedPMI] = useState('');
   const [orderStep, setOrderStep] = useState<'form' | 'ai' | 'confirm' | 'done'>('form');
