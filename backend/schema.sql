@@ -58,7 +58,9 @@ CREATE TABLE blood_stock (
     CONSTRAINT chk_owner CHECK (
         (owner_pmi_id IS NOT NULL AND owner_hospital_id IS NULL) OR
         (owner_pmi_id IS NULL AND owner_hospital_id IS NOT NULL)
-    )
+    ),
+    UNIQUE KEY uk_pmi_blood (owner_pmi_id, blood_type),
+    UNIQUE KEY uk_hospital_blood (owner_hospital_id, blood_type)
 );
 
 CREATE TABLE blood_requests (
