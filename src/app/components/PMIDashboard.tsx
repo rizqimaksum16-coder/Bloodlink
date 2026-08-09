@@ -687,6 +687,24 @@ export default function PMIDashboard() {
     }
   };
 
+  const handleFastPrint = (bloodType: string) => {
+    const bloodStock = stocks.find(s => s.type === bloodType);
+    if (!bloodStock || !bloodStock.batches || bloodStock.batches.length === 0) {
+      toast.error(`Tidak ada kantong darah ${bloodType} untuk dicetak`);
+      return;
+    }
+    const latestBatch = bloodStock.batches[0];
+    const bagCodeToPrint = (latestBatch.codes && latestBatch.codes.length > 0) ? latestBatch.codes[0] : latestBatch.id;
+    
+    setPrintBagInfo({
+      bagCode: bagCodeToPrint,
+      bloodType: bloodType,
+      expDate: latestBatch.expDate,
+      sourceName: latestBatch.sourceName
+    });
+    setShowPrintModal(true);
+  };
+
   const handleStockActionSubmit = async (data: any) => {
     setIsSaving(true);
     try {
@@ -1115,18 +1133,24 @@ export default function PMIDashboard() {
                     ) : null}
 
                     {/* Action Buttons for Stock Management */}
-                    <div className="flex items-center gap-2 mt-4 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mt-4 mb-2">
                       <button
                         onClick={() => openStockModal(blood.type, 'in')}
-                        className="flex-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                        className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                       >
-                        <ArrowDownCircle className="w-4 h-4" /> Darah Masuk
+                        <ArrowDownCircle className="w-4 h-4" /> Masuk
                       </button>
                       <button
                         onClick={() => openStockModal(blood.type, 'out')}
-                        className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                        className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                       >
-                        <ArrowUpCircle className="w-4 h-4" /> Darah Keluar
+                        <ArrowUpCircle className="w-4 h-4" /> Keluar
+                      </button>
+                      <button
+                        onClick={() => handleFastPrint(blood.type)}
+                        className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        <Printer className="w-4 h-4" /> Cetak
                       </button>
                     </div>
 
