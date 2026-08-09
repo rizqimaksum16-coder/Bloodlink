@@ -308,7 +308,7 @@ router.post('/ledger', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), a
       await pool.query(
         `INSERT INTO blood_bags (bag_code, owner_type, owner_id, blood_type, source_type, source_ref, source_name, collected_at, exp_date, added_by_id, added_by_name)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [code, ownerType, ownerId, blood_type, source_type, source_ref, source_name, collected_at, exp_date, req.user.id, req.user.name || req.user.org]
+        [code, ownerType, ownerId, blood_type, source_type, source_ref, source_name, collected_at, exp_date, req.user.id, req.user.name || req.user.org || 'Admin']
       );
       bagCodes.push(code);
     }
