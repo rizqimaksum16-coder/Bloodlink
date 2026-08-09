@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams, useLocation } from 'react-router';
 import {
   Droplets, Users, Bell, Calendar, CheckCircle, Clock, AlertTriangle,
@@ -14,7 +14,8 @@ import { api } from '../utils/api';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 import StockActionModal, { StockActionType } from './StockActionModal';
-import { BarcodeLabel } from './BarcodeLabel';
+
+const BarcodeLabel = lazy(() => import('./BarcodeLabel').then(module => ({ default: module.BarcodeLabel })));
 import { ArrowDownCircle, ArrowUpCircle, Printer } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1927,12 +1928,14 @@ export default function PMIDashboard() {
             <div className="p-6 bg-gray-50 flex-1 flex flex-col gap-6 items-center overflow-y-auto max-h-[60vh]">
               {printBagInfo.bagCodes.map((code, idx) => (
                 <div key={idx} className="print:break-after-page">
-                  <BarcodeLabel 
-                    bagCode={code} 
-                    bloodType={printBagInfo.bloodType} 
-                    expDate={printBagInfo.expDate} 
-                    sourceName={printBagInfo.sourceName} 
-                  />
+                  <Suspense fallback={<div className="text-sm text-[#9B9BB5] animate-pulse">Memuat komponen cetak...</div>}>
+                    <BarcodeLabel 
+                      bagCode={code} 
+                      bloodType={printBagInfo.bloodType} 
+                      expDate={printBagInfo.expDate} 
+                      sourceName={printBagInfo.sourceName} 
+                    />
+                  </Suspense>
                 </div>
               ))}
             </div>
