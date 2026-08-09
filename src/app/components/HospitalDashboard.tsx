@@ -295,10 +295,17 @@ export default function HospitalDashboard() {
     }, 1000);
   };
 
+  const MAX_QTY_PER_ORDER = 30;
+
   const handleSubmitOrder = async () => {
     if (orderStep === 'form') {
+      const qtyNum = Number(selectedQty) || 0;
+      if (qtyNum < 1 || qtyNum > MAX_QTY_PER_ORDER) {
+        toast.error(`Jumlah kantong harus antara 1–${MAX_QTY_PER_ORDER} kantong.`);
+        return;
+      }
       // Fetch PMI list dinamis dengan stok nyata sebelum masuk ke AI step
-      fetchDynamicPMIList(selectedBlood, Number(selectedQty) || 1);
+      fetchDynamicPMIList(selectedBlood, qtyNum);
       setOrderStep('ai');
       return;
     }
@@ -685,8 +692,8 @@ export default function HospitalDashboard() {
 
               <hr className="border-border/40 my-3" />
 
-              {/* Direct Inline Inputs for Stock, Target & Expired (Expert UX design: Zero Friction) */}
-              <div className="grid grid-cols-3 gap-2 py-1">
+              {/* Direct Inline Inputs for Stock & Expired (Expert UX design: Zero Friction) */}
+              <div className="grid grid-cols-2 gap-2 py-1">
                 <div>
                   <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1">Stok Saat Ini</span>
                   <div className="flex items-center gap-1 justify-center bg-[#F9F9FC] border border-border rounded-lg px-1.5 py-0.5">
@@ -695,11 +702,6 @@ export default function HospitalDashboard() {
                       className="w-8 text-center text-xs font-bold bg-transparent border-0 focus:ring-0 p-0 text-[#1A1A2E]" />
                     <button onClick={() => updateSingleStock(blood.type, 'stock', blood.stock + 1)} className="w-5 h-5 bg-white hover:bg-border rounded flex items-center justify-center text-[11px] font-extrabold text-[#4A4A6A] border border-border/10 shadow-sm">+</button>
                   </div>
-                </div>
-                <div>
-                  <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1 text-center">Target Stok</span>
-                  <input type="number" min={1} value={blood.target} onKeyDown={preventNegativeInput} onChange={(e) => updateSingleStock(blood.type, 'target', Number(e.target.value))}
-                    className="w-full text-center text-xs font-bold bg-[#F9F9FC] border border-border rounded-lg py-1 focus:border-[#2980B9] focus:ring-0 text-[#1A1A2E] shadow-inner" />
                 </div>
                 <div>
                   <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1 text-center">Expired (7 hr)</span>
@@ -977,13 +979,17 @@ export default function HospitalDashboard() {
                           const num = parseInt(selectedQty.toString(), 10);
                           if (isNaN(num) || num < 1) {
                             setSelectedQty(1);
-                          } else if (num > 100) {
-                            setSelectedQty(100);
+                          } else if (num > MAX_QTY_PER_ORDER) {
+                            setSelectedQty(MAX_QTY_PER_ORDER);
                           } else {
                             setSelectedQty(num);
                           }
                         }}
-                        className="w-full text-center bg-[#F8F9FA] border border-border rounded-xl px-3 py-2 text-sm font-black text-[#C0392B] outline-none focus:border-[#C0392B] focus:bg-white transition-all"
+                        className={`w-full text-center bg-[#F8F9FA] border rounded-xl px-3 py-2 text-sm font-black outline-none transition-all ${
+                          Number(selectedQty) > MAX_QTY_PER_ORDER
+                            ? 'border-[#C0392B] bg-[#FDEDEC] text-[#C0392B] focus:border-[#C0392B]'
+                            : 'border-border text-[#C0392B] focus:border-[#C0392B] focus:bg-white'
+                        }`}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#9B9BB5] pointer-events-none">
                         ktg
@@ -991,10 +997,18 @@ export default function HospitalDashboard() {
                     </div>
                     <button type="button" onClick={() => {
                       const current = parseInt(selectedQty.toString(), 10) || 1;
-                      setSelectedQty(Math.min(100, current + 1));
+                      setSelectedQty(Math.min(MAX_QTY_PER_ORDER, current + 1));
                     }}
                       className="w-10 h-10 rounded-xl border border-border flex items-center justify-center font-bold hover:bg-[#F4F4F8] transition-colors text-lg text-[#4A4A6A] bg-[#F9F9FC]">+</button>
                   </div>
+                  {/* Helper text & inline warning */}
+                  {Number(selectedQty) > MAX_QTY_PER_ORDER ? (
+                    <p className="text-xs font-semibold text-[#C0392B] mt-1.5 flex items-center gap-1">
+                      <span>⚠</span> Maks. {MAX_QTY_PER_ORDER} kantong per pemesanan
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[#9B9BB5] mt-1.5">Maks. {MAX_QTY_PER_ORDER} kantong per pemesanan</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Tingkat Urgensi</label>
@@ -1101,7 +1115,8 @@ export default function HospitalDashboard() {
                   </button>
                 )}
                 <button onClick={handleSubmitOrder}
-                  className="flex-1 py-3 rounded-xl bg-[#C0392B] text-white font-bold text-sm hover:bg-[#922B21] transition-all shadow-md active:scale-[0.98]">
+                  disabled={orderStep === 'form' && (Number(selectedQty) < 1 || Number(selectedQty) > MAX_QTY_PER_ORDER)}
+                  className="flex-1 py-3 rounded-xl bg-[#C0392B] text-white font-bold text-sm hover:bg-[#922B21] transition-all shadow-md active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
                   {orderStep === 'form' ? 'Cari PMI Terdekat →' : orderStep === 'ai' ? 'Konfirmasi →' : 'Kirim Pesanan'}
                 </button>
               </div>

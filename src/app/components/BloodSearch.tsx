@@ -48,7 +48,7 @@ const bloodTypeColor: Record<string, string> = {
   'O+': '#27AE60', 'O-': '#27AE60',
 };
 
-const districts = ['Gubeng', 'Sukolilo', 'Kenjeran', 'Tegalsari', 'Wonokromo', 'Rungkut'];
+
 
 interface PMIResult {
   id: string;
@@ -84,7 +84,7 @@ export default function BloodSearch() {
   // SHARED STATES FOR SEARCH & MATCHING
   // ==========================================
   const [selectedBloodType, setSelectedBloodType] = useState<string>('O+');
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [qty, setQty] = useState<number | string>(5);
   const [urgency, setUrgency] = useState<'darurat' | 'mendesak' | 'normal'>('normal');
@@ -410,14 +410,12 @@ export default function BloodSearch() {
   // Hospital stock results
   const filteredHospitals = hospitalsList.filter((h) => {
     const byBlood = selectedBloodType === 'all' || h.bloodTypes.some((b) => b.type === selectedBloodType);
-    const byDistrict = selectedDistrict === 'all' || h.district === selectedDistrict;
     const bySearch = searchQuery === '' || h.hospitalName.toLowerCase().includes(searchQuery.toLowerCase()) || h.address.toLowerCase().includes(searchQuery.toLowerCase());
-    return byBlood && byDistrict && bySearch;
+    return byBlood && bySearch;
   });
 
   const clearFilters = () => {
     setSelectedBloodType('all');
-    setSelectedDistrict('all');
     setSearchQuery('');
     setQty(5);
     setUrgency('normal');
@@ -497,21 +495,6 @@ export default function BloodSearch() {
                 </div>
               </div>
 
-              {/* District selection */}
-              <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] mb-1.5 block uppercase tracking-wide">Kecamatan (RS)</label>
-                <Select value={selectedDistrict} onValueChange={setSelectedDistrict}>
-                  <SelectTrigger className={`h-10 text-sm ${selectedDistrict !== 'all' ? 'border-[#C0392B] bg-[#FDEDEC] text-[#C0392B]' : 'bg-[#F4F4F8] border-transparent'}`}>
-                    <SelectValue placeholder="Semua kecamatan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Kecamatan</SelectItem>
-                    {districts.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               {/* Quantity input */}
               <div>
@@ -543,13 +526,17 @@ export default function BloodSearch() {
                         const num = parseInt(qty.toString(), 10);
                         if (isNaN(num) || num < 1) {
                           setQty(1);
-                        } else if (num > 100) {
-                          setQty(100);
+                        } else if (num > 30) {
+                          setQty(30);
                         } else {
                           setQty(num);
                         }
                       }}
-                      className="w-full text-center bg-[#F8F9FA] border border-border rounded-xl px-3 py-2 text-sm font-black text-[#C0392B] outline-none focus:border-[#C0392B] focus:bg-white transition-all"
+                      className={`w-full text-center bg-[#F8F9FA] border rounded-xl px-3 py-2 text-sm font-black outline-none transition-all ${
+                        Number(qty) > 30
+                          ? 'border-[#C0392B] bg-[#FDEDEC] text-[#C0392B] focus:border-[#C0392B]'
+                          : 'border-border text-[#C0392B] focus:border-[#C0392B] focus:bg-white'
+                      }`}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#9B9BB5] pointer-events-none">
                       ktg
@@ -559,7 +546,7 @@ export default function BloodSearch() {
                     type="button"
                     onClick={() => {
                       const current = parseInt(qty.toString(), 10) || 1;
-                      setQty(Math.min(100, current + 1));
+                      setQty(Math.min(30, current + 1));
                     }}
                     className="w-10 h-10 rounded-xl border border-border bg-[#F8F9FA] hover:bg-gray-200 text-[#1A1A2E] font-extrabold text-base flex items-center justify-center transition-colors active:scale-95"
                     title="Tambah kantong"
@@ -567,7 +554,13 @@ export default function BloodSearch() {
                     +
                   </button>
                 </div>
-                <p className="text-[10px] text-[#9B9BB5] mt-1.5">Ketik angka atau tekan tombol +/- untuk menentukan jumlah kantong.</p>
+                {Number(qty) > 30 ? (
+                  <p className="text-[10px] font-semibold text-[#C0392B] mt-1.5 flex items-center gap-1">
+                    <span>⚠</span> Maks. 30 kantong per pencarian.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-[#9B9BB5] mt-1.5">Maks. 30 kantong. Ketik angka atau tekan tombol +/-.</p>
+                )}
               </div>
 
               {/* Urgency selection */}

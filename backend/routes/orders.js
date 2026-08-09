@@ -33,6 +33,8 @@ router.get('/requests', authMiddleware, async (req, res) => {
 });
 
 // POST /api/orders/requests — 🔒 Hanya role rs/superadmin bisa request darah
+const MAX_QTY_PER_ORDER = 30;
+
 router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async (req, res) => {
   // Gunakan hospital_id jika ada (dari admin), jika tidak gunakan ID user yang login
   const { hospital_id, hospital, blood_type, qty, quantity, priority, urgency = priority || 'normal', address, contact } = req.body;
@@ -41,6 +43,10 @@ router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async 
 
   if (!hospitalRef || !blood_type || !qtyVal) {
     return res.status(400).json({ error: 'Rumah sakit, golongan darah, dan jumlah kantong wajib diisi' });
+  }
+
+  if (Number(qtyVal) < 1 || Number(qtyVal) > MAX_QTY_PER_ORDER) {
+    return res.status(400).json({ error: `Jumlah kantong per pemesanan harus antara 1–${MAX_QTY_PER_ORDER} kantong.` });
   }
 
   const id = 'REQ-' + Date.now();
@@ -169,6 +175,10 @@ router.post('/blood', authMiddleware, requireRole('rs', 'superadmin'), async (re
   const qtyVal = quantity || qty;
   if (!blood_type || !qtyVal) {
     return res.status(400).json({ error: 'Golongan darah dan jumlah wajib diisi' });
+  }
+
+  if (Number(qtyVal) < 1 || Number(qtyVal) > MAX_QTY_PER_ORDER) {
+    return res.status(400).json({ error: `Jumlah kantong per pemesanan harus antara 1–${MAX_QTY_PER_ORDER} kantong.` });
   }
   const id = 'ORD-' + Date.now();
   try {

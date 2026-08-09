@@ -31,6 +31,11 @@ export default function PublicBloodRequest() {
       return;
     }
 
+    if (parseInt(qty, 10) < 1 || parseInt(qty, 10) > 30) {
+      toast.error('Jumlah kantong maksimal 30 per permintaan.');
+      return;
+    }
+
     setLoading(true);
     try {
       const data: any = await apiFetch('/public/request', {
@@ -143,7 +148,7 @@ export default function PublicBloodRequest() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-widest text-[#4A4A6A]">Jumlah (Kantong) *</label>
-                  <Input required type="number" min="1" max="100" value={qty} onChange={e => setQty(e.target.value)} className="h-12 rounded-xl" />
+                  <Input required type="number" min="1" max="30" value={qty} onChange={e => setQty(e.target.value)} className="h-12 rounded-xl" />
                 </div>
               </div>
 

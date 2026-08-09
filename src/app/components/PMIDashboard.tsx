@@ -943,8 +943,8 @@ export default function PMIDashboard() {
 
                     <hr className="border-border/40 my-3" />
 
-                    {/* Direct Inline Inputs for Stock, Target & Expired (Expert UX design: Zero Friction) */}
-                    <div className="grid grid-cols-3 gap-2 py-1">
+                    {/* Direct Inline Inputs for Stock & Expired (Expert UX design: Zero Friction) */}
+                    <div className="grid grid-cols-2 gap-2 py-1">
                       <div>
                         <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1">Stok Saat Ini</span>
                         <div className="flex items-center gap-1 justify-center bg-[#F9F9FC] border border-border rounded-lg px-1.5 py-0.5">
@@ -953,11 +953,6 @@ export default function PMIDashboard() {
                             className="w-8 text-center text-xs font-bold bg-transparent border-0 focus:ring-0 p-0 text-[#1A1A2E]" />
                           <button onClick={() => updateSingleStock(blood.type, 'stock', blood.stock + 1)} className="w-5 h-5 bg-white hover:bg-border rounded flex items-center justify-center text-[11px] font-extrabold text-[#4A4A6A] border border-border/10 shadow-sm">+</button>
                         </div>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1 text-center">Target Stok</span>
-                        <input type="number" min={1} value={blood.target} onKeyDown={preventNegativeInput} onChange={(e) => updateSingleStock(blood.type, 'target', Number(e.target.value))}
-                          className="w-full text-center text-xs font-bold bg-[#F9F9FC] border border-border rounded-lg py-1 focus:border-[#2980B9] focus:ring-0 text-[#1A1A2E] shadow-inner" />
                       </div>
                       <div>
                         <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1 text-center">Expired (7 hr)</span>

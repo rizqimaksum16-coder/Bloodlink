@@ -329,21 +329,30 @@ export default function Events() {
     if (!selectedEventForReg) return;
 
     const eventId = selectedEventForReg.id;
-    const randomTicketNum = Math.floor(1000 + Math.random() * 9000);
-    const ticketId = `EVT-SUB-${eventId}-${randomTicketNum}`;
     const registeredAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
-    // Submit pendaftaran event ke MySQL API
+    // Submit pendaftaran event ke MySQL API — gunakan booking_id dari server sebagai ticketId
+    let ticketId: string;
     try {
       const bloodTypeFull = `${regBloodType}${regRhesus}`;
-      await api.events.register({
+      const response: any = await api.events.register({
         event_id: typeof eventId === 'string' ? parseInt(eventId) : eventId,
         donor_name: regFullName,
         donor_email: user?.email || '',
         blood_type: bloodTypeFull
       });
+      // Gunakan booking_id dari server agar tiket konsisten dengan database
+      ticketId = response?.booking_id || `EVT-SUB-${eventId}-${Date.now()}`;
     } catch (e: any) {
-      console.warn('Booking API error (tersimpan lokal):', e.message);
+      // Jika sudah terdaftar atau error backend, hentikan proses
+      const msg = (e?.message || '').toLowerCase();
+      if (msg.includes('sudah terdaftar') || msg.includes('already registered')) {
+        toast.error('Pendaftaran Gagal', { description: 'Anda sudah terdaftar di event ini.' });
+      } else {
+        toast.error('Pendaftaran Gagal', { description: 'Terjadi kesalahan saat mendaftar. Silakan coba lagi.' });
+      }
+      console.error('Booking API error:', e.message);
+      return; // Hentikan — jangan buat state tiket palsu
     }
 
     // Update registration stats
@@ -358,10 +367,7 @@ export default function Events() {
       return updated;
     });
 
-    setRegisteredEvents(prev => {
-      const updated = [...prev, eventId];
-      return updated;
-    });
+    setRegisteredEvents(prev => [...prev, eventId]);
 
     setEventTicketData({
       ticketId,
