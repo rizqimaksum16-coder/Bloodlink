@@ -44,7 +44,8 @@ interface BloodOrder {
 }
 
 interface StockBatch {
-  id: string;           // bag_code
+  id: string;           // bag_code (first one)
+  codes?: string[];     // list of all bag_codes in this batch
   qty: number;
   entryDate: string;
   expDate: string;
@@ -229,9 +230,13 @@ export default function HospitalDashboard() {
               );
               if (existing) {
                 existing.qty += 1;
+                if (existing.codes && b.bag_code) {
+                  existing.codes.push(b.bag_code);
+                }
               } else {
                 bagsByType[b.blood_type].push({
                   id: b.bag_code,
+                  codes: b.bag_code ? [b.bag_code] : [],
                   qty: 1,
                   entryDate: b.collected_at ? b.collected_at.split('T')[0] : '',
                   expDate: b.exp_date ? b.exp_date.split('T')[0] : '',
@@ -507,8 +512,22 @@ export default function HospitalDashboard() {
             if (!bagsByType[b.blood_type]) bagsByType[b.blood_type] = [];
             const bk = `${b.exp_date}||${b.source_name || ''}`;
             const ex = bagsByType[b.blood_type].find((bt: StockBatch) => `${bt.expDate}||${bt.sourceName || ''}` === bk);
-            if (ex) { ex.qty += 1; }
-            else { bagsByType[b.blood_type].push({ id: b.bag_code, qty: 1, entryDate: b.collected_at?.split('T')[0] || '', expDate: b.exp_date?.split('T')[0] || '', sourceName: b.source_name, addedByName: b.added_by_name, direction: 'in' }); }
+            if (ex) { 
+              ex.qty += 1; 
+              if (ex.codes && b.bag_code) ex.codes.push(b.bag_code);
+            }
+            else { 
+              bagsByType[b.blood_type].push({ 
+                id: b.bag_code, 
+                codes: b.bag_code ? [b.bag_code] : [],
+                qty: 1, 
+                entryDate: b.collected_at?.split('T')[0] || '', 
+                expDate: b.exp_date?.split('T')[0] || '', 
+                sourceName: b.source_name, 
+                addedByName: b.added_by_name, 
+                direction: 'in' 
+              }); 
+            }
           });
       }
 
@@ -848,16 +867,23 @@ export default function HospitalDashboard() {
                             const expired = isExpired(b.expDate);
                             const soon = isExpiringSoon(b.expDate);
                             return (
-                              <div key={b.id} className={`flex items-center justify-between text-[10px] px-2 py-1.5 rounded-md border ${
+                              <div key={b.id} className={`flex flex-col gap-1 text-[10px] px-2 py-1.5 rounded-md border ${
                                 expired 
                                   ? 'bg-[#FDEDEC]/40 border-[#FDEDEC] text-[#C0392B]' 
                                   : soon 
                                     ? 'bg-[#FEF9E7]/40 border-[#FEF9E7] text-[#E67E22]' 
                                     : 'bg-[#F4F4F8] border-border/40 text-[#1A1A2E]'
                               }`}>
-                                <span className={`font-mono text-[9px] ${expired ? 'line-through text-[#C0392B]/70' : 'text-[#9B9BB5]'}`}>{b.id}</span>
-                                <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} kantong</span>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-[#1A1A2E]">
+                                    {b.sourceName || 'Donor'}
+                                  </span>
+                                  <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} kantong</span>
+                                </div>
+                                <div className={`font-mono text-[9px] max-w-[130px] flex flex-wrap gap-1 mt-0.5 ${expired ? 'line-through text-[#C0392B]/70' : 'text-[#9B9BB5]'}`}>
+                                  {b.codes && b.codes.length > 0 ? b.codes.map(c => <span key={c}>{c}</span>) : b.id}
+                                </div>
+                                <div className="flex items-center justify-between mt-1 pt-1 border-t border-black/5">
                                   <span className={`text-[9px] font-medium ${expired ? 'text-[#C0392B]/85' : 'text-[#4A4A6A]'}`}>Exp: {b.expDate}</span>
                                   {expired ? (
                                     <span className="text-[8px] bg-[#C0392B] text-white px-1.5 py-0.2 rounded font-bold uppercase">Kadaluarsa</span>
@@ -1086,7 +1112,14 @@ export default function HospitalDashboard() {
                           </td>
                           <td className="py-2.5 font-bold text-[#1A1A2E]">{entry.blood_type}</td>
                           <td className="py-2.5 text-center font-bold">{entry.quantity} ktg</td>
-                          <td className="py-2.5 text-[#4A4A6A] max-w-[180px] truncate">{entry.reason_detail || entry.reason}</td>
+                          <td className="py-2.5 text-[#4A4A6A] max-w-[180px]">
+                            <div className="truncate">{entry.reason_detail || entry.reason}</div>
+                            {entry.bag_codes && (
+                              <div className="text-[9px] font-mono text-[#9B9BB5] mt-0.5 truncate" title={typeof entry.bag_codes === 'string' ? JSON.parse(entry.bag_codes).join(', ') : entry.bag_codes.join(', ')}>
+                                {typeof entry.bag_codes === 'string' ? JSON.parse(entry.bag_codes).join(', ') : entry.bag_codes.join(', ')}
+                              </div>
+                            )}
+                          </td>
                           <td className="py-2.5 text-[#4A4A6A]">{entry.actor_name}</td>
                         </tr>
                       ))}
