@@ -336,7 +336,7 @@ export default function Events() {
     try {
       const bloodTypeFull = `${regBloodType}${regRhesus}`;
       const response: any = await api.events.register({
-        event_id: typeof eventId === 'string' ? parseInt(eventId) : eventId,
+        event_id: eventId,
         donor_name: regFullName,
         donor_email: user?.email || '',
         blood_type: bloodTypeFull
