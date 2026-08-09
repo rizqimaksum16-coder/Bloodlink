@@ -56,6 +56,7 @@ async function migrate() {
                          'donor_event',
                          'order_received',
                          'transfer_in',
+                         'transfer_out',
                          'used_patient',
                          'expired',
                          'discarded',
