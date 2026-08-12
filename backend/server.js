@@ -24,12 +24,13 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 // 🔒 Security: CORS hanya untuk frontend yang diizinkan
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,https://bloodlink-neon-hive.vercel.app').split(',');
 app.use(cors({
   origin: (origin, callback) => {
     // Izinkan request tanpa origin (Postman, curl, mobile app)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    // Izinkan origin dari allowedOrigins ATAU semua subdomain dari vercel.app
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
     return callback(new Error('Akses CORS tidak diizinkan untuk origin: ' + origin));
