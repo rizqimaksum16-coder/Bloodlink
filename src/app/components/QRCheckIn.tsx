@@ -69,7 +69,7 @@ export default function QRCheckIn() {
             registered: e.registered || e.registered_count || 0,
             checkedIn: 0,
             target: e.capacity || 100,
-            status: e.status === 'completed' || e.status === 'closed' ? 'closed' : 'open'
+            status: (e.status === 'completed' || e.status === 'closed' ? 'closed' : 'open') as 'open' | 'closed'
           }));
           setEventList(formattedEvents);
           if (eventIdFromUrl) {

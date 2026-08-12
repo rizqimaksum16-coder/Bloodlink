@@ -27,3 +27,6 @@ out/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Flowcharts & Poster (dokumentasi lokal, tidak perlu di-commit)
+flowcharts/

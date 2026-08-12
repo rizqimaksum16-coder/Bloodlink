@@ -82,7 +82,8 @@ router.get('/deliveries', authMiddleware, async (req, res) => {
         u.name AS driver_name, u.phone AS driver_phone, 
         d.status, d.eta, d.distance_km AS distance, d.pct, 
         IF(r.urgency IN ('mendesak', 'darurat'), 1, 0) AS urgent, 
-        d.updated_at, d.created_at
+        d.updated_at, d.created_at,
+        d.driver_lat, d.driver_lng, d.location_updated_at
       FROM deliveries d
       JOIN blood_requests r ON d.order_id = r.id
       JOIN users h ON r.hospital_id = h.id
@@ -236,6 +237,79 @@ router.put('/public-requests/:id/status', authMiddleware, requireRole('pmi', 'rs
   } catch (err) {
     console.error('Error update public request status:', err);
     res.status(500).json({ error: 'Gagal memperbarui status permintaan publik' });
+  }
+});
+
+// POST /api/orders/deliveries/:id/location — 🔒 Hanya driver: kirim koordinat GPS real-time
+router.post('/deliveries/:id/location', authMiddleware, requireRole('driver', 'superadmin'), async (req, res) => {
+  const { id } = req.params;
+  const { lat, lng } = req.body;
+
+  if (lat === undefined || lng === undefined) {
+    return res.status(400).json({ error: 'Koordinat lat dan lng wajib diisi' });
+  }
+
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+  if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+    return res.status(400).json({ error: 'Koordinat tidak valid' });
+  }
+
+  try {
+    const [result] = await pool.query(
+      'UPDATE deliveries SET driver_lat = ?, driver_lng = ?, location_updated_at = NOW() WHERE id = ?',
+      [latNum, lngNum, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Pengiriman tidak ditemukan' });
+    }
+    res.json({ message: 'Lokasi driver berhasil diperbarui', lat: latNum, lng: lngNum });
+  } catch (err) {
+    console.error('Error update driver location:', err);
+    res.status(500).json({ error: 'Gagal memperbarui lokasi driver' });
+  }
+});
+
+// GET /api/orders/deliveries/:id/location — 🔒 Harus login: ambil koordinat GPS driver
+router.get('/deliveries/:id/location', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query(
+      `SELECT 
+        d.driver_lat AS lat, d.driver_lng AS lng, d.location_updated_at,
+        u.name AS driver_name, d.status, d.eta, d.pct,
+        COALESCE(p.org, 'PMI') AS from_name,
+        h.org AS to_name,
+        r.blood_type, r.quantity
+       FROM deliveries d
+       JOIN blood_requests r ON d.order_id = r.id
+       JOIN users h ON r.hospital_id = h.id
+       LEFT JOIN users p ON r.pmi_id = p.id
+       LEFT JOIN users u ON d.driver_id = u.id
+       WHERE d.id = ?`,
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Pengiriman tidak ditemukan' });
+    }
+    const row = rows[0];
+    res.json({
+      lat: row.lat ? parseFloat(row.lat) : null,
+      lng: row.lng ? parseFloat(row.lng) : null,
+      location_updated_at: row.location_updated_at,
+      driver_name: row.driver_name,
+      status: row.status,
+      eta: row.eta,
+      pct: row.pct,
+      from_name: row.from_name,
+      to_name: row.to_name,
+      blood_type: row.blood_type,
+      quantity: row.quantity,
+      has_location: row.lat !== null && row.lng !== null
+    });
+  } catch (err) {
+    console.error('Error get driver location:', err);
+    res.status(500).json({ error: 'Gagal mengambil lokasi driver' });
   }
 });
 
