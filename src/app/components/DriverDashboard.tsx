@@ -418,6 +418,30 @@ export default function DriverDashboard() {
                     </p>
                   </div>
 
+                  {/* Info Kantong Darah */}
+                  <div className="bg-white border border-border rounded-xl p-3 mb-4 text-xs">
+                    <h4 className="font-bold text-[#1A1A2E] mb-2 flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-[#C0392B]" /> Detail Paket Darah
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-[#F4F4F8] rounded-lg p-2">
+                        <span className="block text-[9px] text-[#9B9BB5] uppercase">Golongan</span>
+                        <span className="font-bold" style={{ color: btColor[d.bloodType] || '#C0392B' }}>{d.bloodType}</span>
+                      </div>
+                      <div className="bg-[#F4F4F8] rounded-lg p-2">
+                        <span className="block text-[9px] text-[#9B9BB5] uppercase">Jumlah</span>
+                        <span className="font-bold text-[#1A1A2E]">{d.qty} Kantong</span>
+                      </div>
+                      <div className="bg-[#F4F4F8] rounded-lg p-2 col-span-2 flex justify-between items-center">
+                        <div>
+                          <span className="block text-[9px] text-[#9B9BB5] uppercase">Kode Unik / Resi</span>
+                          <span className="font-mono font-bold text-[#1A1A2E] tracking-wider text-[11px]">{d.orderId.replace('REQ-', 'BLD-')}</span>
+                        </div>
+                        <span className="bg-[#EAFAF1] text-[#27AE60] text-[9px] font-bold px-2 py-1 rounded">Suhu 4°C Terjaga</span>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Driver Controls */}
                   {isMyJob && d.status !== 'tiba' && d.status !== 'selesai' && (
                     <div className="flex flex-col sm:flex-row items-stretch gap-2">
