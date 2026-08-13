@@ -147,12 +147,12 @@ function TrackingBar({ order }: { order: BloodOrder }) {
     <div className="mt-3 pt-3 border-t border-border">
       <div className="relative pb-6 pt-1">
         {/* Garis background yang menghubungkan titik */}
-        <div className="absolute top-4 left-[12.5%] w-[75%] h-1 bg-[#F4F4F8] -z-10 rounded-full"></div>
+        <div className="absolute top-4 left-[12.5%] w-[75%] h-1 bg-[#F4F4F8] z-0 rounded-full"></div>
         {/* Garis progress (merah) */}
-        <div className="absolute top-4 left-[12.5%] h-1 bg-[#C0392B] -z-10 rounded-full transition-all duration-700" 
+        <div className="absolute top-4 left-[12.5%] h-1 bg-[#C0392B] z-0 rounded-full transition-all duration-700" 
              style={{ width: `calc(${order.trackingPct || 0}% * 0.75)` }}></div>
         
-        <div className="flex items-center justify-between relative z-10">
+        <div className="flex items-center justify-between relative z-[2]">
           {steps.map((step, i) => (
             <div key={step} className="flex flex-col items-center flex-1 relative">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${i <= activeStep ? 'bg-[#C0392B] text-white ring-4 ring-white' : 'bg-[#F4F4F8] text-[#9B9BB5] ring-4 ring-white'}`}>

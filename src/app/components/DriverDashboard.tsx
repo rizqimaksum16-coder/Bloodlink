@@ -294,16 +294,16 @@ export default function DriverDashboard() {
                   {/* Stepper Status Visual (Connected) */}
                   <div className="relative pb-6 pt-1 mb-4">
                     {/* Garis background yang menghubungkan titik */}
-                    <div className="absolute top-5 left-[12.5%] w-[75%] h-1.5 bg-[#F4F4F8] -z-10 rounded-full"></div>
+                    <div className="absolute top-5 left-[12.5%] w-[75%] h-1.5 bg-[#F4F4F8] z-0 rounded-full"></div>
                     {/* Garis progress */}
-                    <div className="absolute top-5 left-[12.5%] h-1.5 -z-10 rounded-full transition-all duration-500"
+                    <div className="absolute top-5 left-[12.5%] h-1.5 z-0 rounded-full transition-all duration-500"
                       style={{ 
                         width: `calc(${d.pct}% * 0.75)`, 
                         background: (d.status === 'tiba' || d.status === 'selesai') ? '#27AE60' : '#16A085' 
                       }} 
                     />
                     
-                    <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center justify-between relative z-[2]">
                       {statusSteps.map((step, idx) => {
                         const cfg = statusCfg[step] || { label: step, color: '#9B9BB5', bg: '#F4F4F8', icon: Clock };
                         const isCompleted = d.status === 'selesai' || statusSteps.indexOf(d.status) >= idx;
