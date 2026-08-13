@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan
+  RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan, ShieldAlert, ScanLine
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -189,7 +189,13 @@ export default function HospitalDashboard() {
   const [orderStep, setOrderStep] = useState<'form' | 'ai' | 'confirm' | 'done'>('form');
   const [orders, setOrders] = useState<BloodOrder[]>(bloodOrders);
   const [pmiList, setPmiList] = useState<PMIOption[]>(pmiOptions);
-  const [showConfirmReceive, setShowConfirmReceive] = useState<string | null>(null);
+  
+  // QC & Scan States (End-to-End Traceability)
+  const [showQcModal, setShowQcModal] = useState<string | null>(null);
+  const [qcChecks, setQcChecks] = useState({ temp: false, physical: false, visual: false });
+  const [qcBagCode, setQcBagCode] = useState('');
+  const [isQcProcessing, setIsQcProcessing] = useState(false);
+
   // Koordinat RS yang sedang login — dipakai untuk kalkulasi jarak dinamis ke PMI
   const [hospitalCoords, setHospitalCoords] = useState<{ lat: number; lng: number }>({ lat: -7.2678, lng: 112.7584 });
   const [isLoadingPMI, setIsLoadingPMI] = useState(false);
@@ -425,56 +431,85 @@ export default function HospitalDashboard() {
     }
   };
 
-  const handleConfirmReceive = async (id: string) => {
-    const order = orders.find(o => o.id === id);
-    if (order) {
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'selesai', updatedAt: 'Baru saja' } : o));
-      
-      const today = new Date();
-      const formatToday = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-      const expDate = new Date();
-      expDate.setDate(today.getDate() + 30);
-      const formatExp = expDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-
-      setStocks(prev => prev.map(s => {
-        if (s.type === order.bloodType) {
-          const newBatches = [
-            {
-              id: `BTC-${order.bloodType.replace('+', 'P').replace('-', 'M')}-${Date.now().toString().slice(-4)}`,
-              qty: order.qty,
-              entryDate: formatToday,
-              expDate: formatExp
-            },
-            ...(s.batches || [])
-          ];
-          const newStock = s.stock + order.qty;
-          const status = newStock >= 25 ? 'available' : newStock >= 10 ? 'low' : 'critical';
-          return {
-            ...s,
-            stock: newStock,
-            lastUpdated: 'Baru saja',
-            status: status as any,
-            batches: newBatches
-          };
-        }
-        return s;
-      }));
-
-      // Sync penerimaan ke API MySQL
-      try {
-        if (order.deliveryId) {
-          await api.orders.updateDeliveryStatus(
-            order.deliveryId,
-            { status: 'selesai', pct: 100 }
-          );
-        }
-        await api.users.updateRequestStatus(order.id, 'selesai');
-      } catch (e) { console.warn('Gagal sync konfirmasi ke API:', e); }
-      toast.success(`Penerimaan darah berhasil dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong.`);
-    } else {
-      toast.error('Order tidak ditemukan!');
+  const handleQcSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showQcModal) return;
+    
+    // Validasi semua checklist QC harus tercentang
+    if (!qcChecks.temp || !qcChecks.physical || !qcChecks.visual) {
+      toast.error('Gagal: Semua kondisi fisik dan mutu darah harus diverifikasi (dicentang)!');
+      return;
     }
-    setShowConfirmReceive(null);
+
+    const order = orders.find(o => o.id === showQcModal);
+    if (!order) {
+      toast.error('Order tidak ditemukan!');
+      return;
+    }
+
+    // Validasi kode resi (End-to-End Traceability)
+    // Di MVP ini, kode kantong valid adalah BLD-[SISA_ID_ORDER]
+    const expectedCode = order.id.replace('REQ-', 'BLD-');
+    if (qcBagCode.trim() !== expectedCode) {
+      toast.error(`Kode tidak cocok! Diharapkan: ${expectedCode}, Dimasukkan: ${qcBagCode.trim()}`);
+      return;
+    }
+
+    setIsQcProcessing(true);
+    // Simulasi delay pemrosesan QC
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    setOrders(prev => prev.map(o => o.id === showQcModal ? { ...o, status: 'selesai', updatedAt: 'Baru saja' } : o));
+    
+    const today = new Date();
+    const formatToday = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    const expDate = new Date();
+    expDate.setDate(today.getDate() + 30);
+    const formatExp = expDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    setStocks(prev => prev.map(s => {
+      if (s.type === order.bloodType) {
+        const newBatches = [
+          {
+            // Tetap menggunakan kode asli dari PMI sebagai Traceability Code
+            id: expectedCode,
+            qty: order.qty,
+            entryDate: formatToday,
+            expDate: formatExp
+          },
+          ...(s.batches || [])
+        ];
+        const newStock = s.stock + order.qty;
+        const status = newStock >= 25 ? 'available' : newStock >= 10 ? 'low' : 'critical';
+        return {
+          ...s,
+          stock: newStock,
+          lastUpdated: 'Baru saja',
+          status: status as any,
+          batches: newBatches
+        };
+      }
+      return s;
+    }));
+
+    // Sync penerimaan ke API MySQL
+    try {
+      if (order.deliveryId) {
+        await api.orders.updateDeliveryStatus(
+          order.deliveryId,
+          { status: 'selesai', pct: 100 }
+        );
+      }
+      await api.users.updateRequestStatus(order.id, 'selesai');
+    } catch (err) { console.warn('Gagal sync konfirmasi ke API:', err); }
+    
+    toast.success(`QC Lolos & Penerimaan Dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong dengan ID ${expectedCode}.`);
+    
+    // Reset Modal
+    setShowQcModal(null);
+    setQcChecks({ temp: false, physical: false, visual: false });
+    setQcBagCode('');
+    setIsQcProcessing(false);
   };
 
   const handleDiscardExpired = (type: string) => {
@@ -754,11 +789,11 @@ export default function HospitalDashboard() {
                   </div>
                 )}
 
-                {/* Confirm receive button */}
+                {/* Verify receive button */}
                 {(order.status === 'dikirim' || order.status === 'tiba') && (
-                  <button onClick={() => setShowConfirmReceive(order.id)}
-                    className="mt-3 w-full py-2 rounded-lg border-2 border-[#27AE60] text-[#27AE60] text-xs font-bold hover:bg-[#EAFAF1] transition-colors flex items-center justify-center gap-1.5">
-                    <CheckCircle className="w-3.5 h-3.5" /> Konfirmasi Penerimaan Darah
+                  <button onClick={() => setShowQcModal(order.id)}
+                    className="mt-3 w-full py-2.5 rounded-lg border-2 border-[#2980B9] text-[#2980B9] text-xs font-bold hover:bg-[#EAF7FB] transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                    <ShieldAlert className="w-4 h-4" /> Verifikasi QC & Terima Darah
                   </button>
                 )}
 
@@ -1533,6 +1568,86 @@ export default function HospitalDashboard() {
           </div>
         </div>
       )}
+
+      {/* Modal Verifikasi QC & End-to-End Traceability */}
+      {showQcModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden animate-fade-in">
+            <div className="p-4 border-b border-[#2980B9]/10 flex justify-between items-center bg-[#EAF7FB]">
+              <h3 className="font-bold text-[#1A5276] flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-[#2980B9]"/> Quality Control (QC)
+              </h3>
+              <button onClick={() => setShowQcModal(null)} className="text-[#2980B9]/50 hover:text-[#2980B9]"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <form onSubmit={handleQcSubmit} className="p-6">
+              <p className="text-xs text-[#4A4A6A] mb-5 leading-relaxed">
+                Sebelum menerima darah, Anda <strong>wajib</strong> memverifikasi kondisi fisik kantong darah sesuai standar medis <em>cold-chain</em>.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="pt-0.5">
+                    <input type="checkbox" checked={qcChecks.temp} onChange={(e) => setQcChecks(p => ({...p, temp: e.target.checked}))} className="w-4 h-4 text-[#2980B9] rounded border-gray-300 focus:ring-[#2980B9]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#1A1A2E]">Suhu Terjaga (2-6°C)</p>
+                    <p className="text-[10px] text-[#9B9BB5]">Coolbox dalam kondisi dingin dan indikator suhu normal.</p>
+                  </div>
+                </label>
+                
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="pt-0.5">
+                    <input type="checkbox" checked={qcChecks.physical} onChange={(e) => setQcChecks(p => ({...p, physical: e.target.checked}))} className="w-4 h-4 text-[#2980B9] rounded border-gray-300 focus:ring-[#2980B9]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#1A1A2E]">Fisik Kantong Utuh</p>
+                    <p className="text-[10px] text-[#9B9BB5]">Tidak ada kebocoran, robekan, atau kerusakan segel kantong.</p>
+                  </div>
+                </label>
+                
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="pt-0.5">
+                    <input type="checkbox" checked={qcChecks.visual} onChange={(e) => setQcChecks(p => ({...p, visual: e.target.checked}))} className="w-4 h-4 text-[#2980B9] rounded border-gray-300 focus:ring-[#2980B9]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#1A1A2E]">Visual Darah Normal</p>
+                    <p className="text-[10px] text-[#9B9BB5]">Warna darah normal, tidak menggumpal, tidak terjadi hemolisis.</p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="mb-6 pt-5 border-t border-gray-100">
+                <label className="block text-xs font-bold text-[#1A1A2E] mb-2 uppercase tracking-wider flex justify-between items-center">
+                  <span>Validasi Kode Unik / Resi</span>
+                  <span className="text-[9px] text-[#27AE60] bg-[#EAFAF1] px-2 py-0.5 rounded font-medium">Traceability</span>
+                </label>
+                <div className="relative">
+                  <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9B9BB5]" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: BLD-178..."
+                    value={qcBagCode}
+                    onChange={(e) => setQcBagCode(e.target.value)}
+                    className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2980B9]/20 focus:border-[#2980B9] transition-all text-sm font-mono uppercase"
+                  />
+                </div>
+                <p className="text-[10px] text-[#9B9BB5] mt-2">Pindai atau ketik kode pengiriman/kantong untuk memastikan darah tidak tertukar.</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowQcModal(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-50 transition-colors">Batal</button>
+                <button type="submit" disabled={isQcProcessing} className="flex-[2] py-2.5 rounded-xl bg-[#27AE60] text-white font-bold text-xs hover:bg-[#219653] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  {isQcProcessing ? 'Memproses...' : 'Terima & Masukkan Inventaris'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
 
     </div>
   );
