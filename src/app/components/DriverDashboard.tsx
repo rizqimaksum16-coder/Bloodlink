@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Truck, MapPin, Phone, Clock, CheckCircle, Package,
-  Navigation, Droplets, User, Flame, ArrowRight, ShieldAlert,
+  Droplets, User, Flame, ArrowRight, ShieldAlert,
   Calendar, CheckSquare, ListFilter, Play, Check, Trophy, RefreshCw
 } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -95,75 +95,6 @@ export default function DriverDashboard() {
     loadDeliveries();
   }, [user]);
 
-  // ─── GPS Live Tracking: kirim koordinat driver ke backend setiap 10 detik ───
-  const gpsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const gpsWatchRef = useRef<number | null>(null);
-  const [gpsActive, setGpsActive] = useState(false);
-  const [gpsError, setGpsError] = useState<string | null>(null);
-  const currentCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
-
-  // Cari tugas aktif milik driver ini (status dijemput atau perjalanan)
-  const activeDelivery = deliveryList.find(
-    d => d.driver?.toLowerCase() === (user?.name || '').toLowerCase() &&
-    (d.status === 'dijemput' || d.status === 'perjalanan')
-  );
-
-  useEffect(() => {
-    // Bersihkan tracker sebelumnya
-    const stopGPS = () => {
-      if (gpsIntervalRef.current) clearInterval(gpsIntervalRef.current);
-      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
-      gpsIntervalRef.current = null;
-      gpsWatchRef.current = null;
-      setGpsActive(false);
-    };
-
-    if (!activeDelivery) {
-      stopGPS();
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      setGpsError('Browser tidak mendukung GPS');
-      return;
-    }
-
-    // Mulai watch posisi
-    gpsWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        currentCoordsRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setGpsActive(true);
-        setGpsError(null);
-      },
-      (err) => {
-        setGpsError('GPS tidak dapat diakses: ' + err.message);
-        setGpsActive(false);
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-    );
-
-    // Kirim koordinat ke backend setiap 10 detik
-    const sendLocation = async () => {
-      if (!currentCoordsRef.current || !activeDelivery) return;
-      try {
-        const token = localStorage.getItem('token');
-        await fetch(`${api.baseUrl}/orders/deliveries/${activeDelivery.id}/location`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify(currentCoordsRef.current)
-        });
-      } catch (e) {
-        console.warn('Gagal kirim lokasi GPS:', e);
-      }
-    };
-
-    gpsIntervalRef.current = setInterval(sendLocation, 10000);
-    sendLocation(); // Kirim segera pertama kali
-
-    return () => stopGPS();
-  }, [activeDelivery?.id, activeDelivery?.status]);
-  // ─────────────────────────────────────────────────────────────────────────────
-
   // Mapping status delivery driver → status pesanan di RS/PMI
   // PENTING: 'tiba' → 'tiba' (bukan 'selesai') agar RS bisa melakukan konfirmasi penerimaan!
   // 'selesai' hanya diset saat RS menekan tombol "Konfirmasi Penerimaan Darah"
@@ -252,18 +183,6 @@ export default function DriverDashboard() {
                 Halo, {currentDriverName || 'Driver PMI'}!
               </h1>
               <p className="text-white/80 text-xs mt-1">Armada Pengiriman Stok Darah PMI</p>
-              {/* GPS Status Indicator */}
-              {gpsActive && (
-                <div className="flex items-center gap-1.5 mt-2">
-                  <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse" />
-                  <span className="text-[11px] font-semibold text-green-200">📡 GPS Aktif — Lokasi dikirim otomatis</span>
-                </div>
-              )}
-              {gpsError && (
-                <div className="flex items-center gap-1.5 mt-2">
-                  <span className="text-[11px] font-semibold text-yellow-200">⚠️ {gpsError}</span>
-                </div>
-              )}
             </div>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold backdrop-blur-sm">
@@ -452,9 +371,6 @@ export default function DriverDashboard() {
                         {d.status === 'dijemput' && 'Mulai Pengiriman'}
                         {d.status === 'perjalanan' && 'Konfirmasi Tiba di Tujuan'}
                       </button>
-                      <a href="/gps-tracking" className="py-2.5 px-4 rounded-xl bg-[#8E44AD] text-white hover:bg-[#732D91] text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
-                        <Navigation className="w-3.5 h-3.5" /> Buka Peta GPS
-                      </a>
                     </div>
                   )}
 

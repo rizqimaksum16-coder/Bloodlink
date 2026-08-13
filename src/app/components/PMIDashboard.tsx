@@ -943,9 +943,6 @@ export default function PMIDashboard() {
                 <p className="text-xs text-[#9B9BB5] mt-0.5">Setujui atau tolak permintaan dari rumah sakit</p>
               </div>
               <div className="flex items-center gap-3">
-                <a href="/gps-tracking" className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8E44AD] text-white rounded-lg text-xs font-bold hover:bg-[#732D91] transition-colors shadow-sm">
-                  <Navigation className="w-3.5 h-3.5" /> Buka Peta GPS
-                </a>
                 <div className="flex gap-2">
                 {(['darurat', 'mendesak', 'normal'] as Priority[]).map(p => {
                   const cfg = priorityConfig[p];
@@ -957,6 +954,7 @@ export default function PMIDashboard() {
                   ) : null;
                 })}
               </div>
+            </div>
             </div>
 
             {/* Sort by priority */}

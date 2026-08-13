@@ -20,7 +20,6 @@ const Events = lazy(() => import('./components/Events'));
 const Information = lazy(() => import('./components/Information'));
 const PMIDashboard = lazy(() => import('./components/PMIDashboard'));
 const HospitalDashboard = lazy(() => import('./components/HospitalDashboard'));
-const GPSTracking = lazy(() => import('./components/GPSTracking'));
 const QRCheckIn = lazy(() => import('./components/QRCheckIn'));
 const RewardPage = lazy(() => import('./components/RewardPage'));
 const DriverDashboard = lazy(() => import('./components/DriverDashboard'));
@@ -77,9 +76,6 @@ export default function App() {
                     {/* Fitur Baru */}
                     {/* AI Matching sementara dinonaktifkan — redirect ke halaman pencarian biasa */}
                     <Route path="/ai-matching" element={<Navigate to="/search" replace />} />
-                    <Route path="/gps-tracking" element={
-                      <ProtectedRoute allowedRoles={['pmi', 'rs', 'admin', 'superadmin']}><GPSTracking /></ProtectedRoute>
-                    } />
                     <Route path="/qr-checkin" element={
                       <ProtectedRoute allowedRoles={['pmi', 'rs']}><QRCheckIn /></ProtectedRoute>
                     } />

@@ -714,9 +714,6 @@ export default function HospitalDashboard() {
           <p className="text-xs text-[#9B9BB5] mt-0.5">Daftar order aktif dan riwayat pemesanan darah ke PMI</p>
         </div>
         <div className="flex items-center gap-3">
-          <a href="/gps-tracking" className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8E44AD] text-white rounded-lg text-xs font-bold hover:bg-[#732D91] transition-colors shadow-sm">
-            <Navigation className="w-3.5 h-3.5" /> Buka Peta GPS
-          </a>
           <span className="text-xs font-bold bg-[#EAFAF1] text-[#1E8449] px-2.5 py-1 rounded-full flex items-center gap-1.5 hidden sm:flex">
             <span className="w-1.5 h-1.5 rounded-full bg-[#27AE60] animate-pulse" /> Live
           </span>
@@ -1468,28 +1465,7 @@ export default function HospitalDashboard() {
         </div>
       )}
 
-      {/* ── Confirm Receive Modal ──────────────────────────── */}
-      {showConfirmReceive && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-border">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 bg-[#EAFAF1] rounded-full flex items-center justify-center mx-auto mb-3">
-                <Package className="w-7 h-7 text-[#27AE60]" />
-              </div>
-              <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Konfirmasi Penerimaan</h3>
-              <p className="text-xs text-[#9B9BB5] mt-1">Pastikan kantong darah sudah diterima dan kondisi baik sebelum konfirmasi.</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowConfirmReceive(null)} className="flex-1 py-2.5 rounded-xl border border-border text-xs font-semibold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
-                Batal
-              </button>
-              <button onClick={() => handleConfirmReceive(showConfirmReceive)} className="flex-1 py-2.5 rounded-xl bg-[#27AE60] text-white text-xs font-bold hover:bg-[#1E8449] transition-colors flex items-center justify-center gap-1.5">
-                <CheckCircle className="w-4 h-4" /> Konfirmasi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
       <StockActionModal
         isOpen={stockModalConfig.isOpen}
         onClose={() => setStockModalConfig(prev => ({...prev, isOpen: false}))}
