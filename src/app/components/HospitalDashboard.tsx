@@ -12,6 +12,7 @@ import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 import StockActionModal, { StockActionType } from './StockActionModal';
 
+import { QRScannerModal } from './QRScannerModal';
 const BarcodeLabel = lazy(() => import('./BarcodeLabel').then(module => ({ default: module.BarcodeLabel })));
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -195,6 +196,7 @@ export default function HospitalDashboard() {
   const [qcChecks, setQcChecks] = useState({ temp: false, physical: false, visual: false });
   const [qcBagCode, setQcBagCode] = useState('');
   const [isQcProcessing, setIsQcProcessing] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   // Koordinat RS yang sedang login — dipakai untuk kalkulasi jarak dinamis ke PMI
   const [hospitalCoords, setHospitalCoords] = useState<{ lat: number; lng: number }>({ lat: -7.2678, lng: 112.7584 });
@@ -1598,16 +1600,27 @@ export default function HospitalDashboard() {
                   <span>Validasi Kode Unik / Resi</span>
                   <span className="text-[9px] text-[#27AE60] bg-[#EAFAF1] px-2 py-0.5 rounded font-medium">Traceability</span>
                 </label>
-                <div className="relative">
-                  <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9B9BB5]" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: BLD-178..."
-                    value={qcBagCode}
-                    onChange={(e) => setQcBagCode(e.target.value)}
-                    className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2980B9]/20 focus:border-[#2980B9] transition-all text-sm font-mono uppercase"
-                  />
+                <div className="relative flex gap-2">
+                  <div className="relative flex-1">
+                    <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9B9BB5]" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: BLD-178..."
+                      value={qcBagCode}
+                      onChange={(e) => setQcBagCode(e.target.value)}
+                      className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2980B9]/20 focus:border-[#2980B9] transition-all text-sm font-mono uppercase"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQrScanner(true)}
+                    title="Scan QR / Barcode"
+                    className="px-3 py-2.5 bg-[#2980B9] text-white rounded-xl hover:bg-[#2471A3] transition-colors flex items-center justify-center gap-1.5 text-xs font-bold whitespace-nowrap"
+                  >
+                    <Scan className="w-4 h-4" />
+                    Scan
+                  </button>
                 </div>
                 <p className="text-[10px] text-[#9B9BB5] mt-2">Pindai atau ketik kode pengiriman/kantong untuk memastikan darah tidak tertukar.</p>
               </div>
@@ -1624,6 +1637,16 @@ export default function HospitalDashboard() {
         </div>
       )}
 
+      {/* QR Scanner Modal */}
+      {showQrScanner && (
+        <QRScannerModal
+          onScan={(code) => {
+            setQcBagCode(code);
+            setShowQrScanner(false);
+          }}
+          onClose={() => setShowQrScanner(false)}
+        />
+      )}
 
     </div>
   );
