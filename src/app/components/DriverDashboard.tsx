@@ -372,34 +372,38 @@ export default function DriverDashboard() {
                     </div>
                   </div>
 
-                  {/* Stepper Status Visual */}
-                  <div className="grid grid-cols-4 gap-2 mb-4 relative">
-                    {statusSteps.map((step, idx) => {
-                      const cfg = statusCfg[step] || { label: step, color: '#9B9BB5', bg: '#F4F4F8', icon: Clock };
-                      const stepIcon = cfg.icon;
-                      // 'selesai' tidak ada di statusSteps, tapi semua step harus tanda selesai
-                      const isCompleted = d.status === 'selesai' || statusSteps.indexOf(d.status) >= idx;
-                      const isCurrent = d.status === step;
-                      return (
-                        <div key={step} className="flex flex-col items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 text-xs font-bold transition-all ${
-                            isCompleted ? 'shadow-sm text-white' : 'bg-[#F4F4F8] text-[#D9D9E3]'
-                          } ${isCurrent ? 'ring-2 ring-offset-1 ring-[#16A085]' : ''}`}
-                            style={isCompleted ? { background: cfg.color } : {}}>
-                            {isCompleted ? <Check className="w-4 h-4" /> : idx + 1}
+                  {/* Stepper Status Visual (Connected) */}
+                  <div className="relative pb-6 pt-1 mb-4">
+                    {/* Garis background yang menghubungkan titik */}
+                    <div className="absolute top-5 left-[12.5%] w-[75%] h-1.5 bg-[#F4F4F8] -z-10 rounded-full"></div>
+                    {/* Garis progress */}
+                    <div className="absolute top-5 left-[12.5%] h-1.5 -z-10 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `calc(${d.pct}% * 0.75)`, 
+                        background: (d.status === 'tiba' || d.status === 'selesai') ? '#27AE60' : '#16A085' 
+                      }} 
+                    />
+                    
+                    <div className="flex items-center justify-between relative z-10">
+                      {statusSteps.map((step, idx) => {
+                        const cfg = statusCfg[step] || { label: step, color: '#9B9BB5', bg: '#F4F4F8', icon: Clock };
+                        const isCompleted = d.status === 'selesai' || statusSteps.indexOf(d.status) >= idx;
+                        const isCurrent = d.status === step;
+                        return (
+                          <div key={step} className="flex flex-col items-center flex-1 relative">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all ring-4 ring-white ${
+                              isCompleted ? 'text-white' : 'bg-[#F4F4F8] text-[#D9D9E3]'
+                            } ${isCurrent ? 'ring-offset-1 ring-[#16A085]' : ''}`}
+                              style={isCompleted ? { background: cfg.color } : {}}>
+                              {isCompleted ? <Check className="w-4 h-4" /> : idx + 1}
+                            </div>
+                            <span className={`text-[9px] font-medium text-center absolute top-9 w-full ${isCompleted ? 'text-[#1A1A2E]' : 'text-[#D9D9E3]'}`}>
+                              {cfg.label}
+                            </span>
                           </div>
-                          <span className={`text-[9px] font-medium text-center ${isCompleted ? 'text-[#1A1A2E]' : 'text-[#D9D9E3]'}`}>
-                            {cfg.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Progress Line */}
-                  <div className="relative mb-5 bg-[#F4F4F8] h-2 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${d.pct}%`, background: (d.status === 'tiba' || d.status === 'selesai') ? '#27AE60' : '#16A085' }} />
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Route Summary */}

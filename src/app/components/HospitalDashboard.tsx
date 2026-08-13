@@ -145,18 +145,23 @@ function TrackingBar({ order }: { order: BloodOrder }) {
   const activeStep = order.status === 'menunggu' ? 0 : order.status === 'diproses' ? 1 : order.status === 'dikirim' ? 2 : 3;
   return (
     <div className="mt-3 pt-3 border-t border-border">
-      <div className="flex items-center justify-between mb-2">
-        {steps.map((step, i) => (
-          <div key={step} className="flex flex-col items-center flex-1">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1 transition-colors ${i <= activeStep ? 'bg-[#C0392B] text-white' : 'bg-[#F4F4F8] text-[#9B9BB5]'}`}>
-              {i < activeStep ? '✓' : i + 1}
+      <div className="relative pb-6 pt-1">
+        {/* Garis background yang menghubungkan titik */}
+        <div className="absolute top-4 left-[12.5%] w-[75%] h-1 bg-[#F4F4F8] -z-10 rounded-full"></div>
+        {/* Garis progress (merah) */}
+        <div className="absolute top-4 left-[12.5%] h-1 bg-[#C0392B] -z-10 rounded-full transition-all duration-700" 
+             style={{ width: `calc(${order.trackingPct || 0}% * 0.75)` }}></div>
+        
+        <div className="flex items-center justify-between relative z-10">
+          {steps.map((step, i) => (
+            <div key={step} className="flex flex-col items-center flex-1 relative">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${i <= activeStep ? 'bg-[#C0392B] text-white ring-4 ring-white' : 'bg-[#F4F4F8] text-[#9B9BB5] ring-4 ring-white'}`}>
+                {i < activeStep ? '✓' : i + 1}
+              </div>
+              <span className={`text-[9px] font-medium text-center absolute top-7 w-full ${i <= activeStep ? 'text-[#C0392B]' : 'text-[#9B9BB5]'}`}>{step}</span>
             </div>
-            <span className={`text-[9px] font-medium text-center ${i <= activeStep ? 'text-[#C0392B]' : 'text-[#9B9BB5]'}`}>{step}</span>
-          </div>
-        ))}
-      </div>
-      <div className="h-1.5 bg-[#F4F4F8] rounded-full overflow-hidden">
-        <div className="h-full bg-[#C0392B] rounded-full transition-all duration-700" style={{ width: `${order.trackingPct || 0}%` }} />
+          ))}
+        </div>
       </div>
       {order.driver && (
         <div className="mt-2 flex items-center justify-between text-xs">
