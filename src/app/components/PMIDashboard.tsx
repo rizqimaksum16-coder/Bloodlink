@@ -271,6 +271,10 @@ export default function PMIDashboard() {
   const [approvingPublicRequestId, setApprovingPublicRequestId] = useState<string | null>(null);
   const [chosenDriverId, setChosenDriverId] = useState<string>('');
 
+  // States for Bag Assignment Traceability
+  const [assigningBagsRequestId, setAssigningBagsRequestId] = useState<string | null>(null);
+  const [selectedBagCodes, setSelectedBagCodes] = useState<string[]>([]);
+
   // Load data dari MySQL API
   useEffect(() => {
     if (!user) return;
@@ -473,12 +477,8 @@ export default function PMIDashboard() {
   const handleApprove = (id: string) => {
     const req = requests.find(r => r.id === id);
     if (req) {
-      setApprovingRequestId(id);
-      if (drivers.length > 0) {
-        setChosenDriverId(drivers[0].id);
-      } else {
-        setChosenDriverId('');
-      }
+      setAssigningBagsRequestId(id);
+      setSelectedBagCodes([]);
     }
   };
 
@@ -498,14 +498,26 @@ export default function PMIDashboard() {
       return;
     }
 
-    // 1. Update status permintaan darah & kurangi stok
+    // 1. Update status permintaan darah & kurangi stok spesifik
     setRequests(prev => prev.map(r => r.id === approvingRequestId ? { ...r, status: 'diproses' as const } : r));
     setStocks(prev => prev.map(s => {
       if (s.type === req.bloodType) {
+        // Hapus kantong spesifik yang dipilih dari batches
+        const newBatches = (s.batches || []).map(batch => {
+          if (batch.codes) {
+            return {
+              ...batch,
+              codes: batch.codes.filter(c => !selectedBagCodes.includes(c)),
+              qty: batch.codes.filter(c => !selectedBagCodes.includes(c)).length
+            };
+          }
+          return batch;
+        }).filter(batch => batch.qty > 0);
+
         const newStock = Math.max(0, s.stock - req.qty);
         const pct = Math.round((newStock / s.target) * 100);
         const newStatus = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
-        return { ...s, stock: newStock, status: newStatus, lastUpdated: 'Baru saja' };
+        return { ...s, stock: newStock, batches: newBatches, status: newStatus, lastUpdated: 'Baru saja' };
       }
       return s;
     }));
@@ -546,8 +558,12 @@ export default function PMIDashboard() {
       eta: calculatedEta,
       distance: calculatedDistance,
       pct: 0,
+      bagCodes: [...selectedBagCodes], // Mengirim data kantong asli ke driver
       updatedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     };
+
+    // Bersihkan state pilihan kantong
+    setSelectedBagCodes([]);
 
     // Sync ke API MySQL
     try {
@@ -1761,6 +1777,108 @@ export default function PMIDashboard() {
           </div>
         </div>
       )}
+      {/* ── Assign Blood Bags Modal (Traceability) ───────────────────── */}
+      {assigningBagsRequestId && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Pilih Kantong Darah</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Pilih fisik kantong darah untuk dilacak (Traceability)</p>
+              </div>
+              <button onClick={() => setAssigningBagsRequestId(null)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const req = requests.find(r => r.id === assigningBagsRequestId);
+              if (!req) return null;
+              
+              const bloodStock = stocks.find(s => s.type === req.bloodType);
+              
+              // Ekstrak list semua individual bag codes dari batches
+              const availableBagCodes: { code: string; exp: string; source: string }[] = [];
+              if (bloodStock?.batches) {
+                bloodStock.batches.forEach(b => {
+                  if (b.codes) {
+                    b.codes.forEach(code => {
+                      availableBagCodes.push({ code, exp: b.expDate, source: b.sourceName || 'Donasi' });
+                    });
+                  }
+                });
+              }
+
+              const handleToggleBag = (code: string) => {
+                setSelectedBagCodes(prev => 
+                  prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+                );
+              };
+
+              const isValidSelection = selectedBagCodes.length === req.qty;
+
+              return (
+                <div className="space-y-4">
+                  <div className="bg-[#F8F9FA] rounded-2xl p-4 border border-dashed border-[#BDC3C7]">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-xs font-bold text-[#1A1A2E]">Pesanan dari {req.hospital}</p>
+                      <span className="text-[10px] px-2 py-1 bg-[#E8F8F5] text-[#16A085] rounded-full font-bold">Butuh {req.qty} Kantong</span>
+                    </div>
+                    <p className="text-[10px] text-[#4A4A6A]">Golongan Darah: <strong className="text-[#C0392B] text-xs">{req.bloodType}</strong></p>
+                    
+                    <div className="mt-2 text-xs font-medium text-[#1A1A2E]">
+                      Terpilih: <span className={selectedBagCodes.length === req.qty ? 'text-[#27AE60] font-bold' : 'text-[#E67E22] font-bold'}>{selectedBagCodes.length}</span> / {req.qty}
+                    </div>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1 pb-1">
+                    {availableBagCodes.length === 0 ? (
+                      <div className="text-center py-6 border-2 border-dashed border-border rounded-xl">
+                        <p className="text-xs text-[#9B9BB5]">Tidak ada data barcode kantong darah tersedia di inventaris untuk golongan ini.</p>
+                      </div>
+                    ) : (
+                      availableBagCodes.map(bag => (
+                        <label key={bag.code} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedBagCodes.includes(bag.code) ? 'border-[#1ABC9C] bg-[#E8F8F5]/30' : 'border-border hover:border-slate-300'}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBagCodes.includes(bag.code)}
+                            onChange={() => handleToggleBag(bag.code)}
+                            disabled={!selectedBagCodes.includes(bag.code) && selectedBagCodes.length >= req.qty}
+                            className="text-[#1ABC9C] focus:ring-[#1ABC9C] rounded"
+                          />
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-[#1A1A2E] font-mono">{bag.code}</p>
+                            <div className="flex justify-between items-center mt-0.5 text-[10px] text-[#9B9BB5]">
+                              <span>Exp: {bag.exp}</span>
+                              <span>{bag.source}</span>
+                            </div>
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onClick={() => setAssigningBagsRequestId(null)}
+                      className="flex-1 py-2.5 rounded-xl border border-border text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
+                      Batal
+                    </button>
+                    <button type="button" onClick={() => {
+                        setApprovingRequestId(req.id);
+                        setAssigningBagsRequestId(null);
+                        if (drivers.length > 0) setChosenDriverId(drivers[0].id);
+                      }} disabled={!isValidSelection}
+                      className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${!isValidSelection ? 'bg-[#BDC3C7] cursor-not-allowed' : 'bg-[#1ABC9C] hover:bg-[#16A085]'}`}>
+                      Lanjut Pilih Driver →
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ── Assign Driver & Approve Modal ───────────────────── */}
       {approvingRequestId && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

@@ -20,11 +20,13 @@ interface Delivery {
   to: string;
   driver: string;
   driverPhone: string;
+  driverId: string;
   status: DeliveryStatus;
   eta: string;
   distance: string;
   pct: number;
   urgent: boolean;
+  bagCodes?: string[];
   updatedAt: string;
 }
 
@@ -84,6 +86,8 @@ export default function DriverDashboard() {
             fromLng: d.from_lng || 112.7445,
             toLat: d.to_lat || -7.2678,
             toLng: d.to_lng || 112.7584,
+            driverId: d.driver_id || d.driverId || '',
+            bagCodes: d.bagCodes || undefined,
             updatedAt: d.updated_at ? new Date(d.updated_at).toLocaleString('id-ID') : 'Baru saja'
           }));
           setDeliveryList(mapped);
@@ -359,10 +363,18 @@ export default function DriverDashboard() {
                         <span className="block text-[9px] text-[#9B9BB5] uppercase">Jumlah</span>
                         <span className="font-bold text-[#1A1A2E]">{d.qty} Kantong</span>
                       </div>
-                      <div className="bg-[#F4F4F8] rounded-lg p-2 col-span-2 flex justify-between items-center">
+                      <div className="bg-[#F4F4F8] rounded-lg p-2 col-span-2 flex justify-between items-start">
                         <div>
-                          <span className="block text-[9px] text-[#9B9BB5] uppercase">Kode Unik / Resi</span>
-                          <span className="font-mono font-bold text-[#1A1A2E] tracking-wider text-[11px]">{d.orderId.replace('REQ-', 'BLD-')}</span>
+                          <span className="block text-[9px] text-[#9B9BB5] uppercase mb-1">Kode Unik / Resi Traceability</span>
+                          {d.bagCodes && d.bagCodes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {d.bagCodes.map((code: string) => (
+                                <span key={code} className="font-mono font-bold bg-white border border-[#BDC3C7] text-[#1A1A2E] px-1.5 py-0.5 rounded text-[10px] tracking-wider">{code}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="font-mono font-bold text-[#1A1A2E] tracking-wider text-[11px]">{d.orderId.replace('REQ-', 'BLD-')}</span>
+                          )}
                         </div>
                         <span className="bg-[#EAFAF1] text-[#27AE60] text-[9px] font-bold px-2 py-1 rounded">Suhu 4°C Terjaga</span>
                       </div>

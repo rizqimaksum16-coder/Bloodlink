@@ -44,6 +44,7 @@ interface BloodOrder {
   eta?: string;
   trackingPct?: number;
   deliveryId?: string;
+  bagCodes?: string[];
 }
 
 interface StockBatch {
@@ -450,11 +451,24 @@ export default function HospitalDashboard() {
     }
 
     // Validasi kode resi (End-to-End Traceability)
-    // Di MVP ini, kode kantong valid adalah BLD-[SISA_ID_ORDER]
-    const expectedCode = order.id.replace('REQ-', 'BLD-');
-    if (qcBagCode.trim() !== expectedCode) {
-      toast.error(`Kode tidak cocok! Diharapkan: ${expectedCode}, Dimasukkan: ${qcBagCode.trim()}`);
-      return;
+    let isValidCode = false;
+    let validatedCode = qcBagCode.trim();
+
+    if (order.bagCodes && order.bagCodes.length > 0) {
+      if (order.bagCodes.includes(validatedCode)) {
+        isValidCode = true;
+      } else {
+        toast.error(`Kode kantong tidak dikenali! Harus salah satu dari kode yang dikirim PMI.`);
+        return;
+      }
+    } else {
+      // Fallback jika API lama tidak mengirim bagCodes
+      const expectedCode = order.id.replace('REQ-', 'BLD-');
+      if (validatedCode !== expectedCode) {
+        toast.error(`Kode tidak cocok! Diharapkan: ${expectedCode}, Dimasukkan: ${validatedCode}`);
+        return;
+      }
+      isValidCode = true;
     }
 
     setIsQcProcessing(true);
@@ -473,8 +487,8 @@ export default function HospitalDashboard() {
       if (s.type === order.bloodType) {
         const newBatches = [
           {
-            // Tetap menggunakan kode asli dari PMI sebagai Traceability Code
-            id: expectedCode,
+            // Menggunakan kode yang divalidasi sebagai Traceability Code
+            id: validatedCode,
             qty: order.qty,
             entryDate: formatToday,
             expDate: formatExp
@@ -505,7 +519,7 @@ export default function HospitalDashboard() {
       await api.users.updateRequestStatus(order.id, 'selesai');
     } catch (err) { console.warn('Gagal sync konfirmasi ke API:', err); }
     
-    toast.success(`QC Lolos & Penerimaan Dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong dengan ID ${expectedCode}.`);
+    toast.success(`QC Lolos & Penerimaan Dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong dengan Traceability ID ${validatedCode}.`);
     
     // Reset Modal
     setShowQcModal(null);
