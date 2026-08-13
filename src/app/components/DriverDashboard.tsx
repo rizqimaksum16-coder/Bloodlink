@@ -428,6 +428,9 @@ export default function DriverDashboard() {
                         {d.status === 'dijemput' && 'Mulai Pengiriman'}
                         {d.status === 'perjalanan' && 'Konfirmasi Tiba di Tujuan'}
                       </button>
+                      <a href="/gps-tracking" className="py-2.5 px-4 rounded-xl bg-[#8E44AD] text-white hover:bg-[#732D91] text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
+                        <Navigation className="w-3.5 h-3.5" /> Buka Peta GPS
+                      </a>
                     </div>
                   )}
 
