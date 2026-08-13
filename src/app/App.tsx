@@ -77,7 +77,9 @@ export default function App() {
                     {/* Fitur Baru */}
                     {/* AI Matching sementara dinonaktifkan — redirect ke halaman pencarian biasa */}
                     <Route path="/ai-matching" element={<Navigate to="/search" replace />} />
-                    <Route path="/gps-tracking" element={<Navigate to="/" replace />} />
+                    <Route path="/gps-tracking" element={
+                      <ProtectedRoute allowedRoles={['pmi', 'rs', 'admin', 'superadmin']}><GPSTracking /></ProtectedRoute>
+                    } />
                     <Route path="/qr-checkin" element={
                       <ProtectedRoute allowedRoles={['pmi', 'rs']}><QRCheckIn /></ProtectedRoute>
                     } />

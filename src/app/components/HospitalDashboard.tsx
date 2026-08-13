@@ -673,9 +673,14 @@ export default function HospitalDashboard() {
           </h3>
           <p className="text-xs text-[#9B9BB5] mt-0.5">Daftar order aktif dan riwayat pemesanan darah ke PMI</p>
         </div>
-        <span className="text-xs font-bold bg-[#EAFAF1] text-[#1E8449] px-2.5 py-1 rounded-full flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#27AE60] animate-pulse" /> Live
-        </span>
+        <div className="flex items-center gap-3">
+          <a href="/gps-tracking" className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8E44AD] text-white rounded-lg text-xs font-bold hover:bg-[#732D91] transition-colors shadow-sm">
+            <Navigation className="w-3.5 h-3.5" /> Buka Peta GPS
+          </a>
+          <span className="text-xs font-bold bg-[#EAFAF1] text-[#1E8449] px-2.5 py-1 rounded-full flex items-center gap-1.5 hidden sm:flex">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#27AE60] animate-pulse" /> Live
+          </span>
+        </div>
       </div>
 
       {orders.length === 0 ? (
