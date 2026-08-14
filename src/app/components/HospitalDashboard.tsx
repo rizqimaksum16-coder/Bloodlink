@@ -517,7 +517,34 @@ export default function HospitalDashboard() {
         );
       }
       await api.users.updateRequestStatus(order.id, 'selesai');
+      
+      // Tambahkan ke ledger/riwayat stok API
+      await api.stock.addLedger({
+        blood_type: order.bloodType,
+        action: 'in', // Akan diabaikan atau diteruskan sbg data ekstra
+        quantity: order.qty,
+        source_type: 'PMI',
+        source_name: order.pmi || 'PMI',
+        collected_at: formatToday,
+        exp_date: formatExp, // Asumsi 30 hari
+        reason: `Penerimaan QC Order #${order.id}`,
+        bag_codes: validatedCode
+      } as any);
     } catch (err) { console.warn('Gagal sync konfirmasi ke API:', err); }
+    
+    // Update state lokal ledger agar langsung muncul di tabel "Riwayat Stok"
+    setLedger(prev => [
+      {
+        id: `ldg_${Date.now()}`,
+        created_at: new Date().toISOString(),
+        action: 'in',
+        blood_type: order.bloodType,
+        quantity: order.qty,
+        reason: `Penerimaan QC Order #${order.id}`,
+        operator_name: user?.name || 'Admin RS'
+      },
+      ...prev
+    ]);
     
     toast.success(`QC Lolos & Penerimaan Dikonfirmasi! Stok ${order.bloodType} bertambah ${order.qty} kantong dengan Traceability ID ${validatedCode}.`);
     
