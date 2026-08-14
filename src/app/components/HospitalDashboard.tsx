@@ -478,10 +478,9 @@ export default function HospitalDashboard() {
     setOrders(prev => prev.map(o => o.id === showQcModal ? { ...o, status: 'selesai', updatedAt: 'Baru saja' } : o));
     
     const today = new Date();
-    const formatToday = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-    const expDate = new Date();
-    expDate.setDate(today.getDate() + 30);
-    const formatExp = expDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    const formatToday = format(today, 'yyyy-MM-dd');
+    const expDate = addDays(today, 30);
+    const formatExp = format(expDate, 'yyyy-MM-dd');
 
     setStocks(prev => prev.map(s => {
       if (s.type === order.bloodType) {
@@ -509,15 +508,20 @@ export default function HospitalDashboard() {
     }));
 
     // Sync penerimaan ke API MySQL
-    try {
-      if (order.deliveryId) {
+    if (order.deliveryId) {
+      try {
         await api.orders.updateDeliveryStatus(
           order.deliveryId,
           { status: 'selesai', pct: 100 }
         );
-      }
+      } catch (err) { console.warn('Gagal sync delivery ke API:', err); }
+    }
+
+    try {
       await api.users.updateRequestStatus(order.id, 'selesai');
+    } catch (err) { console.warn('Gagal sync request ke API:', err); }
       
+    try {
       // Tambahkan ke ledger/riwayat stok API
       await api.stock.addLedger({
         blood_type: order.bloodType,
@@ -530,7 +534,7 @@ export default function HospitalDashboard() {
         reason: `Penerimaan QC Order #${order.id}`,
         bag_codes: validatedCode
       } as any);
-    } catch (err) { console.warn('Gagal sync konfirmasi ke API:', err); }
+    } catch (err) { console.warn('Gagal sync ledger ke API:', err); }
     
     // Update state lokal ledger agar langsung muncul di tabel "Riwayat Stok"
     setLedger(prev => [
