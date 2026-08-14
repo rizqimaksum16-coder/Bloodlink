@@ -338,15 +338,20 @@ export default function DriverDashboard() {
                   </div>
 
                   {/* Route Summary */}
-                  <div className="bg-[#F7F7FB] rounded-xl p-3 mb-4 text-xs space-y-1.5">
-                    <p className="text-[#4A4A6A] flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#27AE60] flex-shrink-0" />
-                      <strong>Dari (Penjemputan):</strong> {d.from}
-                    </p>
-                    <p className="text-[#4A4A6A] flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#C0392B] flex-shrink-0" />
-                      <strong>Ke (Tujuan):</strong> {d.to}
-                    </p>
+                  <div className="bg-[#F7F7FB] rounded-xl p-3 mb-4 text-xs relative">
+                    {/* Garis putus-putus penghubung */}
+                    <div className="absolute left-[15px] top-[20px] bottom-[20px] w-px border-l-2 border-dashed border-[#D9D9E3] z-0"></div>
+                    
+                    <div className="space-y-3 relative z-10">
+                      <p className="text-[#4A4A6A] flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#27AE60] flex-shrink-0 ring-2 ring-[#F7F7FB]" />
+                        <span><strong>Dari (Penjemputan):</strong> {d.from}</span>
+                      </p>
+                      <p className="text-[#4A4A6A] flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#C0392B] flex-shrink-0 ring-2 ring-[#F7F7FB]" />
+                        <span><strong>Ke (Tujuan):</strong> {d.to}</span>
+                      </p>
+                    </div>
                   </div>
 
                   {/* Info Kantong Darah */}
