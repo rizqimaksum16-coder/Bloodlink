@@ -126,7 +126,7 @@ router.post('/deliveries', authMiddleware, requireRole('pmi', 'superadmin'), asy
   }
 });
 
-// PUT /api/orders/deliveries/:id/status — 🔒 Hanya role driver/pmi/superadmin
+// PUT /api/orders/deliveries/:id/status — 🔒 Hanya role driver/pmi/superadmin/rs
 router.put('/deliveries/:id/status', authMiddleware, requireRole('driver', 'pmi', 'superadmin', 'rs'), async (req, res) => {
   const { id } = req.params;
   const { status, pct, eta } = req.body;
@@ -137,16 +137,68 @@ router.put('/deliveries/:id/status', authMiddleware, requireRole('driver', 'pmi'
       [status, pct, eta, id]
     );
 
-    // Notify RS
+    // Ambil info pengiriman lengkap (RS, driver, PMI, dan detail darah)
     const [delivs] = await pool.query(
-      "SELECT r.hospital_id FROM deliveries d JOIN blood_requests r ON r.id = d.order_id WHERE d.id = ?",
+      `SELECT r.hospital_id, d.driver_id, r.pmi_id, r.blood_type, r.quantity
+       FROM deliveries d
+       JOIN blood_requests r ON r.id = d.order_id
+       WHERE d.id = ?`,
       [id]
     );
+
     if (delivs.length > 0 && status) {
-      await pool.query(
-        "INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, 'delivery_status', 'Update Pengiriman Darah', ?)",
-        ['N-' + Date.now(), delivs[0].hospital_id, `Status pengiriman diperbarui menjadi: ${status}.`]
-      );
+      const { hospital_id, driver_id, pmi_id, blood_type, quantity } = delivs[0];
+      const ts = Date.now();
+
+      if (status === 'tiba') {
+        // Notifikasi khusus ke RS: darah sudah tiba, minta konfirmasi penerimaan
+        await pool.query(
+          `INSERT INTO notifications (id, user_id, type, title, message)
+           VALUES (?, ?, 'delivery_arrived', '🩸 Darah Tiba! Konfirmasi Penerimaan', ?)`,
+          [
+            'N-' + ts,
+            hospital_id,
+            `Darah golongan ${blood_type} (${quantity} kantong) telah tiba di rumah sakit Anda. Silakan segera lakukan konfirmasi penerimaan dan QC pada tab Riwayat Order.`
+          ]
+        );
+      } else if (status === 'selesai') {
+        // Notifikasi ke driver: RS sudah konfirmasi penerimaan
+        if (driver_id) {
+          await pool.query(
+            `INSERT INTO notifications (id, user_id, type, title, message)
+             VALUES (?, ?, 'delivery_confirmed', '✅ Penerimaan Dikonfirmasi RS', ?)`,
+            [
+              'N-' + ts + '1',
+              driver_id,
+              `Rumah sakit telah mengkonfirmasi penerimaan darah ${blood_type} (${quantity} kantong). Pengiriman selesai!`
+            ]
+          );
+        }
+        // Notifikasi ke PMI: darah sudah diterima RS
+        if (pmi_id) {
+          await pool.query(
+            `INSERT INTO notifications (id, user_id, type, title, message)
+             VALUES (?, ?, 'delivery_confirmed', '✅ Stok Darah Diterima RS', ?)`,
+            [
+              'N-' + ts + '2',
+              pmi_id,
+              `Pengiriman darah ${blood_type} (${quantity} kantong) telah diterima dan dikonfirmasi oleh pihak rumah sakit.`
+            ]
+          );
+        }
+      } else {
+        // Notifikasi umum status lainnya ke RS
+        const statusLabel = { dijemput: 'Dijemput oleh Driver', perjalanan: 'Sedang Dalam Perjalanan' }[status] || status;
+        await pool.query(
+          `INSERT INTO notifications (id, user_id, type, title, message)
+           VALUES (?, ?, 'delivery_status', 'Update Pengiriman Darah', ?)`,
+          [
+            'N-' + ts,
+            hospital_id,
+            `Darah ${blood_type} (${quantity} kantong) — Status: ${statusLabel}.`
+          ]
+        );
+      }
     }
 
     res.json({ message: 'Status pengiriman berhasil diperbarui' });

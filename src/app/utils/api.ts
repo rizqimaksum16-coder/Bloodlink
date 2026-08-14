@@ -148,6 +148,12 @@ export const api = {
   notifications: {
     getAll: (fallback?: any[]) => apiFetch('/notifications', {}, fallback),
 
+    send: (data: { user_id: string; type: string; title: string; message: string }) =>
+      apiFetch('/notifications', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+
     markRead: (id: string) =>
       apiFetch(`/notifications/${id}/read`, { method: 'PUT' }),
 

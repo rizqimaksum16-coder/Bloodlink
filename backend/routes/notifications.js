@@ -24,6 +24,25 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/notifications — Buat notifikasi baru ke user tertentu
+router.post('/', authMiddleware, async (req, res) => {
+  const { user_id, type, title, message } = req.body;
+  if (!user_id || !title || !message) {
+    return res.status(400).json({ error: 'user_id, title, dan message wajib diisi' });
+  }
+  try {
+    const id = 'N-' + Date.now() + Math.floor(Math.random() * 1000);
+    await pool.query(
+      `INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, ?, ?, ?)`,
+      [id, user_id, type || 'info', title, message]
+    );
+    res.json({ message: 'Notifikasi berhasil dibuat', id });
+  } catch (err) {
+    console.error('Error create notification:', err);
+    res.status(500).json({ error: 'Gagal membuat notifikasi' });
+  }
+});
+
 // PUT /api/notifications/read-all — Tandai semua notif sudah dibaca
 router.put('/read-all', authMiddleware, async (req, res) => {
   const userId = req.user.id;

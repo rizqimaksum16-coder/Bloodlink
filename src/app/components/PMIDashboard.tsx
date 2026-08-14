@@ -228,6 +228,7 @@ export default function PMIDashboard() {
   const [ledger, setLedger] = useState<any[]>([]);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'in' | 'out'>('all');
+  const [requestFilter, setRequestFilter] = useState<'semua' | Priority>('semua');
 
   // State untuk modal stok
   const [stockModalConfig, setStockModalConfig] = useState<{isOpen: boolean; actionType: StockActionType; bloodType: string; currentStock: number}>({
@@ -956,28 +957,41 @@ export default function PMIDashboard() {
 
           {/* ── Tab: Request RS ─────────────────────────────── */}
           <TabsContent value="requests" id="requests-section" className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Request Darah Masuk</h3>
                 <p className="text-xs text-[#9B9BB5] mt-0.5">Setujui atau tolak permintaan dari rumah sakit</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setRequestFilter('semua')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${requestFilter === 'semua' ? 'bg-[#1A1A2E] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >
+                  Semua
+                </button>
                 {(['darurat', 'mendesak', 'normal'] as Priority[]).map(p => {
                   const cfg = priorityConfig[p];
-                  const cnt = displayedRequests.filter(r => r.priority === p && r.status === 'pending').length;
-                  return cnt > 0 ? (
-                    <span key={p} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: cfg.bg, color: cfg.text }}>
-                      {cnt} {cfg.label}
-                    </span>
-                  ) : null;
+                  const cnt = displayedRequests.filter(r => r.priority === p).length;
+                  if (cnt === 0) return null;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setRequestFilter(p)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5`}
+                      style={requestFilter === p ? { background: cfg.bg, color: cfg.text, outline: `1px solid ${cfg.text}` } : { background: '#F3F4F6', color: '#6B7280' }}
+                    >
+                      <span>{cfg.label}</span>
+                      <span className="w-5 h-5 flex items-center justify-center rounded-full text-[10px]" style={{ background: requestFilter === p ? 'rgba(0,0,0,0.05)' : '#E5E7EB', color: requestFilter === p ? cfg.text : '#9CA3AF' }}>{cnt}</span>
+                    </button>
+                  );
                 })}
               </div>
             </div>
-            </div>
 
             {/* Sort by priority */}
-            {(['darurat', 'mendesak', 'normal'] as Priority[]).map(priority => {
+            {(['darurat', 'mendesak', 'normal'] as Priority[])
+              .filter(priority => requestFilter === 'semua' || requestFilter === priority)
+              .map(priority => {
               const filtered = displayedRequests.filter(r => r.priority === priority);
               if (filtered.length === 0) return null;
               const p = priorityConfig[priority];
