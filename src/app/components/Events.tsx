@@ -194,7 +194,19 @@ export default function Events() {
     const byStatus = filterStatus === 'all' || e.status === filterStatus;
     // Filter penyelenggara: gunakan organizerType yang sudah dinormalisasi saat load
     const byOrganizer = filterOrganizer === 'all' || e.organizerType === filterOrganizer;
-    return bySearch && byStatus && byOrganizer;
+
+    // Filter berbasis role:
+    // - RS hanya boleh melihat event milik RS (organizerType === 'rs')
+    // - PMI hanya boleh melihat event PMI (organizerType !== 'rs')
+    // - Donor & role lain: lihat semua
+    let byRole = true;
+    if (user?.role === 'rs') {
+      byRole = e.organizerType === 'rs';
+    } else if (user?.role === 'pmi') {
+      byRole = e.organizerType !== 'rs';
+    }
+
+    return bySearch && byStatus && byOrganizer && byRole;
   });
 
   const questionnaireList = [
@@ -559,7 +571,7 @@ export default function Events() {
               >
                 {s.label}
               </span>
-              {isCreator && event.organizer === user?.org && (
+              {isCreator && (event.created_by === user?.id || event.organizer === user?.org) && (
                 <button
                   onClick={() => handleDeleteEvent(event.id, event.name)}
                   className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#9B9BB5] hover:text-[#C0392B] transition-colors border border-transparent hover:border-red-100"
