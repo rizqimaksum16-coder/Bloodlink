@@ -188,6 +188,21 @@ router.post('/checkin', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'QR Code ini sudah pernah di-check-in!' });
     }
 
+    // Validasi: event harus masih aktif (bukan completed/closed)
+    const [eventRows] = await conn.query('SELECT status, created_by FROM events WHERE id = ?', [booking.event_id]);
+    if (eventRows.length > 0) {
+      const evStatus = (eventRows[0].status || '').toLowerCase();
+      if (evStatus === 'completed' || evStatus === 'closed' || evStatus === 'selesai') {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Event ini sudah selesai. Check-in tidak dapat dilakukan.' });
+      }
+      // Validasi kepemilikan: hanya pemilik event atau superadmin yang bisa scan
+      if (req.user.role !== 'superadmin' && eventRows[0].created_by !== req.user.id) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Anda tidak memiliki izin untuk melakukan check-in pada event ini.' });
+      }
+    }
+
     const POINTS_EARNED = 50;
     const ELIGIBLE_DAYS = 60;
 
