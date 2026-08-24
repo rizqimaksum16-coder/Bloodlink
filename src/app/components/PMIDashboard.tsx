@@ -285,7 +285,7 @@ export default function PMIDashboard() {
           api.orders.getRequests([]),
           api.stock.getPMIStock([]),
           api.users.getAll('driver', []),
-          api.events.getAll([]),
+          api.events.getMine([]),
           api.orders.getPublicRequests([]),
           api.stock.getBags({ status: 'available' }).catch(() => []),
           api.users.getAll('donor', []).catch(() => []),
@@ -1435,7 +1435,7 @@ export default function PMIDashboard() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-border shadow-xs">
               <div>
                 <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Event Donor Darah</h3>
-                <p className="text-xs text-[#9B9BB5] mt-0.5">{eventsList.length} event tersedia</p>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">{eventsList.length} event Anda</p>
               </div>
               <button
                 onClick={() => setShowAddEventModal(true)}

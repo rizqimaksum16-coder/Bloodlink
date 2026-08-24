@@ -311,6 +311,40 @@ router.post('/checkin', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/events/mine — 🔒 PMI/RS ambil event milik sendiri saja
+router.get('/mine', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(
+      'SELECT * FROM events WHERE created_by = ? ORDER BY date ASC',
+      [userId]
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const normalized = rows.map(e => {
+      const rawStatus = (e.status || '').toLowerCase();
+      let status = e.status;
+      if (rawStatus === 'open' || rawStatus === 'upcoming') {
+        const eventDate = new Date(e.date);
+        eventDate.setHours(0, 0, 0, 0);
+        if (eventDate.getTime() === today.getTime()) status = 'ongoing';
+        else if (eventDate < today) status = 'completed';
+        else status = 'upcoming';
+      } else if (rawStatus === 'closed') {
+        status = 'completed';
+      }
+      return { ...e, status };
+    });
+
+    res.json(normalized);
+  } catch (err) {
+    console.error('Error fetch my events:', err);
+    res.status(500).json({ error: 'Gagal mengambil event milik Anda' });
+  }
+});
+
 // POST /api/events — 🔒 Hanya PMI/RS/superadmin bisa buat event
 router.post('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { name, date, time, location, address, description, capacity, organizer } = req.body;
@@ -321,12 +355,14 @@ router.post('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (
 
   const id = 'EVT-' + Date.now();
   const organizerName = organizer || req.user.org || 'PMI';
+  // Gunakan role user yang membuat sebagai organizer_type (bukan hardcode 'pmi')
+  const organizerType = req.user.role === 'rs' ? 'rs' : 'pmi';
 
   try {
     await pool.query(
-      `INSERT INTO events (id, name, organizer, organizer_type, date, time, location, address, description, capacity, registered, status)
-       VALUES (?, ?, ?, 'pmi', ?, ?, ?, ?, ?, ?, 0, 'open')`,
-      [id, name, organizerName, date, time || '', location, address || '', description || '', capacity || 100]
+      `INSERT INTO events (id, name, organizer, organizer_type, date, time, location, address, description, capacity, registered, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'open', ?)`,
+      [id, name, organizerName, organizerType, date, time || '', location, address || '', description || '', capacity || 100, req.user.id]
     );
 
     const [created] = await pool.query('SELECT * FROM events WHERE id = ?', [id]);
@@ -337,12 +373,22 @@ router.post('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (
   }
 });
 
-// PUT /api/events/:id — 🔒 PMI/RS/superadmin bisa update event
+// PUT /api/events/:id — 🔒 Hanya pemilik event atau superadmin yang bisa update
 router.put('/:id', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { id } = req.params;
   const { name, date, time, location, address, description, capacity, status } = req.body;
 
   try {
+    // Cek kepemilikan: hanya pemilik atau superadmin yang boleh update
+    const [events] = await pool.query('SELECT created_by FROM events WHERE id = ?', [id]);
+    if (events.length === 0) {
+      return res.status(404).json({ error: 'Event tidak ditemukan' });
+    }
+    const event = events[0];
+    if (req.user.role !== 'superadmin' && event.created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Anda tidak memiliki izin untuk mengubah event ini' });
+    }
+
     await pool.query(
       `UPDATE events SET
         name = COALESCE(?, name),
@@ -363,10 +409,20 @@ router.put('/:id', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async
   }
 });
 
-// DELETE /api/events/:id — 🔒 PMI/RS/superadmin bisa hapus event
+// DELETE /api/events/:id — 🔒 Hanya pemilik event atau superadmin yang bisa hapus
 router.delete('/:id', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { id } = req.params;
   try {
+    // Cek kepemilikan: hanya pemilik atau superadmin yang boleh hapus
+    const [events] = await pool.query('SELECT created_by FROM events WHERE id = ?', [id]);
+    if (events.length === 0) {
+      return res.status(404).json({ error: 'Event tidak ditemukan' });
+    }
+    const event = events[0];
+    if (req.user.role !== 'superadmin' && event.created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Anda tidak memiliki izin untuk menghapus event ini' });
+    }
+
     await pool.query('DELETE FROM events WHERE id = ?', [id]);
     res.json({ message: 'Event berhasil dihapus' });
   } catch (err) {

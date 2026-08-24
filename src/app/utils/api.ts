@@ -109,6 +109,7 @@ export const api = {
   // Events API
   events: {
     getAll: (fallback?: any[]) => apiFetch('/events', {}, fallback),
+    getMine: (fallback?: any[]) => apiFetch('/events/mine', {}, fallback),
 
     create: (data: { name: string; date: string; time?: string; location: string; address?: string; description?: string; capacity?: number; organizer?: string }) =>
       apiFetch('/events', {

@@ -117,6 +117,7 @@ CREATE TABLE events (
     capacity       INT DEFAULT 100,
     registered     INT DEFAULT 0,
     status         VARCHAR(20) DEFAULT 'open',
+    created_by     VARCHAR(50) NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
