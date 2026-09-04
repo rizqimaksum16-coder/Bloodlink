@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "start": "cd backend && npm install && node server.js",
     "dev": "concurrently -k -n \"BACKEND,FRONTEND\" -c \"blue,magenta\" \"node backend/server.js\" \"vite\"",
     "dev:frontend": "vite",
     "backend": "node backend/server.js",
