@@ -23,8 +23,11 @@ app.disable('x-powered-by');
 // ✅ Trust proxy (diperlukan untuk Railway/Render agar express-rate-limit bekerja benar)
 app.set('trust proxy', 1);
 
-// 🔒 Security: CORS hanya untuk frontend yang diizinkan
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,https://bloodlink-neon-hive.vercel.app').split(',');
+// 🔒 Security: CORS untuk frontend yang diizinkan
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,https://bloodlink-neon-hive.vercel.app')
+  .split(',')
+  .map(url => url.trim());
+
 app.use(cors({
   origin: (origin, callback) => {
     // Izinkan request tanpa origin (Postman, curl, mobile app)
@@ -33,9 +36,11 @@ app.use(cors({
     if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
-    return callback(new Error('Akses CORS tidak diizinkan untuk origin: ' + origin));
+    return callback(null, false);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // 🔒 Security: Rate Limiter Global (100 request per 15 menit per IP)
