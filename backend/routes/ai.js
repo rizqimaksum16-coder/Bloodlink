@@ -244,13 +244,12 @@ router.post('/matching', async (req, res) => {
   const ML_API_URL = process.env.ML_API_URL;
   const ML_API_KEY = process.env.ML_INTERNAL_API_KEY;
 
-  // Pastikan ML_API_URL sudah dikonfigurasi
   if (!ML_API_URL) {
     return res.status(503).json({ error: 'ML service belum dikonfigurasi. Pastikan variabel ML_API_URL sudah diset di server.' });
   }
 
   try {
-    // 1. Ambil stok PMI dari database
+    // 1. Ambil stok PMI dari database (hanya yang stoknya > 0)
     const [rows] = await pool.query(`
       SELECT 
         u.id, u.org as name, u.address, u.phone, 
@@ -258,20 +257,20 @@ router.post('/matching', async (req, res) => {
         s.stock_qty as stock, s.status
       FROM blood_stock s
       JOIN users u ON s.owner_pmi_id = u.id
-      WHERE s.blood_type = ? AND s.owner_pmi_id IS NOT NULL
+      WHERE s.blood_type = ? AND s.owner_pmi_id IS NOT NULL AND s.stock_qty > 0
     `, [bloodType || 'O+']);
 
     if (!rows.length) {
-      return res.json({ recommendations: [], message: 'Tidak ada stok tersedia untuk golongan darah ini.' });
+      return res.json({ recommendations: [], message: `Tidak ada stok PMI tersedia untuk golongan darah ${bloodType || 'O+'}.` });
     }
 
-    // 2. Hitung fitur untuk setiap PMI dan kirim ke ML
-    const userLat = lat || -7.2678;
-    const userLng = lng || 112.7584;
+    // 2. Hitung fitur untuk setiap PMI
+    const userLat = parseFloat(lat) || -7.2678;
+    const userLng = parseFloat(lng) || 112.7584;
 
     const mlPayload = rows.map(pmi => {
-      const pmiLat = pmi.lat || -7.2657;
-      const pmiLng = pmi.lng || 112.7445;
+      const pmiLat = pmi.lat ? parseFloat(pmi.lat) : -7.2657;
+      const pmiLng = pmi.lng ? parseFloat(pmi.lng) : 112.7445;
       const dLat = userLat - pmiLat;
       const dLng = userLng - pmiLng;
       const distance_km = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
@@ -285,18 +284,17 @@ router.post('/matching', async (req, res) => {
         distance_km: parseFloat(distance_km.toFixed(4)),
         stock_ratio: parseFloat(stock_ratio.toFixed(4)),
         remaining_stock: parseFloat(remaining_stock.toFixed(2)),
-        is_critical: is_critical,
-        // Data tambahan untuk dikembalikan ke frontend (bukan fitur ML)
-        _meta: { 
-          ...pmi, 
-          lat: pmi.lat ? parseFloat(pmi.lat) : pmiLat,
-          lng: pmi.lng ? parseFloat(pmi.lng) : pmiLng,
-          distance: parseFloat(distance_km.toFixed(2)) 
+        is_critical,
+        _meta: {
+          ...pmi,
+          lat: pmiLat,
+          lng: pmiLng,
+          distance: parseFloat(distance_km.toFixed(2))
         }
       };
     });
 
-    // 3. Panggil ML FastAPI (timeout 10 detik)
+    // 3. Kirim ke ML FastAPI XGBoost (timeout 10 detik)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -309,8 +307,8 @@ router.post('/matching', async (req, res) => {
           'x-api-key': ML_API_KEY || ''
         },
         body: JSON.stringify({
-          model_type: process.env.ML_MODEL_TYPE || 'xgboost',
-          data: mlPayload.map(({ _meta, ...features }) => features) // Kirim hanya fitur
+          model_type: 'xgboost',
+          data: mlPayload.map(({ _meta, ...features }) => features)
         }),
         signal: controller.signal
       });
@@ -318,33 +316,35 @@ router.post('/matching', async (req, res) => {
 
       if (!mlResponse.ok) {
         const errText = await mlResponse.text();
-        throw new Error(`ML service merespons dengan status ${mlResponse.status}: ${errText}`);
+        throw new Error(`ML service error ${mlResponse.status}: ${errText}`);
       }
 
       mlResult = await mlResponse.json();
     } catch (mlError) {
       clearTimeout(timeoutId);
-      console.error('ML API Error:', mlError.message);
+      console.error('[AI Matching] ML XGBoost Error:', mlError.message);
       return res.status(503).json({
-        error: `ML service tidak dapat dihubungi: ${mlError.message}. Pastikan layanan ML sudah berjalan dan URL-nya benar.`
+        error: `ML service XGBoost tidak dapat dihubungi: ${mlError.message}`
       });
     }
 
-    // 4. Gabungkan hasil prediksi ML dengan data lengkap PMI
+    // 4. Gabungkan skor ML dengan data PMI dan urutkan
     const scoreMap = {};
     (mlResult.predictions || []).forEach(p => {
       scoreMap[p.id] = p.aiScore;
     });
 
-    const recommendations = mlPayload.map(item => ({
-      ...item._meta,
-      aiScore: scoreMap[String(item._meta.id)] ?? 0
-    })).sort((a, b) => b.aiScore - a.aiScore);
+    const recommendations = mlPayload
+      .map(item => ({
+        ...item._meta,
+        aiScore: scoreMap[String(item._meta.id)] ?? 0
+      }))
+      .sort((a, b) => b.aiScore - a.aiScore);
 
     res.json({
-      modelUsed: mlResult.model_used || 'xgboost',
+      modelUsed: mlResult.model_used || 'XGBoost',
       recommendations,
-      provider: 'Bloodlink ML (FastAPI)'
+      provider: 'Bloodlink ML (FastAPI XGBoost)'
     });
 
   } catch (error) {

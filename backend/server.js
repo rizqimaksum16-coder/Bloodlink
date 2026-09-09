@@ -99,4 +99,29 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`🚀 Bloodlink API Server running on port ${PORT}`);
   console.log(`📡 Base URL: http://localhost:${PORT}/api`);
+
+  // ♾️  Keep-alive: Ping ML service setiap 14 menit agar Render tidak spin-down
+  // Render free tier mematikan service setelah 15 menit tanpa request.
+  const ML_HEALTH_URL = process.env.ML_API_URL
+    ? process.env.ML_API_URL.replace('/predict', '/health')
+    : null;
+
+  if (ML_HEALTH_URL) {
+    console.log(`🏓 Keep-alive aktif → ping ML service setiap 14 menit: ${ML_HEALTH_URL}`);
+    setInterval(async () => {
+      try {
+        const res = await fetch(ML_HEALTH_URL, {
+          headers: { 'x-api-key': process.env.ML_INTERNAL_API_KEY || '' },
+          signal: AbortSignal.timeout(10000)
+        });
+        const body = await res.json().catch(() => ({}));
+        console.log(`[Keep-alive] ML service OK — status: ${body.status || res.status}`);
+      } catch (err) {
+        console.warn(`[Keep-alive] ML service tidak merespons: ${err.message}`);
+      }
+    }, 14 * 60 * 1000); // 14 menit
+  } else {
+    console.warn('⚠️  ML_API_URL tidak diset — keep-alive ML tidak aktif.');
+  }
 });
+
