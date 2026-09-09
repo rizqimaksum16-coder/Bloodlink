@@ -12,18 +12,19 @@ const ALL_BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 async function run() {
   const pool = await mysql.createPool({
-    host:     process.env.DB_HOST     || 'localhost',
-    port:     parseInt(process.env.DB_PORT || '3306'),
-    user:     process.env.DB_USER     || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME     || 'bloodlink',
+    host:     process.env.MYSQL_HOST     || process.env.DB_HOST     || 'localhost',
+    port:     parseInt(process.env.MYSQL_PORT || process.env.DB_PORT || '3306'),
+    user:     process.env.MYSQL_USER     || process.env.DB_USER     || 'root',
+    password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '',
+    database: process.env.MYSQL_DATABASE || process.env.DB_NAME     || 'bloodlink',
     waitForConnections: true,
     connectionLimit: 5,
+    ssl: { rejectUnauthorized: false } // Diperlukan untuk Aiven cloud
   });
 
   const conn = await pool.getConnection();
   try {
-    console.log('✅ Terkoneksi ke database:', process.env.DB_NAME || 'bloodlink');
+    console.log('✅ Terkoneksi ke database:', process.env.MYSQL_DATABASE || process.env.DB_NAME || 'bloodlink');
 
     // Ambil semua PMI yang ada
     const [pmiUsers] = await conn.query(`SELECT id, name, org FROM users WHERE role = 'pmi'`);
