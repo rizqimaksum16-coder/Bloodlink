@@ -311,26 +311,51 @@ export default function BloodSearch() {
     }
   }, [initialTabParam]);
 
+  // Inisialisasi peta — dibuat ulang setiap kali div map di-mount
   useEffect(() => {
     if (!mapRef.current) return;
-    
-    if (!mapInstanceRef.current) {
-      mapInstanceRef.current = L.map(mapRef.current).setView([-7.250445, 112.768845], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(mapInstanceRef.current);
+
+    // Hancurkan instance lama jika masih ada (misal dari pencarian sebelumnya)
+    if (mapInstanceRef.current) {
+      try {
+        if ((mapInstanceRef.current as any)._routingControl) {
+          mapInstanceRef.current.removeControl((mapInstanceRef.current as any)._routingControl);
+        }
+        mapInstanceRef.current.remove();
+      } catch (_) {}
+      mapInstanceRef.current = null;
     }
-    
+
+    const map = L.map(mapRef.current).setView([-7.250445, 112.768845], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    mapInstanceRef.current = map;
+
+    // Paksa Leaflet menghitung ulang ukuran container agar tile muncul
+    setTimeout(() => { map.invalidateSize(); }, 100);
+
+    return () => {
+      // Cleanup saat div map unmount
+      try {
+        if ((map as any)._routingControl) {
+          map.removeControl((map as any)._routingControl);
+        }
+        map.remove();
+      } catch (_) {}
+      mapInstanceRef.current = null;
+    };
+  }, [mapRef.current]);
+
+  // Tambahkan marker & routing setiap kali hasil pencarian berubah
+  useEffect(() => {
     const map = mapInstanceRef.current;
-    
-    // Clear old markers
+    if (!map || !pmiResults || pmiResults.length === 0) return;
+
     // Hapus marker dan routing control lama
     map.eachLayer((layer) => {
-      if (layer instanceof L.Marker) {
-        map.removeLayer(layer);
-      }
+      if (layer instanceof L.Marker) map.removeLayer(layer);
     });
-
     if ((map as any)._routingControl) {
       map.removeControl((map as any)._routingControl);
       (map as any)._routingControl = null;
@@ -366,44 +391,45 @@ export default function BloodSearch() {
       popupAnchor: [0, -42]
     });
 
-    if (pmiResults && pmiResults.length > 0) {
-      const bounds = L.latLngBounds([]);
-      pmiResults.forEach(pmi => {
-        if (pmi.lat && pmi.lng) {
-          const marker = L.marker([pmi.lat, pmi.lng], { icon: pmiBlueIcon }).addTo(map)
-            .bindPopup(`<b>${pmi.name}</b><br/>Stok: ${pmi.stock} kantong<br/>Jarak: ${pmi.distanceKm?.toFixed(1) || 0} km`);
-          bounds.extend([pmi.lat, pmi.lng]);
-        }
-      });
-      if (activeHospital?.lat && activeHospital?.lng) {
-        const marker = L.marker([activeHospital.lat, activeHospital.lng], {
-          icon: userRedIcon
-        }).addTo(map).bindPopup('Lokasi Anda / RS');
-        bounds.extend([activeHospital.lat, activeHospital.lng]);
+    const bounds = L.latLngBounds([]);
+    pmiResults.forEach(pmi => {
+      if (pmi.lat && pmi.lng) {
+        L.marker([pmi.lat, pmi.lng], { icon: pmiBlueIcon }).addTo(map)
+          .bindPopup(`<b>${pmi.name}</b><br/>Stok: ${pmi.stock} kantong<br/>Jarak: ${pmi.distanceKm?.toFixed(1) || 0} km`);
+        bounds.extend([pmi.lat, pmi.lng]);
       }
+    });
 
-      // Tambahkan Routing Google Maps style ke lokasi PMI Rekomendasi #1 (PMI Terbaik)
-      const topPMI = pmiResults[0];
-      if (activeHospital?.lat && activeHospital?.lng && topPMI.lat && topPMI.lng) {
-        (map as any)._routingControl = (L as any).Routing.control({
-          waypoints: [
-            L.latLng(activeHospital.lat, activeHospital.lng),
-            L.latLng(topPMI.lat, topPMI.lng)
-          ],
-          routeWhileDragging: false,
-          addWaypoints: false,
-          show: false, // Sembunyikan panel teks rute agar UI map tetap bersih
-          createMarker: function() { return null; }, // Gunakan custom marker kita saja
-          lineOptions: {
-            styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
-          }
-        }).addTo(map);
-      }
-
-      if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [50, 50] });
-      }
+    if (activeHospital?.lat && activeHospital?.lng) {
+      L.marker([activeHospital.lat, activeHospital.lng], { icon: userRedIcon })
+        .addTo(map).bindPopup('Lokasi Anda / RS');
+      bounds.extend([activeHospital.lat, activeHospital.lng]);
     }
+
+    // Routing ke PMI terbaik (rekomendasi #1)
+    const topPMI = pmiResults[0];
+    if (activeHospital?.lat && activeHospital?.lng && topPMI.lat && topPMI.lng) {
+      (map as any)._routingControl = (L as any).Routing.control({
+        waypoints: [
+          L.latLng(activeHospital.lat, activeHospital.lng),
+          L.latLng(topPMI.lat, topPMI.lng)
+        ],
+        routeWhileDragging: false,
+        addWaypoints: false,
+        show: false,
+        createMarker: () => null,
+        lineOptions: {
+          styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
+        }
+      }).addTo(map);
+    }
+
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+    // Pastikan tile terbaru ter-render setelah marker ditambahkan
+    map.invalidateSize();
   }, [pmiResults, activeHospital]);
 
 
