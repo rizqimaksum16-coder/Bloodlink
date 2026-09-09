@@ -215,7 +215,7 @@ export default function SuperAdminDashboard() {
           ...(pmiUsers || []).map((u: any) => ({
             id: String(u.id),
             type: 'pmi' as OrgType,
-            name: u.name,
+            name: u.org || u.name,
             email: u.email,
             address: u.address || 'Belum diatur',
             phone: u.phone || '-',
@@ -227,7 +227,7 @@ export default function SuperAdminDashboard() {
           ...(rsUsers || []).map((u: any) => ({
             id: String(u.id),
             type: 'rs' as OrgType,
-            name: u.name,
+            name: u.org || u.name,
             email: u.email,
             address: u.address || 'Belum diatur',
             phone: u.phone || '-',

@@ -9,17 +9,17 @@ async function cleanDb() {
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE,
-    // Try without SSL first, if it fails we know it requires SSL
+    connectTimeout: 20000
   });
 
   try {
     const connection = await pool.getConnection();
     console.log('Connected!');
-    const [rows] = await connection.query('SELECT id, name, role FROM users WHERE role IN ("pmi", "rs")');
-    console.log('Users in DB:', rows);
+    const [rows] = await connection.query("SELECT id, name, role, org, address FROM users WHERE role IN ('pmi', 'rs')");
+    console.log('Users in DB:', JSON.stringify(rows, null, 2));
     connection.release();
   } catch (err) {
-    console.log('Error without SSL:', err.message);
+    console.log('Error:', err.message);
   }
   process.exit(0);
 }
