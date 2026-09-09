@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router';
 import {
   MapPin, Filter, Navigation, Phone, Search, X, Zap, Star, Droplets,
@@ -98,8 +98,32 @@ export default function BloodSearch() {
   const [resultTab, setResultTab] = useState<'ai-matching' | 'hospital-stock'>('ai-matching');
 
   const { user } = useAuth();
-  const mapRef = useRef<HTMLDivElement>(null);
+  // Ganti useRef biasa dengan callback ref agar init map terpanggil
+  // tepat saat DOM element tersedia (bukan hanya saat component mount)
+  const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+
+  // Callback ref: dipanggil setiap kali div map di-attach/detach dari DOM
+  const mapCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (mapInstanceRef.current) {
+      try {
+        if ((mapInstanceRef.current as any)._routingControl) {
+          mapInstanceRef.current.removeControl((mapInstanceRef.current as any)._routingControl);
+        }
+        mapInstanceRef.current.remove();
+      } catch (_) {}
+      mapInstanceRef.current = null;
+    }
+    mapRef.current = node;
+    if (!node) return;
+
+    const map = L.map(node).setView([-7.250445, 112.768845], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '\u00a9 OpenStreetMap contributors'
+    }).addTo(map);
+    mapInstanceRef.current = map;
+    setTimeout(() => { map.invalidateSize(); }, 150);
+  }, []);
 
   // Fungsi AI Analisis Dihapus
   const [activeHospital, setActiveHospital] = useState<{
@@ -311,42 +335,6 @@ export default function BloodSearch() {
     }
   }, [initialTabParam]);
 
-  // Inisialisasi peta — dibuat ulang setiap kali div map di-mount
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    // Hancurkan instance lama jika masih ada (misal dari pencarian sebelumnya)
-    if (mapInstanceRef.current) {
-      try {
-        if ((mapInstanceRef.current as any)._routingControl) {
-          mapInstanceRef.current.removeControl((mapInstanceRef.current as any)._routingControl);
-        }
-        mapInstanceRef.current.remove();
-      } catch (_) {}
-      mapInstanceRef.current = null;
-    }
-
-    const map = L.map(mapRef.current).setView([-7.250445, 112.768845], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    mapInstanceRef.current = map;
-
-    // Paksa Leaflet menghitung ulang ukuran container agar tile muncul
-    setTimeout(() => { map.invalidateSize(); }, 100);
-
-    return () => {
-      // Cleanup saat div map unmount
-      try {
-        if ((map as any)._routingControl) {
-          map.removeControl((map as any)._routingControl);
-        }
-        map.remove();
-      } catch (_) {}
-      mapInstanceRef.current = null;
-    };
-  }, [mapRef.current]);
-
   // Tambahkan marker & routing setiap kali hasil pencarian berubah
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -428,8 +416,9 @@ export default function BloodSearch() {
       map.fitBounds(bounds, { padding: [50, 50] });
     }
 
-    // Pastikan tile terbaru ter-render setelah marker ditambahkan
     map.invalidateSize();
+    // Tambahan delay untuk memastikan tile muncul setelah div berubah dari display:none ke block
+    setTimeout(() => { map.invalidateSize(); }, 200);
   }, [pmiResults, activeHospital]);
 
 
@@ -791,22 +780,23 @@ export default function BloodSearch() {
                       ))}
                     </div>
 
-                    {/* Route map */}
-                    {pmiResults.length > 0 && (
-                      <div className="border border-border rounded-xl overflow-hidden h-[400px] relative mt-6">
-                        <div ref={mapRef} className="w-full h-full" />
-                        <div className="absolute top-4 right-4 z-[400] bg-white rounded-lg shadow-md p-3 text-xs font-semibold border border-border">
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full bg-blue-500" /> <span>Lokasi PMI</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full bg-red-500" /> <span>Lokasi Anda</span>
-                            </div>
+                    {/* Route map - selalu di DOM, disembunyikan via CSS saat tidak ada hasil */}
+                    <div
+                      className="border border-border rounded-xl overflow-hidden h-[400px] relative mt-6"
+                      style={{ display: pmiResults && pmiResults.length > 0 ? 'block' : 'none' }}
+                    >
+                      <div ref={mapCallbackRef} className="w-full h-full" />
+                      <div className="absolute top-4 right-4 z-[400] bg-white rounded-lg shadow-md p-3 text-xs font-semibold border border-border">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-blue-500" /> <span>Lokasi PMI</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-red-500" /> <span>Lokasi Anda</span>
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 )
               )}
