@@ -1180,7 +1180,7 @@ export default function HospitalDashboard() {
 
   return (
     <div className="min-h-screen py-8 bg-[#F7F7FB]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1500px] w-full mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
@@ -1247,25 +1247,23 @@ export default function HospitalDashboard() {
 
 
           {/* TAB 2: ORDER ONLY */}
-          <TabsContent value="order" className="max-w-4xl mx-auto">
+          <TabsContent value="order" className="w-full">
             {renderOrderSection()}
           </TabsContent>
 
           {/* TAB 3: STOCK ONLY */}
-          <TabsContent value="stock" className="max-w-4xl mx-auto space-y-6">
+          <TabsContent value="stock" className="w-full space-y-6">
             {renderStockSection()}
             {renderAlertsSection()}
           </TabsContent>
 
-
-
           {/* TAB 4: REPORT ONLY */}
-          <TabsContent value="report" className="max-w-4xl mx-auto">
+          <TabsContent value="report" className="w-full">
             {renderReportSection()}
           </TabsContent>
 
           {/* TAB 5: RIWAYAT STOK (Audit Trail Ledger) */}
-          <TabsContent value="ledger" className="max-w-4xl mx-auto">
+          <TabsContent value="ledger" className="w-full">
             <div className="bg-white rounded-2xl border border-border p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <div>
