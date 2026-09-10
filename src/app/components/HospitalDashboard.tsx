@@ -856,210 +856,253 @@ export default function HospitalDashboard() {
   );
 
   const renderStockSection = () => (
-    <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
-      <div className="mb-4 pb-3 border-b border-border">
-        <h3 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          Stok Darah & Target RS
-        </h3>
-        <p className="text-xs text-[#9B9BB5] mt-0.5">Edit jumlah kantong, target, dan kadaluarsa secara langsung di bawah ini</p>
-      </div>
-
-      {/* Tombol Simpan Perubahan ke Database */}
-      {isDirty && (
-        <div className="mb-5 bg-[#EAFAF1] border border-[#27AE60]/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 animate-fade-in shadow-sm">
-          <div>
-            <p className="text-sm font-bold text-[#27AE60]">Perubahan Stok Belum Disimpan</p>
-            <p className="text-xs text-[#2E7D32] mt-0.5">Ada data stok darah yang Anda ubah namun belum disinkronkan ke database.</p>
-          </div>
+    <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+      {/* Section Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h3 className="font-bold text-[#1A1A2E] text-lg" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Stok Darah & Target RS
+          </h3>
+          <p className="text-xs text-[#9B9BB5] mt-1">Pantau dan kelola stok semua golongan darah secara real-time</p>
+        </div>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowScanModal(true)}
-            className="bg-[#2980B9] hover:bg-[#2471A3] text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow transition-all transform active:scale-95 text-xs uppercase tracking-wider"
+            className="bg-[#EAF7FB] hover:bg-[#D5EFF8] text-[#2980B9] font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all text-xs"
           >
-            <Scan className="w-4 h-4" /> Scan Penerimaan
+            <Scan className="w-4 h-4" /> Scan
           </button>
-          <button
-            onClick={saveStocksToDatabase}
-            disabled={isSaving}
-            className="bg-[#27AE60] hover:bg-[#219653] disabled:opacity-50 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow transition-all transform active:scale-95 text-xs uppercase tracking-wider"
-          >
-            <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan ke Database'}
-          </button>
+          {isDirty && (
+            <button
+              onClick={saveStocksToDatabase}
+              disabled={isSaving}
+              className="bg-[#27AE60] hover:bg-[#219653] disabled:opacity-50 text-white font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 text-xs"
+            >
+              <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Unsaved Changes Banner */}
+      {isDirty && (
+        <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+          <p className="text-xs font-semibold text-emerald-700">Ada perubahan stok yang belum disimpan ke database.</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Blood Stock Grid — 4 columns on large screens */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stocks.map(blood => {
           const status = blood.stock >= 25 ? 'good' : blood.stock >= 10 ? 'low' : 'critical';
-          const statusColors = {
-            good: { bg: '#EAFAF1', text: '#1E8449', bar: '#27AE60', label: 'Cukup' },
-            low: { bg: '#FEF9E7', text: '#E67E22', bar: '#E67E22', label: 'Rendah' },
-            critical: { bg: '#FDEDEC', text: '#C0392B', bar: '#E74C3C', label: 'Kritis' },
+          const statusConfig: Record<string, { label: string; barColor: string; bgClass: string; textClass: string }> = {
+            good:     { label: 'Cukup',  barColor: '#27AE60', bgClass: 'bg-emerald-100', textClass: 'text-emerald-700' },
+            low:      { label: 'Rendah', barColor: '#E67E22', bgClass: 'bg-amber-100',   textClass: 'text-amber-700' },
+            critical: { label: 'Kritis', barColor: '#E74C3C', bgClass: 'bg-red-100',     textClass: 'text-red-700' },
           };
-          const sc = statusColors[status];
+          const sc = statusConfig[status];
 
           const expiredBags = blood.batches?.filter(b => isExpired(b.expDate)).reduce((sum, b) => sum + b.qty, 0) || 0;
           const expiringSoonBags = blood.batches?.filter(b => isExpiringSoon(b.expDate)).reduce((sum, b) => sum + b.qty, 0) || 0;
+          const stockPct = Math.min(100, (blood.stock / 50) * 100);
+
 
           return (
-            <div key={blood.type} className="bg-white rounded-2xl border border-border p-5 hover:shadow-md transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm" style={{ background: btColor[blood.type] }}>
+            <div
+              key={blood.type}
+              className="relative bg-[#FAFAFA] rounded-2xl border border-border/60 p-4 flex flex-col gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+            >
+              {/* Colored accent top bar */}
+              <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ background: btColor[blood.type] }} />
+
+              {/* Blood type badge + stock count */}
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shadow-md flex-shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${btColor[blood.type]}, ${btColor[blood.type]}bb)` }}
+                  >
                     {blood.type}
                   </div>
                   <div>
-                    <p className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Golongan {blood.type}</p>
-                    <p className="text-xs text-[#9B9BB5]">{blood.stock} kantong</p>
+                    <p className="text-[10px] font-semibold text-[#9B9BB5] uppercase tracking-wider">Gol. {blood.type}</p>
+                    <p className="text-xl font-extrabold text-[#1A1A2E] leading-none mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {blood.stock}<span className="text-xs font-semibold text-[#9B9BB5] ml-1">ktg</span>
+                    </p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.text }}>{sc.label}</span>
-                  {status === 'critical' && (
-                    <button onClick={() => { setSelectedBlood(blood.type); setShowOrderForm(true); setOrderStep('form'); }}
-                      className="text-[10px] bg-[#C0392B] text-white px-2.5 py-1 rounded-lg hover:bg-[#922B21] transition-colors font-bold shadow-sm">
-                      + Order
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs mt-3 mb-3">
-                <span className="text-[#9B9BB5] flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Terakhir: {blood.lastUpdated || 'Tidak ada data'}
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${sc.bgClass} ${sc.textClass}`}>
+                  {sc.label}
                 </span>
               </div>
 
-              {/* Expired warning / Expiring soon warning */}
+              {/* Stock progress bar */}
+              <div>
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${stockPct}%`, background: sc.barColor }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[9px] text-[#9B9BB5]">0 ktg</span>
+                  <span className="text-[9px] text-[#9B9BB5]">50 ktg</span>
+                </div>
+              </div>
+
+              {/* Last updated */}
+              <div className="flex items-center gap-1 text-[9px] text-[#9B9BB5]">
+                <Clock className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{blood.lastUpdated || 'Belum ada update'}</span>
+              </div>
+
+              {/* Expired / Expiring alert */}
               {expiredBags > 0 ? (
-                <div className="mb-3 bg-[#FDEDEC] rounded-xl p-2.5 flex items-center justify-between border border-[#FDEDEC]/80 animate-pulse">
-                  <span className="text-[11px] text-[#C0392B] font-bold flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-[#C0392B]" /> Ada {expiredBags} kantong kadaluarsa!
+                <div className="bg-red-50 rounded-xl px-3 py-2 flex items-center justify-between border border-red-100">
+                  <span className="text-[10px] text-red-600 font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> {expiredBags} kadaluarsa!
                   </span>
-                  <button onClick={() => handleDiscardExpired(blood.type)}
-                    className="text-[9px] bg-[#C0392B] hover:bg-[#922B21] text-white px-2.5 py-1 rounded-md font-bold transition-colors shadow-sm flex items-center gap-1">
-                    <Trash2 className="w-3 h-3" /> Buang
+                  <button
+                    onClick={() => handleDiscardExpired(blood.type)}
+                    className="text-[9px] bg-red-500 hover:bg-red-600 text-white px-2 py-0.5 rounded-md font-bold transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" /> Buang
                   </button>
                 </div>
               ) : (expiringSoonBags > 0 || blood.expiringSoon > 0) ? (
-                <div className="mb-3 bg-[#FEF9E7] rounded-xl p-2.5 flex items-center justify-between border border-[#FEF9E7]/80">
-                  <span className="text-[11px] text-[#E67E22] font-semibold flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-[#E67E22]" /> Peringatan: {expiringSoonBags || blood.expiringSoon} kantong mendekati kadaluarsa!
+                <div className="bg-amber-50 rounded-xl px-3 py-2 flex items-center justify-between border border-amber-100">
+                  <span className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> {expiringSoonBags || blood.expiringSoon} segera exp!
                   </span>
-                  <button onClick={() => handleDiscardExpired(blood.type)}
-                    className="text-[9px] bg-[#E67E22] hover:bg-[#D35400] text-white px-2.5 py-1 rounded-md font-bold transition-colors shadow-sm">
+                  <button
+                    onClick={() => handleDiscardExpired(blood.type)}
+                    className="text-[9px] bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-md font-bold transition-colors"
+                  >
                     Buang
                   </button>
                 </div>
               ) : null}
 
-              {/* Action Buttons for Stock Management */}
-              <div className="flex flex-wrap items-center gap-2 mt-4 mb-2">
+              {/* Expired (7hr) input */}
+              <div className="bg-white border border-border/60 rounded-xl px-3 py-2">
+                <span className="text-[9px] font-bold text-[#9B9BB5] uppercase tracking-wider block mb-1.5">Exp dalam 7 hr</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={blood.expiringSoon}
+                  onKeyDown={preventNegativeInput}
+                  onChange={(e) => updateSingleStock(blood.type, 'expiringSoon', Number(e.target.value))}
+                  className="w-full text-center text-sm font-bold bg-[#F9F9FC] border border-border rounded-lg py-1.5 focus:border-[#2980B9] focus:outline-none text-orange-500"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   onClick={() => openStockModal(blood.type, 'in')}
-                  className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                  title="Tambah Stok Masuk"
+                  className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-sm"
                 >
-                  <ArrowDownCircle className="w-4 h-4" /> Masuk
+                  <ArrowDownCircle className="w-3.5 h-3.5" />
+                  <span>Masuk</span>
                 </button>
                 <button
                   onClick={() => openStockModal(blood.type, 'out')}
-                  className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                  title="Kurangi Stok Keluar"
+                  className="py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-sm"
                 >
-                  <ArrowUpCircle className="w-4 h-4" /> Keluar
+                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                  <span>Keluar</span>
                 </button>
                 <button
                   onClick={() => handleFastPrint(blood.type)}
-                  className="flex-1 min-w-[30%] py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                  title="Cetak Label Terakhir"
+                  className="py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-sm"
                 >
-                  <Printer className="w-4 h-4" /> Cetak Terakhir
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Cetak</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 py-1">
-                <div>
-                  <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1">Expired (7 hr)</span>
-                  <input type="number" min={0} value={blood.expiringSoon} onKeyDown={preventNegativeInput} onChange={(e) => updateSingleStock(blood.type, 'expiringSoon', Number(e.target.value))}
-                    className="w-full text-center text-xs font-bold bg-[#F9F9FC] border border-border rounded-lg py-2 focus:border-[#2980B9] focus:ring-0 text-orange-600 shadow-inner" />
-                </div>
-              </div>
+              {/* Order button for critical */}
+              {status === 'critical' && (
+                <button
+                  onClick={() => { setSelectedBlood(blood.type); setShowOrderForm(true); setOrderStep('form'); }}
+                  className="w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm animate-pulse"
+                >
+                  <Zap className="w-3.5 h-3.5" /> Order Darurat ke PMI
+                </button>
+              )}
 
-              {/* Batches Table/List showing exact inflow dates */}
+              {/* Batches collapsible */}
               {blood.batches && blood.batches.length > 0 && (
-                <div className="mt-3">
+                <div>
                   <button
                     onClick={() => toggleBatches(blood.type)}
-                    className="flex items-center justify-between w-full text-[10px] font-bold text-[#4A4A6A] bg-[#F4F4F8] hover:bg-border/40 px-3 py-1.5 rounded-lg transition-colors border border-border/20"
+                    className="flex items-center justify-between w-full text-[10px] font-bold text-[#4A4A6A] bg-[#F4F4F8] hover:bg-gray-200/70 px-3 py-2 rounded-lg transition-colors"
                   >
                     <span className="flex items-center gap-1.5">
-                      <Package className="w-3.5 h-3.5" /> 
-                      {expandedBatches[blood.type] ? 'Sembunyikan Detail Batch' : 'Lihat Detail Batch'}
+                      <Package className="w-3 h-3" />
+                      {expandedBatches[blood.type] ? 'Sembunyikan Batch' : `Detail Batch (${blood.batches.length})`}
                     </span>
                     <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedBatches[blood.type] ? 'rotate-180' : ''}`} />
                   </button>
 
                   {expandedBatches[blood.type] && (() => {
                     const isAllVisible = showAllBatches[blood.type];
-                    const visibleBatches = isAllVisible ? blood.batches : blood.batches.slice(0, 2);
+                    const visibleBatches = isAllVisible ? blood.batches : blood.batches!.slice(0, 2);
                     return (
                       <div className="mt-2 pt-2.5 border-t border-dashed border-border">
                         <span className="text-[9px] font-bold text-[#4A4A6A] block mb-1.5 uppercase tracking-wider">Detail Batch Masuk</span>
-                        <div className="space-y-1 pr-1">
+                        <div className="space-y-1">
                           {visibleBatches.map(b => {
                             const expired = isExpired(b.expDate);
                             const soon = isExpiringSoon(b.expDate);
                             return (
                               <div key={b.id} className={`flex flex-col gap-1 text-[10px] px-2 py-1.5 rounded-md border ${
-                                expired 
-                                  ? 'bg-[#FDEDEC]/40 border-[#FDEDEC] text-[#C0392B]' 
-                                  : soon 
-                                    ? 'bg-[#FEF9E7]/40 border-[#FEF9E7] text-[#E67E22]' 
+                                expired ? 'bg-red-50/40 border-red-100 text-red-600'
+                                  : soon ? 'bg-amber-50/40 border-amber-100 text-amber-700'
                                     : 'bg-[#F4F4F8] border-border/40 text-[#1A1A2E]'
                               }`}>
                                 <div className="flex items-center justify-between">
-                                  <span className="font-semibold text-[#1A1A2E]">
-                                    {b.sourceName || 'Donor'}
-                                  </span>
-                                  <div className="flex flex-col items-end gap-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`font-bold ${expired ? 'line-through text-[#C0392B]/80' : ''}`}>{b.qty} ktg</span>
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setPrintBagInfo({ bagCodes: b.codes && b.codes.length > 0 ? b.codes : [b.id], bloodType: blood.type, expDate: b.expDate, sourceName: b.sourceName });
-                                          setShowPrintModal(true);
-                                        }}
-                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                        title="Cetak Label Barcode"
-                                      >
-                                        <Printer className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                    <span className={`text-[9px] font-medium ${expired ? 'text-[#C0392B]/85' : 'text-[#4A4A6A]'}`}>Exp: {b.expDate}</span>
+                                  <span className="font-semibold text-[#1A1A2E]">{b.sourceName || 'Donor'}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`font-bold ${expired ? 'line-through text-red-400' : ''}`}>{b.qty} ktg</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPrintBagInfo({ bagCodes: b.codes && b.codes.length > 0 ? b.codes : [b.id], bloodType: blood.type, expDate: b.expDate, sourceName: b.sourceName });
+                                        setShowPrintModal(true);
+                                      }}
+                                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                                      title="Cetak Label Barcode"
+                                    >
+                                      <Printer className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
                                 </div>
-                                <div className={`font-mono text-[9px] max-w-[130px] flex flex-wrap gap-1 mt-0.5 ${expired ? 'line-through text-[#C0392B]/70' : 'text-[#9B9BB5]'}`}>
+                                <div className={`font-mono text-[9px] flex flex-wrap gap-1 ${expired ? 'line-through text-red-300' : 'text-[#9B9BB5]'}`}>
                                   {b.codes && b.codes.length > 0 ? b.codes.map(c => <span key={c}>{c}</span>) : b.id}
                                 </div>
-                                <div className="flex items-center justify-between mt-1 pt-1 border-t border-black/5">
-                                  <span className={`text-[9px] font-medium ${expired ? 'text-[#C0392B]/85' : 'text-[#4A4A6A]'}`}>Exp: {b.expDate}</span>
+                                <div className="flex items-center justify-between pt-1 border-t border-black/5">
+                                  <span className={`text-[9px] ${expired ? 'text-red-500' : 'text-[#4A4A6A]'}`}>Exp: {b.expDate}</span>
                                   {expired ? (
-                                    <span className="text-[8px] bg-[#C0392B] text-white px-1.5 py-0.2 rounded font-bold uppercase">Kadaluarsa</span>
+                                    <span className="text-[8px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold">Kadaluarsa</span>
                                   ) : soon ? (
-                                    <span className="text-[8px] bg-[#E67E22] text-white px-1.5 py-0.2 rounded font-bold uppercase">Segera Exp</span>
+                                    <span className="text-[8px] bg-amber-500 text-white px-1.5 py-0.5 rounded font-bold">Segera Exp</span>
                                   ) : null}
                                 </div>
                               </div>
                             );
                           })}
                         </div>
-                        {blood.batches.length > 2 && (
+                        {blood.batches!.length > 2 && (
                           <button
                             onClick={() => toggleShowAllBatches(blood.type)}
                             className="mt-2 text-[9px] font-bold text-[#2980B9] hover:text-[#1F618D] transition-colors w-full text-center bg-[#F4F4F8]/60 hover:bg-[#F4F4F8] py-1 rounded-md border border-dashed border-border/60"
                           >
-                            {isAllVisible 
-                              ? 'Tampilkan Lebih Sedikit' 
-                              : `Lihat ${blood.batches.length - 2} Batch Lainnya...`
-                            }
+                            {isAllVisible ? 'Tampilkan Lebih Sedikit' : `Lihat ${blood.batches!.length - 2} Batch Lainnya...`}
                           </button>
                         )}
                       </div>
