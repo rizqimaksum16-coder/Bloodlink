@@ -1119,9 +1119,6 @@ export default function HospitalDashboard() {
               <Droplets className="w-7 h-7 text-[#C0392B] fill-[#C0392B]" />
               {user?.org || 'Rumah Sakit A'}
             </h1>
-            <p className="text-xs text-[#4A4A6A] mt-1 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-[#9B9BB5]" /> Jl. Salemba Raya, Jakarta Pusat
-            </p>
           </div>
           <button onClick={() => { setShowOrderForm(true); setOrderStep('form'); }}
             className="flex items-center gap-2 bg-[#C0392B] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#922B21] transition-all shadow-md active:scale-95 duration-150">
