@@ -1,28 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowDownCircle, ArrowUpCircle, CheckCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { X, ArrowDownCircle, ArrowUpCircle, CheckCircle, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { format, addDays, isPast, parseISO } from 'date-fns';
 
 export type StockActionType = 'in' | 'out';
 
-export interface BatchItem {
-  id: string;
-  qty: number;
-  expDate: string;
-  sourceName?: string;
-  codes?: string[];
-}
-
-export interface StockActionModalProps {
+interface StockActionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
   actionType: StockActionType;
   bloodType: string;
   currentStock: number;
-  batches?: BatchItem[];
+  batches?: any[];
 }
 
-export default function StockActionModal({
+export function StockActionModal({
   isOpen,
   onClose,
   onSubmit,
@@ -41,8 +33,20 @@ export default function StockActionModal({
 
   // Batch selection for discard
   const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
+  const [batchSearch, setBatchSearch] = useState('');
 
   const isDiscardReason = reason === 'expired' || reason === 'discarded';
+
+  // Compute filtered batches for discard selection
+  const q = batchSearch.toLowerCase().trim();
+  const filteredBatches = q
+    ? batches.filter(b =>
+        (b.sourceName || '').toLowerCase().includes(q) ||
+        b.expDate.includes(q) ||
+        (b.codes || []).some((c: string) => c.toLowerCase().includes(q)) ||
+        b.id.toLowerCase().includes(q)
+      )
+    : batches;
 
   useEffect(() => {
     if (isOpen) {
@@ -54,47 +58,40 @@ export default function StockActionModal({
       setReason(actionType === 'out' ? 'used_patient' : 'donor_event');
       setReasonDetail('');
       setSelectedBatchIds(new Set());
+      setBatchSearch('');
     }
   }, [isOpen, actionType]);
 
-  // When reason changes to discard, reset batch selection & quantity
+  // Otomatis pilih batch yang kadaluarsa saat mode buang dibuka
   useEffect(() => {
-    setSelectedBatchIds(new Set());
-    if (!isDiscardReason) return;
-    // auto-select expired batches when switching to expired reason
-    if (reason === 'expired') {
+    if (isOpen && actionType === 'out' && isDiscardReason && batches.length > 0) {
       const expiredIds = batches
         .filter(b => isPast(parseISO(b.expDate)))
         .map(b => b.id);
       setSelectedBatchIds(new Set(expiredIds));
     }
-  }, [reason]);
+  }, [isOpen, actionType, isDiscardReason, batches]);
 
-  // Compute total qty from selected batches
-  const selectedQty = isDiscardReason
-    ? batches.filter(b => selectedBatchIds.has(b.id)).reduce((s, b) => s + b.qty, 0)
-    : quantity;
-
+  // Toggle selection of a batch
   const toggleBatch = (id: string) => {
-    setSelectedBatchIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    const next = new Set(selectedBatchIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedBatchIds(next);
   };
 
-  const handleCollectedAtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = e.target.value;
-    setCollectedAt(newDate);
-    if (newDate) {
-      setExpDate(format(addDays(new Date(newDate), 35), 'yyyy-MM-dd'));
-    }
-  };
+  // Total quantity from selected batches
+  const selectedQty = batches
+    .filter(b => selectedBatchIds.has(b.id))
+    .reduce((sum, b) => sum + (b.qty || 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isDiscardReason) {
+    if (actionType === 'out' && isDiscardReason) {
       if (selectedBatchIds.size === 0) {
         alert('Pilih minimal satu batch yang akan dibuang!');
         return;
@@ -181,14 +178,31 @@ export default function StockActionModal({
                 <Trash2 className="w-3.5 h-3.5 text-red-500" />
                 Pilih Batch yang Dibuang <span className="text-red-500">*</span>
               </label>
-              <div className="space-y-2 max-h-48 overflow-y-auto rounded-xl border border-border p-2 bg-[#F9F9FC]">
-                {batches.map(b => {
+
+              {/* Search bar */}
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={batchSearch}
+                  onChange={e => setBatchSearch(e.target.value)}
+                  placeholder="Cari nama, kode darah, atau tanggal..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-[#F9F9FC] border border-border rounded-lg focus:border-[#2980B9] focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2 max-h-52 overflow-y-auto rounded-xl border border-border p-2 bg-[#F9F9FC]">
+                {filteredBatches.length === 0 && (
+                  <p className="text-xs text-center text-gray-400 py-4">Tidak ada batch yang ditemukan</p>
+                )}
+                {filteredBatches.map(b => {
                   const expired = isPast(parseISO(b.expDate));
                   const checked = selectedBatchIds.has(b.id);
+                  const displayCodes = b.codes && b.codes.length > 0 ? b.codes : [b.id];
                   return (
                     <label
                       key={b.id}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer border transition-all ${
+                      className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer border transition-all ${
                         checked
                           ? 'bg-red-50 border-red-200'
                           : 'bg-white border-gray-100 hover:border-gray-200'
@@ -198,21 +212,35 @@ export default function StockActionModal({
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleBatch(b.id)}
-                        className="accent-red-500 w-4 h-4 flex-shrink-0"
+                        className="accent-red-500 w-4 h-4 flex-shrink-0 mt-0.5"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-[#1A1A2E] truncate">
-                          {b.sourceName || 'Batch'} — <span className="font-bold">{b.qty} ktg</span>
-                        </p>
-                        <p className={`text-[10px] ${expired ? 'text-red-500 font-semibold' : 'text-[#9B9BB5]'}`}>
-                          Exp: {b.expDate} {expired && '⚠ Kadaluarsa'}
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-[#1A1A2E] truncate">
+                            {b.sourceName || 'Batch'} — <span className="font-bold">{b.qty} ktg</span>
+                          </p>
+                          {expired && <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
+                        </div>
+                        {/* Kode / nomor darah */}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {displayCodes.slice(0, 4).map((code: string) => (
+                            <span key={code} className="text-[9px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                              #{code}
+                            </span>
+                          ))}
+                          {displayCodes.length > 4 && (
+                            <span className="text-[9px] text-gray-400">+{displayCodes.length - 4} lagi</span>
+                          )}
+                        </div>
+                        <p className={`text-[10px] mt-0.5 ${expired ? 'text-red-500 font-semibold' : 'text-[#9B9BB5]'}`}>
+                          Exp: {b.expDate}{expired && ' · ⚠ Kadaluarsa'}
                         </p>
                       </div>
-                      {expired && <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
                     </label>
                   );
                 })}
               </div>
+
               {selectedQty > 0 && (
                 <p className="text-xs font-semibold text-red-600 mt-1.5">
                   Total yang akan dibuang: <span className="font-extrabold">{selectedQty} kantong</span>
@@ -239,51 +267,46 @@ export default function StockActionModal({
 
           {actionType === 'in' && (
             <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Sumber <span className="text-red-500">*</span></label>
-                  <select
-                    value={sourceType}
-                    onChange={(e) => setSourceType(e.target.value)}
-                    required
-                    className="w-full text-sm font-medium bg-[#F9F9FC] border border-border rounded-lg py-2.5 px-3 focus:border-[#2980B9] focus:ring-0"
-                  >
-                    <option value="donor">Donor Darah</option>
-                    <option value="transfer">Transfer PMI/RS</option>
-                    <option value="purchase">Pengadaan Lain</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Nama Pendonor / Instansi <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    value={sourceName}
-                    onChange={(e) => setSourceName(e.target.value)}
-                    required
-                    placeholder="Cth: Budi atau PMI Pusat"
-                    className="w-full text-sm font-medium bg-[#F9F9FC] border border-border rounded-lg py-2.5 px-3 focus:border-[#2980B9] focus:ring-0"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Asal Stok / Sumber <span className="text-red-500">*</span></label>
+                <select
+                  value={sourceType}
+                  onChange={(e) => setSourceType(e.target.value)}
+                  className="w-full text-sm font-medium bg-[#F9F9FC] border border-border rounded-lg py-2.5 px-3 focus:border-[#2980B9] focus:ring-0"
+                >
+                  <option value="donor">Kegiatan Donor (Internal/Mobile Unit)</option>
+                  <option value="transfer">Pengiriman dari UDD/RS Lain</option>
+                  <option value="adjustment">Penyesuaian Stok (Koreksi)</option>
+                </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Nama Sumber / Catatan Lokasi</label>
+                <input
+                  type="text"
+                  value={sourceName}
+                  onChange={(e) => setSourceName(e.target.value)}
+                  placeholder="Misal: Mobil Donor Balai Kota, PMI Cabang..."
+                  className="w-full text-sm font-medium bg-[#F9F9FC] border border-border rounded-lg py-2.5 px-3 focus:border-[#2980B9] focus:ring-0"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Tanggal Pengambilan <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Tanggal Ambil</label>
                   <input
                     type="date"
                     value={collectedAt}
-                    onChange={handleCollectedAtChange}
-                    required
+                    onChange={(e) => setCollectedAt(e.target.value)}
                     className="w-full text-sm font-medium bg-[#F9F9FC] border border-border rounded-lg py-2.5 px-3 focus:border-[#2980B9] focus:ring-0"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Tanggal Kadaluarsa <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Tanggal Kadaluarsa</label>
                   <input
                     type="date"
                     value={expDate}
                     onChange={(e) => setExpDate(e.target.value)}
-                    required
                     className="w-full text-sm font-medium bg-[#F9F9FC] border border-border rounded-lg py-2.5 px-3 focus:border-[#2980B9] focus:ring-0"
                   />
                 </div>
@@ -291,9 +314,9 @@ export default function StockActionModal({
             </>
           )}
 
-          {actionType === 'out' && (
+          {(actionType === 'out' || actionType === 'in') && (
             <div>
-              <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Keterangan Tambahan</label>
+              <label className="block text-xs font-bold text-[#4A4A6A] mb-1.5">Keterangan / Catatan Tambahan</label>
               <textarea
                 value={reasonDetail}
                 onChange={(e) => setReasonDetail(e.target.value)}
@@ -327,3 +350,5 @@ export default function StockActionModal({
     </div>
   );
 }
+
+export default StockActionModal;
