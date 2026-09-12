@@ -893,7 +893,7 @@ export default function HospitalDashboard() {
       )}
 
       {/* Blood Stock Grid — 3 columns on all screens */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 max-w-3xl mx-auto w-full">
         {stocks.map(blood => {
           const status = blood.stock >= 25 ? 'good' : blood.stock >= 10 ? 'low' : 'critical';
           const statusConfig: Record<string, { label: string; barColor: string; bgClass: string; textClass: string }> = {
