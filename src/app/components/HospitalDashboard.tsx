@@ -911,7 +911,7 @@ export default function HospitalDashboard() {
           return (
             <div
               key={blood.type}
-              className="relative bg-[#FAFAFA] rounded-2xl border border-border/60 p-4 flex flex-col gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+              className="relative bg-[#FAFAFA] rounded-2xl border border-border/60 p-3 flex flex-col gap-2 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
             >
               {/* Colored accent top bar */}
               <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ background: btColor[blood.type] }} />
@@ -957,45 +957,7 @@ export default function HospitalDashboard() {
                 <span className="truncate">{blood.lastUpdated || 'Belum ada update'}</span>
               </div>
 
-              {/* Expired / Expiring alert */}
-              {expiredBags > 0 ? (
-                <div className="bg-red-50 rounded-xl px-3 py-2 flex items-center justify-between border border-red-100">
-                  <span className="text-[10px] text-red-600 font-bold flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {expiredBags} kadaluarsa!
-                  </span>
-                  <button
-                    onClick={() => handleDiscardExpired(blood.type)}
-                    className="text-[9px] bg-red-500 hover:bg-red-600 text-white px-2 py-0.5 rounded-md font-bold transition-colors flex items-center gap-1"
-                  >
-                    <Trash2 className="w-2.5 h-2.5" /> Buang
-                  </button>
-                </div>
-              ) : (expiringSoonBags > 0 || blood.expiringSoon > 0) ? (
-                <div className="bg-amber-50 rounded-xl px-3 py-2 flex items-center justify-between border border-amber-100">
-                  <span className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {expiringSoonBags || blood.expiringSoon} segera exp!
-                  </span>
-                  <button
-                    onClick={() => handleDiscardExpired(blood.type)}
-                    className="text-[9px] bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-md font-bold transition-colors"
-                  >
-                    Buang
-                  </button>
-                </div>
-              ) : null}
 
-              {/* Expired (7hr) input */}
-              <div className="bg-white border border-border/60 rounded-xl px-3 py-2">
-                <span className="text-[9px] font-bold text-[#9B9BB5] uppercase tracking-wider block mb-1.5">Exp dalam 7 hr</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={blood.expiringSoon}
-                  onKeyDown={preventNegativeInput}
-                  onChange={(e) => updateSingleStock(blood.type, 'expiringSoon', Number(e.target.value))}
-                  className="w-full text-center text-sm font-bold bg-[#F9F9FC] border border-border rounded-lg py-1.5 focus:border-[#2980B9] focus:outline-none text-orange-500"
-                />
-              </div>
 
               {/* Action Buttons */}
               <div className="grid grid-cols-3 gap-1.5">
@@ -1025,15 +987,7 @@ export default function HospitalDashboard() {
                 </button>
               </div>
 
-              {/* Order button for critical */}
-              {status === 'critical' && (
-                <button
-                  onClick={() => { setSelectedBlood(blood.type); setShowOrderForm(true); setOrderStep('form'); }}
-                  className="w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm animate-pulse"
-                >
-                  <Zap className="w-3.5 h-3.5" /> Order Darurat ke PMI
-                </button>
-              )}
+
 
               {/* Batches collapsible */}
               {blood.batches && blood.batches.length > 0 && (
