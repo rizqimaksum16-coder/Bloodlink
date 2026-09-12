@@ -913,11 +913,10 @@ export default function HospitalDashboard() {
               key={blood.type}
               className="relative bg-white rounded-xl border border-gray-100 p-4 flex flex-col gap-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
             >
-              {/* Colored accent left bar */}
-              <div className="absolute top-0 left-0 bottom-0 w-1 rounded-l-xl" style={{ background: btColor[blood.type] }} />
+
 
               {/* Blood type badge + stock count */}
-              <div className="flex items-center justify-between pl-1">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div
                     className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold text-xs flex-shrink-0"
@@ -929,13 +928,11 @@ export default function HospitalDashboard() {
                     {blood.stock}<span className="text-[10px] font-medium text-gray-400 ml-0.5">ktg</span>
                   </span>
                 </div>
-                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${sc.bgClass} ${sc.textClass}`}>
-                  {sc.label}
-                </span>
+
               </div>
 
               {/* Stock progress bar — clean, no labels */}
-              <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden pl-1">
+              <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-700"
                   style={{ width: `${stockPct}%`, background: sc.barColor }}
@@ -943,7 +940,7 @@ export default function HospitalDashboard() {
               </div>
 
               {/* Action Buttons — flat & minimal */}
-              <div className="grid grid-cols-3 gap-1.5 pl-1">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   onClick={() => openStockModal(blood.type, 'in')}
                   title="Tambah Stok Masuk"
