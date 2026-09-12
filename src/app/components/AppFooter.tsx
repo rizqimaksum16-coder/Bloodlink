@@ -68,18 +68,7 @@ export default function AppFooter() {
             <p className="text-xs text-[#9B9BB5] leading-relaxed mb-4">
               Platform kolaborasi PMI dan Rumah Sakit Terintegrasi untuk mempermudah akses donor darah.
             </p>
-            <div className="space-y-1.5">
-              <div className="flex items-start gap-2 text-xs text-[#9B9BB5]">
-                <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#C0392B]" />
-                Jl. Jend. Gatot Subroto Kav. 96, Jakarta
-              </div>
-              <div className="flex items-center gap-2 text-xs text-[#9B9BB5]">
-                <Phone className="w-3.5 h-3.5 flex-shrink-0 text-[#C0392B]" />
-                <a href="tel:0315353433" className="hover:text-white transition-colors">
-                  (031) 535-3433
-                </a>
-              </div>
-            </div>
+
           </div>
 
           {/* Links */}

@@ -478,24 +478,7 @@ export default function BloodSearch() {
             </div>
 
             <div className="space-y-5">
-              {/* Location Status */}
-              <div className="bg-[#F8F9FA] rounded-xl p-3 border border-border">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide">Titik Lokasi Referensi</span>
-                  {(!user || user.role !== 'rs') && (
-                    <button onClick={() => requestLocation(true)} className="text-xs font-bold text-[#2980B9] hover:underline flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3" /> Perbarui
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-start gap-2 mt-2">
-                  <MapPin className="w-4 h-4 text-[#C0392B] shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-bold text-[#1A1A2E]">{activeHospital.name}</p>
-                    <p className="text-[10px] text-[#9B9BB5]">{activeHospital.address}</p>
-                  </div>
-                </div>
-              </div>
+
               {/* Blood type selection */}
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] uppercase tracking-wide block mb-2">Golongan Darah</label>
