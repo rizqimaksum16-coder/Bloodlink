@@ -90,9 +90,7 @@ export default function Navigation() {
     const role = user?.role;
     const targetPath = getNotifAction(role).to;
     console.log('[Notif] user role:', role, '| navigating to:', targetPath);
-    setTimeout(() => {
-      window.location.href = targetPath;
-    }, 50);
+    navigate(targetPath);
   };
 
   const handleDeleteNotification = (notifId: string, e: React.MouseEvent) => {
