@@ -893,7 +893,7 @@ export default function HospitalDashboard() {
       )}
 
       {/* Blood Stock Grid — 3 columns on all screens */}
-      <div className="grid grid-cols-3 gap-5 max-w-4xl mx-auto w-full">
+      <div className="grid grid-cols-3 gap-4">
         {stocks.map(blood => {
           const status = blood.stock >= 25 ? 'good' : blood.stock >= 10 ? 'low' : 'critical';
           const statusConfig: Record<string, { label: string; barColor: string; bgClass: string; textClass: string }> = {
@@ -911,60 +911,43 @@ export default function HospitalDashboard() {
           return (
             <div
               key={blood.type}
-              className="relative bg-[#FAFAFA] rounded-2xl border border-border/60 p-4 flex flex-col gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+              className="relative bg-white rounded-xl border border-gray-100 p-4 flex flex-col gap-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
             >
-              {/* Colored accent top bar */}
-              <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ background: btColor[blood.type] }} />
+              {/* Colored accent left bar */}
+              <div className="absolute top-0 left-0 bottom-0 w-1 rounded-l-xl" style={{ background: btColor[blood.type] }} />
 
               {/* Blood type badge + stock count */}
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between pl-1">
+                <div className="flex items-center gap-2">
                   <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shadow-md flex-shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${btColor[blood.type]}, ${btColor[blood.type]}bb)` }}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold text-xs flex-shrink-0"
+                    style={{ background: btColor[blood.type] }}
                   >
                     {blood.type}
                   </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-[#9B9BB5] uppercase tracking-wider">Gol. {blood.type}</p>
-                    <p className="text-xl font-extrabold text-[#1A1A2E] leading-none mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      {blood.stock}<span className="text-xs font-semibold text-[#9B9BB5] ml-1">ktg</span>
-                    </p>
-                  </div>
+                  <span className="text-lg font-extrabold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {blood.stock}<span className="text-[10px] font-medium text-gray-400 ml-0.5">ktg</span>
+                  </span>
                 </div>
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${sc.bgClass} ${sc.textClass}`}>
+                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${sc.bgClass} ${sc.textClass}`}>
                   {sc.label}
                 </span>
               </div>
 
-              {/* Stock progress bar */}
-              <div>
-                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${stockPct}%`, background: sc.barColor }}
-                  />
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-[9px] text-[#9B9BB5]">0 ktg</span>
-                  <span className="text-[9px] text-[#9B9BB5]">50 ktg</span>
-                </div>
+              {/* Stock progress bar — clean, no labels */}
+              <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden pl-1">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${stockPct}%`, background: sc.barColor }}
+                />
               </div>
 
-              {/* Last updated */}
-              <div className="flex items-center gap-1 text-[9px] text-[#9B9BB5]">
-                <Clock className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate">{blood.lastUpdated || 'Belum ada update'}</span>
-              </div>
-
-
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-3 gap-1.5">
+              {/* Action Buttons — flat & minimal */}
+              <div className="grid grid-cols-3 gap-1.5 pl-1">
                 <button
                   onClick={() => openStockModal(blood.type, 'in')}
                   title="Tambah Stok Masuk"
-                  className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-sm"
+                  className="py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-semibold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 border border-emerald-100"
                 >
                   <ArrowDownCircle className="w-3.5 h-3.5" />
                   <span>Masuk</span>
@@ -972,7 +955,7 @@ export default function HospitalDashboard() {
                 <button
                   onClick={() => openStockModal(blood.type, 'out')}
                   title="Kurangi Stok Keluar"
-                  className="py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-sm"
+                  className="py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-[10px] font-semibold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 border border-red-100"
                 >
                   <ArrowUpCircle className="w-3.5 h-3.5" />
                   <span>Keluar</span>
@@ -980,7 +963,7 @@ export default function HospitalDashboard() {
                 <button
                   onClick={() => handleFastPrint(blood.type)}
                   title="Cetak Label Terakhir"
-                  className="py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-sm"
+                  className="py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-500 text-[10px] font-semibold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 border border-blue-100"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Cetak</span>
