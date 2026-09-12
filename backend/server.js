@@ -43,10 +43,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// 🔒 Security: Rate Limiter Global (100 request per 15 menit per IP)
+// 🔒 Security: Rate Limiter Global (1000 request per 15 menit per IP)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Terlalu banyak request. Coba lagi nanti.' }
