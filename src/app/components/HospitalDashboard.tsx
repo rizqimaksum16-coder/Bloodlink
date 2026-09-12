@@ -893,8 +893,8 @@ export default function HospitalDashboard() {
         </div>
       )}
 
-      {/* Blood Stock Grid — 3 columns on all screens */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Blood Stock Grid — Responsive 1 col HP, 2 col Tablet, 3 col Desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
         {stocks.map(blood => {
           const status = blood.stock >= 25 ? 'good' : blood.stock >= 10 ? 'low' : 'critical';
           const statusConfig: Record<string, { label: string; barColor: string; bgClass: string; textClass: string }> = {
@@ -1121,13 +1121,13 @@ export default function HospitalDashboard() {
             </h1>
           </div>
           <button onClick={() => { setShowOrderForm(true); setOrderStep('form'); }}
-            className="flex items-center gap-2 bg-[#C0392B] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#922B21] transition-all shadow-md active:scale-95 duration-150">
+            className="flex items-center justify-center gap-2 bg-[#C0392B] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#922B21] transition-all shadow-md active:scale-95 duration-150 w-full sm:w-auto">
             <Plus className="w-4 h-4" /> Pesan Darah ke PMI
           </button>
         </div>
 
         {/* Interactive Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: 'Total Stok RS', value: `${totalStock} ktg`, sub: 'Semua golongan', icon: Package, iconBg: 'bg-[#EAF7FB]', iconColor: 'text-[#2980B9]', subColor: 'text-[#2980B9]' },
             { label: 'Order Aktif', value: String(activeOrders), sub: 'Sedang diproses', icon: Truck, iconBg: 'bg-[#E8DAEF]', iconColor: 'text-[#8E44AD]', subColor: 'text-[#8E44AD]' },
@@ -1156,7 +1156,7 @@ export default function HospitalDashboard() {
             finally { setIsLoadingLedger(false); }
           }
         }}>
-          <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex flex-wrap gap-1 h-auto w-fit shadow-xs">
+          <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex overflow-x-auto max-w-full gap-1 h-auto w-full sm:w-fit shadow-xs no-scrollbar flex-nowrap shrink-0">
             {[
               { value: 'stock', label: 'Stok RS', icon: Package },
               { value: 'order', label: 'Riwayat Order', icon: FileText },

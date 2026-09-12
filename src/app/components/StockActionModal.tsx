@@ -129,8 +129,8 @@ export function StockActionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-border max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-lg shadow-2xl border border-border max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5 border-b border-border pb-4">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${actionType === 'in' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
@@ -327,17 +327,17 @@ export function StockActionModal({
             </div>
           )}
 
-          <div className="pt-4 border-t border-border flex justify-end gap-3 mt-6">
+          <div className="pt-4 border-t border-border flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors text-center"
             >
               Batal
             </button>
             <button
               type="submit"
-              className={`px-5 py-2.5 rounded-xl font-bold text-white flex items-center gap-2 transition-colors ${
+              className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-colors ${
                 actionType === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
               }`}
             >

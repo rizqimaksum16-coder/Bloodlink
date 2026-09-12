@@ -918,7 +918,7 @@ export default function PMIDashboard() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: 'Request Pending', value: String(pendingCount), sub: 'Butuh persetujuan', icon: Bell, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]', pulse: pendingCount > 0 },
             { label: 'Hampir Kadaluarsa', value: `${expiringSoon} ktg`, sub: 'Dalam 7 hari', icon: Clock, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]', pulse: false },
@@ -938,7 +938,7 @@ export default function PMIDashboard() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-          <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex flex-wrap gap-1 h-auto">
+          <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex overflow-x-auto max-w-full gap-1 h-auto no-scrollbar flex-nowrap shrink-0">
             {[
               { value: 'requests', label: 'Request RS', icon: Bell },
               { value: 'public-requests', label: 'Permintaan Publik', icon: Droplets },
@@ -1113,7 +1113,7 @@ export default function PMIDashboard() {
             )}
 
             {/* Stock grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
               {stocks.map(blood => {
                 const pct = Math.round((blood.stock / Math.max(1, blood.target)) * 100);
                 const status = pct >= 60 ? 'good' : pct >= 30 ? 'low' : 'critical';
