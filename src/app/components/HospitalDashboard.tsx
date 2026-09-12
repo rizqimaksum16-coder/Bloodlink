@@ -893,7 +893,7 @@ export default function HospitalDashboard() {
       )}
 
       {/* Blood Stock Grid — 3 columns on all screens */}
-      <div className="grid grid-cols-3 gap-3 max-w-3xl mx-auto w-full">
+      <div className="grid grid-cols-3 gap-5 max-w-4xl mx-auto w-full">
         {stocks.map(blood => {
           const status = blood.stock >= 25 ? 'good' : blood.stock >= 10 ? 'low' : 'critical';
           const statusConfig: Record<string, { label: string; barColor: string; bgClass: string; textClass: string }> = {
@@ -911,7 +911,7 @@ export default function HospitalDashboard() {
           return (
             <div
               key={blood.type}
-              className="relative bg-[#FAFAFA] rounded-2xl border border-border/60 p-3 flex flex-col gap-2 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+              className="relative bg-[#FAFAFA] rounded-2xl border border-border/60 p-4 flex flex-col gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
             >
               {/* Colored accent top bar */}
               <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ background: btColor[blood.type] }} />
