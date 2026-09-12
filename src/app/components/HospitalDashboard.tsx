@@ -931,13 +931,7 @@ export default function HospitalDashboard() {
 
               </div>
 
-              {/* Stock progress bar — clean, no labels */}
-              <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${stockPct}%`, background: sc.barColor }}
-                />
-              </div>
+
 
               {/* Action Buttons — flat & minimal */}
               <div className="grid grid-cols-3 gap-1.5">
