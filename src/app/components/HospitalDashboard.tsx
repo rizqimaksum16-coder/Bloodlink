@@ -208,8 +208,8 @@ export default function HospitalDashboard() {
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
 
   // State untuk modal stok
-  const [stockModalConfig, setStockModalConfig] = useState<{isOpen: boolean; actionType: StockActionType; bloodType: string; currentStock: number}>({
-    isOpen: false, actionType: 'in', bloodType: 'A+', currentStock: 0
+  const [stockModalConfig, setStockModalConfig] = useState<{isOpen: boolean; actionType: StockActionType; bloodType: string; currentStock: number; batches?: any[]}>({
+    isOpen: false, actionType: 'in', bloodType: 'A+', currentStock: 0, batches: []
   });
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -680,7 +680,8 @@ export default function HospitalDashboard() {
       isOpen: true,
       actionType,
       bloodType,
-      currentStock: blood ? blood.stock : 0
+      currentStock: blood ? blood.stock : 0,
+      batches: blood?.batches || []
     });
   };
 
@@ -1489,6 +1490,7 @@ export default function HospitalDashboard() {
         actionType={stockModalConfig.actionType}
         bloodType={stockModalConfig.bloodType}
         currentStock={stockModalConfig.currentStock}
+        batches={stockModalConfig.batches || []}
       />
 
       {/* Modal Cetak Label */}
