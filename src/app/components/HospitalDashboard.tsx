@@ -206,6 +206,7 @@ export default function HospitalDashboard() {
   const [stocks, setStocks] = useState<HospitalStock[]>(initialHospitalStock);
   const [ledger, setLedger] = useState<any[]>([]);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+  const [ledgerFilter, setLedgerFilter] = useState<'all' | 'in' | 'out'>('all');
 
   // State untuk modal stok
   const [stockModalConfig, setStockModalConfig] = useState<{isOpen: boolean; actionType: StockActionType; bloodType: string; currentStock: number; batches?: any[]}>({
@@ -1191,18 +1192,61 @@ export default function HospitalDashboard() {
           {/* TAB 5: RIWAYAT STOK (Audit Trail Ledger) */}
           <TabsContent value="ledger" className="w-full">
             <div className="bg-white rounded-2xl border border-border p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                 <div>
-                  <h3 className="font-bold text-[#1A1A2E] text-sm">Riwayat Masuk & Keluar Stok Darah</h3>
+                  <h3 className="font-bold text-[#1A1A2E] text-sm">Riwayat Masuk &amp; Keluar Stok Darah</h3>
                   <p className="text-xs text-[#9B9BB5] mt-0.5">Setiap perubahan stok tercatat lengkap dengan pelaku dan waktu</p>
                 </div>
-                <button onClick={async () => {
-                  setIsLoadingLedger(true);
-                  try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
-                  finally { setIsLoadingLedger(false); }
-                }} className="flex items-center gap-1.5 text-xs text-[#2980B9] font-semibold hover:underline">
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Filter Buttons */}
+                  <div className="flex items-center gap-1 bg-[#F4F4F8] rounded-xl p-1">
+                    <button
+                      onClick={() => setLedgerFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        ledgerFilter === 'all'
+                          ? 'bg-white text-[#1A1A2E] shadow-sm'
+                          : 'text-[#9B9BB5] hover:text-[#4A4A6A]'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => setLedgerFilter('in')}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        ledgerFilter === 'in'
+                          ? 'bg-green-500 text-white shadow-sm'
+                          : 'text-[#9B9BB5] hover:text-green-600'
+                      }`}
+                    >
+                      ▲ Masuk
+                    </button>
+                    <button
+                      onClick={() => setLedgerFilter('out')}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        ledgerFilter === 'out'
+                          ? 'bg-red-500 text-white shadow-sm'
+                          : 'text-[#9B9BB5] hover:text-red-500'
+                      }`}
+                    >
+                      ▼ Keluar
+                    </button>
+                  </div>
+                  {/* Count badge */}
+                  <span className="text-xs text-[#9B9BB5] font-medium">
+                    {ledgerFilter === 'all'
+                      ? `${ledger.length} entri`
+                      : ledgerFilter === 'in'
+                      ? `${ledger.filter((e: any) => e.direction === 'in').length} entri masuk`
+                      : `${ledger.filter((e: any) => e.direction === 'out').length} entri keluar`}
+                  </span>
+                  <button onClick={async () => {
+                    setIsLoadingLedger(true);
+                    try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
+                    finally { setIsLoadingLedger(false); }
+                  }} className="flex items-center gap-1.5 text-xs text-[#2980B9] font-semibold hover:underline">
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
+                  </button>
+                </div>
               </div>
               {isLoadingLedger ? (
                 <div className="py-10 text-center"><RefreshCw className="w-6 h-6 text-[#2980B9] animate-spin mx-auto" /></div>
@@ -1223,7 +1267,13 @@ export default function HospitalDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {ledger.map((entry: any) => (
+                      {ledger
+                        .filter((entry: any) =>
+                          ledgerFilter === 'all' ||
+                          (ledgerFilter === 'in' && entry.direction === 'in') ||
+                          (ledgerFilter === 'out' && entry.direction === 'out')
+                        )
+                        .map((entry: any) => (
                         <tr key={entry.id} className="border-b border-border/50 hover:bg-[#F9F9FC] transition-colors">
                           <td className="py-2.5 text-[#4A4A6A]">{new Date(entry.recorded_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td className="py-2.5">
@@ -1263,6 +1313,17 @@ export default function HospitalDashboard() {
                           </td>
                         </tr>
                       ))}
+                      {ledger.filter((entry: any) =>
+                        ledgerFilter === 'all' ||
+                        (ledgerFilter === 'in' && entry.direction === 'in') ||
+                        (ledgerFilter === 'out' && entry.direction === 'out')
+                      ).length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-sm text-[#9B9BB5]">
+                            Tidak ada data {ledgerFilter === 'in' ? 'masuk' : 'keluar'} yang tercatat.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
