@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 
-app = FastAPI(title="Bloodlink ML Service")
+app = FastAPI(title="One Blood! ML Service")
 
 # Secure Internal API Key
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "bloodlink-super-secret-key-2026")

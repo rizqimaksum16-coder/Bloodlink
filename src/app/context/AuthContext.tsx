@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: res.user?.name || email.split('@')[0],
         email: res.user?.email || email,
         role,
-        org: roleDefaults[role]?.org || 'Bloodlink User',
+        org: roleDefaults[role]?.org || 'One Blood! User',
         avatar
       };
 

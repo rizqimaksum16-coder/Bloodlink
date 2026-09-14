@@ -8,7 +8,7 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = FastAPI(title="Bloodlink ML Microservice")
+app = FastAPI(title="One Blood! ML Microservice")
 
 # Token Rahasia untuk mengamankan API ini (Inter-service Security)
 # Di dunia nyata, ini sebaiknya dipasang di environment variable (.env)

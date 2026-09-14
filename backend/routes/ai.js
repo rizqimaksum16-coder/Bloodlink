@@ -169,7 +169,7 @@ router.post('/chat', async (req, res) => {
   const optimizedMessages = [
     { 
       role: 'system', 
-      content: 'Anda adalah asisten AI Bloodlink. Jawablah dengan SANGAT RINGKAS, PADAT, dan LANGSUNG KE INTINYA. Maksimal 2-3 kalimat saja kecuali pengguna secara eksplisit meminta penjelasan panjang.' 
+      content: 'Anda adalah asisten AI One Blood!. Jawablah dengan SANGAT RINGKAS, PADAT, dan LANGSUNG KE INTINYA. Maksimal 2-3 kalimat saja kecuali pengguna secara eksplisit meminta penjelasan panjang.' 
     },
     ...messages
   ];
@@ -344,7 +344,7 @@ router.post('/matching', async (req, res) => {
     res.json({
       modelUsed: mlResult.model_used || 'XGBoost',
       recommendations,
-      provider: 'Bloodlink ML (FastAPI XGBoost)'
+      provider: 'One Blood! ML (FastAPI XGBoost)'
     });
 
   } catch (error) {

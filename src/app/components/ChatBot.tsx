@@ -10,7 +10,7 @@ type Message = {
 export default function ChatBot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Halo! Saya asisten AI Bloodlink. Ada yang bisa saya bantu terkait donor darah, syarat, atau jadwal?' }
+    { role: 'assistant', content: 'Halo! Saya asisten AI One Blood!. Ada yang bisa saya bantu terkait donor darah, syarat, atau jadwal?' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -74,7 +74,7 @@ export default function ChatBot() {
         <div className="bg-[#C0392B] p-4 flex justify-between items-center text-white">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5" />
-            <h3 className="font-semibold">AI Asisten Bloodlink</h3>
+            <h3 className="font-semibold">AI Asisten One Blood!</h3>
           </div>
           <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded-lg transition-colors">
             <X className="w-5 h-5" />

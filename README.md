@@ -1,6 +1,6 @@
-# Bloodlink
+# One Blood!
 
-Bloodlink adalah platform digital yang dirancang untuk mempercepat koneksi antara pendonor, PMI, rumah sakit, dan masyarakat dalam proses pencarian serta distribusi darah.
+One Blood! adalah platform digital yang dirancang untuk mempercepat koneksi antara pendonor, PMI, rumah sakit, dan masyarakat dalam proses pencarian serta distribusi darah.
 
 ## Gambaran Umum
 
@@ -51,4 +51,4 @@ Proyek ini dikembangkan sebagai solusi digital untuk membantu pengguna memperole
 
 ## Tujuan Proyek
 
-Bloodlink bertujuan untuk menciptakan ekosistem pendukung donor darah yang lebih cepat, lebih terhubung, dan lebih transparan bagi semua pihak yang terlibat.
+One Blood! bertujuan untuk menciptakan ekosistem pendukung donor darah yang lebih cepat, lebih terhubung, dan lebih transparan bagi semua pihak yang terlibat.

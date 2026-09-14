@@ -70,7 +70,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Health Check Route (tidak perlu auth)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Bloodlink Express API is running', timestamp: new Date().toISOString() });
+  res.json({ status: 'OK', message: 'One Blood! Express API is running', timestamp: new Date().toISOString() });
 });
 
 // 🔒 Terapkan rate limiter ketat ke endpoint login
@@ -97,7 +97,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Bloodlink API Server running on port ${PORT}`);
+  console.log(`🚀 One Blood! API Server running on port ${PORT}`);
   console.log(`📡 Base URL: http://localhost:${PORT}/api`);
 
   // ♾️  Keep-alive: Ping ML service setiap 14 menit agar Render tidak spin-down
