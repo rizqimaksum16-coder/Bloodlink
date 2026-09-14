@@ -277,8 +277,11 @@ router.get('/ledger', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), as
       params
     );
 
-    // Ambil exp_date dari kantong pertama di setiap entri ledger (jika ada)
-    for (let row of rows) {
+    // Optimasi N+1: Kumpulkan kode kantong pertama dari semua baris
+    const firstBagCodes = [];
+    const codeToRowIndex = {};
+    
+    rows.forEach((row, idx) => {
       row.exp_date = null;
       if (row.bag_codes) {
         let codes = [];
@@ -287,12 +290,28 @@ router.get('/ledger', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), as
         } catch (e) {}
         
         if (Array.isArray(codes) && codes.length > 0) {
-          const [bags] = await pool.query('SELECT exp_date FROM blood_bags WHERE bag_code = ?', [codes[0]]);
-          if (bags.length > 0) {
-            row.exp_date = bags[0].exp_date;
-          }
+          const firstCode = codes[0];
+          firstBagCodes.push(firstCode);
+          if (!codeToRowIndex[firstCode]) codeToRowIndex[firstCode] = [];
+          codeToRowIndex[firstCode].push(idx);
         }
       }
+    });
+
+    // Jalankan 1 query tunggal untuk mengambil semua exp_date
+    if (firstBagCodes.length > 0) {
+      const [bags] = await pool.query(
+        'SELECT bag_code, exp_date FROM blood_bags WHERE bag_code IN (?)', 
+        [firstBagCodes]
+      );
+      
+      bags.forEach(bag => {
+        if (codeToRowIndex[bag.bag_code]) {
+          codeToRowIndex[bag.bag_code].forEach(idx => {
+            rows[idx].exp_date = bag.exp_date;
+          });
+        }
+      });
     }
 
     res.json(rows);
