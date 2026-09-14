@@ -258,61 +258,38 @@ router.get('/activity-logs', authMiddleware, requireRole('pmi', 'superadmin', 'r
 router.get('/ledger', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   try {
     const { blood_type, direction, limit = 50 } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 50, 100);
 
-    // Superadmin bisa lihat semua; PMI/RS hanya milik sendiri
     let ownerId = req.user.id;
     let ownerType = req.user.role === 'rs' ? 'rs' : 'pmi';
 
     let whereClause = req.user.role === 'superadmin'
       ? '1=1'
-      : `owner_id = ? AND owner_type = ?`;
+      : `sl.owner_id = ? AND sl.owner_type = ?`;
     const params = req.user.role === 'superadmin' ? [] : [ownerId, ownerType];
 
-    if (blood_type) { whereClause += ' AND blood_type = ?'; params.push(blood_type); }
-    if (direction) { whereClause += ' AND direction = ?'; params.push(direction); }
-    params.push(parseInt(limit));
+    if (blood_type) { whereClause += ' AND sl.blood_type = ?'; params.push(blood_type); }
+    if (direction) { whereClause += ' AND sl.direction = ?'; params.push(direction); }
+    params.push(safeLimit);
 
+    // Satu query tunggal dengan LEFT JOIN — jauh lebih cepat dari N+1
     const [rows] = await pool.query(
-      `SELECT * FROM stock_ledger WHERE ${whereClause} ORDER BY recorded_at DESC LIMIT ?`,
+      `SELECT
+        sl.id, sl.owner_type, sl.owner_id, sl.blood_type, sl.direction,
+        sl.quantity, sl.bag_codes, sl.reason, sl.reason_detail,
+        sl.actor_name, sl.actor_role, sl.recorded_at,
+        bb.exp_date, bb.source_name
+       FROM stock_ledger sl
+       LEFT JOIN blood_bags bb
+         ON bb.bag_code = JSON_UNQUOTE(JSON_EXTRACT(sl.bag_codes, '$[0]'))
+            AND sl.bag_codes IS NOT NULL
+            AND sl.bag_codes != 'null'
+            AND JSON_LENGTH(sl.bag_codes) > 0
+       WHERE ${whereClause}
+       ORDER BY sl.recorded_at DESC
+       LIMIT ?`,
       params
     );
-
-    // Optimasi N+1: Kumpulkan kode kantong pertama dari semua baris
-    const firstBagCodes = [];
-    const codeToRowIndex = {};
-    
-    rows.forEach((row, idx) => {
-      row.exp_date = null;
-      if (row.bag_codes) {
-        let codes = [];
-        try {
-          codes = typeof row.bag_codes === 'string' ? JSON.parse(row.bag_codes) : row.bag_codes;
-        } catch (e) {}
-        
-        if (Array.isArray(codes) && codes.length > 0) {
-          const firstCode = codes[0];
-          firstBagCodes.push(firstCode);
-          if (!codeToRowIndex[firstCode]) codeToRowIndex[firstCode] = [];
-          codeToRowIndex[firstCode].push(idx);
-        }
-      }
-    });
-
-    // Jalankan 1 query tunggal untuk mengambil semua exp_date
-    if (firstBagCodes.length > 0) {
-      const [bags] = await pool.query(
-        'SELECT bag_code, exp_date FROM blood_bags WHERE bag_code IN (?)', 
-        [firstBagCodes]
-      );
-      
-      bags.forEach(bag => {
-        if (codeToRowIndex[bag.bag_code]) {
-          codeToRowIndex[bag.bag_code].forEach(idx => {
-            rows[idx].exp_date = bag.exp_date;
-          });
-        }
-      });
-    }
 
     res.json(rows);
   } catch (err) {

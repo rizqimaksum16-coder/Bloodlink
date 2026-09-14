@@ -1148,13 +1148,15 @@ export default function HospitalDashboard() {
         {/* Hybrid Navigation System (Tabs for filtering + default active 'all' overview) */}
         <Tabs value={activeTab} onValueChange={async (v) => {
           setActiveTab(v as 'overview' | 'stock' | 'requests' | 'ledger');
-          if (v === 'ledger' && ledger.length === 0) {
-            setIsLoadingLedger(true);
+          if (v === 'ledger') {
+            // Hanya tampilkan loading spinner kalau belum ada data sama sekali
+            const isFirstLoad = ledger.length === 0;
+            if (isFirstLoad) setIsLoadingLedger(true);
             try {
               const data = await api.stock.getLedger();
               setLedger(Array.isArray(data) ? data : []);
             } catch { /* tabel belum ada sebelum migration dijalankan */ }
-            finally { setIsLoadingLedger(false); }
+            finally { if (isFirstLoad) setIsLoadingLedger(false); }
           }
         }}>
           <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex overflow-x-auto max-w-full gap-1 h-auto w-full sm:w-fit shadow-xs no-scrollbar flex-nowrap shrink-0">
