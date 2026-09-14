@@ -49,8 +49,8 @@ const responseTimeData = [
 
 const faqData = [
   {
-    q: 'Apa itu Blood Link?',
-    a: 'Blood Link adalah Sistem Informasi Donor Darah Terpadu yang menghubungkan Palang Merah Indonesia (PMI), Rumah Sakit mitra, pendonor sukarela, dan kurir logistik di seluruh Pulau Jawa dalam satu platform digital.'
+    q: 'Apa itu One Blood!?',
+    a: 'One Blood! adalah Sistem Informasi Donor Darah Terpadu yang menghubungkan Palang Merah Indonesia (PMI), Rumah Sakit mitra, pendonor sukarela, dan kurir logistik di seluruh Pulau Jawa dalam satu platform digital.'
   },
   {
     q: 'Siapa saja yang bisa menggunakan platform ini?',
@@ -110,7 +110,7 @@ export default function LandingPage() {
             <Droplets className="w-10 h-10 text-[#C0392B]" fill="#C0392B" />
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Blood Link
+            One Blood!
           </h1>
           <p className="text-lg md:text-xl text-red-100 mb-10 max-w-3xl mx-auto leading-relaxed">
             Sistem Informasi Donor Darah Terpadu seluruh Pulau Jawa. Menghubungkan Palang Merah Indonesia, Rumah Sakit Mitra, Pendonor, dan Kurir Logistik dalam satu platform pintar untuk menyelamatkan nyawa lebih cepat.
@@ -196,7 +196,7 @@ export default function LandingPage() {
                 Satu Platform, Seluruh Ekosistem Donor Darah seluruh Pulau Jawa
               </h2>
               <p className="text-[#4A4A6A] leading-relaxed mb-6">
-                Blood Link lahir dari kebutuhan untuk mengatasi keterlambatan distribusi kantong darah di seluruh Pulau Jawa.
+                One Blood! lahir dari kebutuhan untuk mengatasi keterlambatan distribusi kantong darah di seluruh Pulau Jawa.
                 Dengan menghubungkan seluruh stakeholder — dari PMI, rumah sakit, pendonor sukarela, hingga kurir — dalam satu
                 sistem digital terintegrasi, kami mempercepat respons darurat dan mengurangi risiko kekurangan stok secara drastis.
               </p>
@@ -424,7 +424,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-extrabold text-[#1A1A2E] mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Bagaimana Blood Link Bekerja?
+              Bagaimana One Blood! Bekerja?
             </h2>
             <p className="text-[#4A4A6A] max-w-2xl mx-auto">
               Sistem end-to-end yang menjamin kecepatan dan keamanan dari proses permintaan rumah sakit hingga pengantaran oleh kurir.
@@ -549,7 +549,7 @@ export default function LandingPage() {
               Pertanyaan Umum (FAQ)
             </h2>
             <p className="text-[#4A4A6A]">
-              Temukan jawaban atas pertanyaan yang sering diajukan seputar platform Blood Link.
+              Temukan jawaban atas pertanyaan yang sering diajukan seputar platform One Blood!.
             </p>
           </div>
 
@@ -589,7 +589,7 @@ export default function LandingPage() {
             Siap Bergabung Menyelamatkan Nyawa?
           </h2>
           <p className="text-gray-300 max-w-2xl mx-auto mb-8 leading-relaxed">
-            Setiap tetes darah berarti. Bergabunglah dengan ribuan relawan, tenaga medis, dan logistik yang telah menggunakan Blood Link untuk mempercepat penanganan darurat di seluruh Pulau Jawa.
+            Setiap tetes darah berarti. Bergabunglah dengan ribuan relawan, tenaga medis, dan logistik yang telah menggunakan One Blood! untuk mempercepat penanganan darurat di seluruh Pulau Jawa.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link

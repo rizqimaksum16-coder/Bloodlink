@@ -212,7 +212,7 @@ export default function DonorDashboard() {
               Halo, {user?.name?.split(' ')[0] || 'Pendonor'}.
             </h1>
             <p className="text-red-100/90 leading-relaxed text-base max-w-xl">
-              Setiap donasi darahmu sangat berarti. Pantau kontribusimu dan temukan jadwal donor terdekat di ekosistem Blood Link.
+              Setiap donasi darahmu sangat berarti. Pantau kontribusimu dan temukan jadwal donor terdekat di ekosistem One Blood!.
             </p>
           </div>
         </div>

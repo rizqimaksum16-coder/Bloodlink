@@ -81,7 +81,7 @@ const roleDefaults: Record<UserRole, Omit<AuthUser, 'email'>> = {
   rs:         { name: 'Admin Rumah Sakit',  role: 'rs',         org: 'Rumah Sakit',        avatar: 'RS' },
   donor:      { name: 'Pendonor',           role: 'donor',      org: 'Pendonor Aktif',     avatar: 'PD' },
   driver:     { name: 'Driver',             role: 'driver',     org: 'Logistik',           avatar: 'DV' },
-  superadmin: { name: 'Super Admin',        role: 'superadmin', org: 'Blood Link Pusat',   avatar: 'SA' },
+  superadmin: { name: 'Super Admin',        role: 'superadmin', org: 'One Blood! Pusat',   avatar: 'SA' },
 };
 
 // ─── Provider ─────────────────────────────────────────────────────────────────

@@ -75,7 +75,7 @@ const heroConfigs = {
     ]
   },
   superadmin: {
-    title: 'Super Admin Pusat — Blood Link',
+    title: 'Super Admin Pusat — One Blood!',
     desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di wilayah Jawa, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
     primaryBtn: { label: 'Super Admin Dashboard', to: '/dashboard/superadmin', icon: Shield },
     secondaryBtn: { label: 'Peta Lokasi Unit', to: '/dashboard/superadmin', icon: MapPin },
@@ -351,7 +351,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3 text-xs md:text-sm">
           <div className="flex items-center gap-2 text-[#4A4A6A]">
             <Building2 className="w-4 h-4 text-[#C0392B]" />
-            <span>Instansi: <span className="font-semibold text-[#1A1A2E]">{user?.org || 'Blood Link'}</span></span>
+            <span>Instansi: <span className="font-semibold text-[#1A1A2E]">{user?.org || 'One Blood!'}</span></span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />

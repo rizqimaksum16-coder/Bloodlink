@@ -227,7 +227,7 @@ export default function Navigation() {
                 <Droplets className="w-5 h-5 text-white fill-white" />
               </div>
               <span className="font-bold text-[17px] text-[#1A1A2E] hidden sm:block tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                Blood Link
+                One Blood!
               </span>
             </Link>
 
@@ -579,7 +579,7 @@ export default function Navigation() {
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#C0392B,#7B241C)' }}>
               <Droplets className="w-4 h-4 text-white fill-white" />
             </div>
-            <span className="font-bold text-[15px] text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Blood Link</span>
+            <span className="font-bold text-[15px] text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>One Blood!</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button

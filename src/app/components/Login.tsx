@@ -59,7 +59,7 @@ const redirectByRole: Record<UserRole, string> = {
 };
 
 export default function Login() {
-  usePageTitle('Login — Blood Link');
+  usePageTitle('Login — One Blood!');
   const navigate = useNavigate();
   const { loginWithEmail, registerUser, isAuthenticated, user } = useAuth();
 
@@ -127,7 +127,7 @@ export default function Login() {
     setRegLoading(true);
     try {
       await registerUser({ name, email, password, role: regRole, org, bloodType: regBlood, phone, address });
-      toast.success('Pendaftaran berhasil! Selamat datang di Blood Link 🩸');
+      toast.success('Pendaftaran berhasil! Selamat datang di One Blood! 🩸');
       setTimeout(() => navigate(redirectByRole[regRole] || '/home'), 500);
     } catch (err: any) {
       toast.error(err?.message || 'Gagal mendaftar, silakan coba lagi.');
@@ -179,7 +179,7 @@ export default function Login() {
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight mb-1"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", textShadow: '0 2px 20px rgba(255,255,255,0.1)' }}>
-            Blood Link
+            One Blood!
           </h1>
           <p className="text-sm text-white/50 font-medium">Sistem Manajemen Darah Terpadu</p>
         </div>
