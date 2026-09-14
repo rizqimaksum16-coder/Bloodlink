@@ -276,6 +276,25 @@ router.get('/ledger', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), as
       `SELECT * FROM stock_ledger WHERE ${whereClause} ORDER BY recorded_at DESC LIMIT ?`,
       params
     );
+
+    // Ambil exp_date dari kantong pertama di setiap entri ledger (jika ada)
+    for (let row of rows) {
+      row.exp_date = null;
+      if (row.bag_codes) {
+        let codes = [];
+        try {
+          codes = typeof row.bag_codes === 'string' ? JSON.parse(row.bag_codes) : row.bag_codes;
+        } catch (e) {}
+        
+        if (Array.isArray(codes) && codes.length > 0) {
+          const [bags] = await pool.query('SELECT exp_date FROM blood_bags WHERE bag_code = ?', [codes[0]]);
+          if (bags.length > 0) {
+            row.exp_date = bags[0].exp_date;
+          }
+        }
+      }
+    }
+
     res.json(rows);
   } catch (err) {
     console.error('Error fetch stock ledger:', err);
