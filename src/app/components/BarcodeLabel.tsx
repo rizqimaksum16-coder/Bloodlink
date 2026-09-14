@@ -9,12 +9,18 @@ interface BarcodeLabelProps {
 }
 
 export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({ bagCode, bloodType, expDate, sourceName }) => {
+  const formattedExp = React.useMemo(() => {
+    if (!expDate || expDate === '-') return '-';
+    const d = new Date(expDate);
+    return isNaN(d.getTime()) ? expDate : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  }, [expDate]);
+
   return (
     <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg border-2 border-dashed border-gray-300 w-[80mm] h-[60mm] mx-auto print:border-solid print:border-gray-400 print:w-auto print:h-auto print:p-2">
       {/* Header: Golongan Darah & Exp */}
       <div className="text-center mb-2 w-full flex justify-between px-2">
         <span className="font-bold text-xl text-red-600">{bloodType}</span>
-        <span className="font-semibold text-xs text-gray-600 self-center">EXP: {expDate}</span>
+        <span className="font-semibold text-xs text-gray-600 self-center">EXP: {formattedExp}</span>
       </div>
 
       {/* QR Code */}
