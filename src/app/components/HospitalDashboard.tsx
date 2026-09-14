@@ -1192,60 +1192,65 @@ export default function HospitalDashboard() {
           {/* TAB 5: RIWAYAT STOK (Audit Trail Ledger) */}
           <TabsContent value="ledger" className="w-full">
             <div className="bg-white rounded-2xl border border-border p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div className="flex items-start justify-between mb-4 gap-3">
                 <div>
                   <h3 className="font-bold text-[#1A1A2E] text-sm">Riwayat Masuk &amp; Keluar Stok Darah</h3>
                   <p className="text-xs text-[#9B9BB5] mt-0.5">Setiap perubahan stok tercatat lengkap dengan pelaku dan waktu</p>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Filter Buttons */}
-                  <div className="flex items-center gap-1 bg-[#F4F4F8] rounded-xl p-1">
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  {/* Baris 1: Filter + Refresh — flex-nowrap agar tidak bergeser */}
+                  <div className="flex items-center gap-2 flex-nowrap">
+                    <div className="flex items-center gap-0.5 bg-[#F4F4F8] rounded-xl p-1 flex-shrink-0">
+                      <button
+                        onClick={() => setLedgerFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          ledgerFilter === 'all'
+                            ? 'bg-white text-[#1A1A2E] shadow-sm'
+                            : 'text-[#9B9BB5] hover:text-[#4A4A6A]'
+                        }`}
+                      >
+                        Semua
+                      </button>
+                      <button
+                        onClick={() => setLedgerFilter('in')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          ledgerFilter === 'in'
+                            ? 'bg-green-500 text-white shadow-sm'
+                            : 'text-[#9B9BB5] hover:text-green-600'
+                        }`}
+                      >
+                        ▲ Masuk
+                      </button>
+                      <button
+                        onClick={() => setLedgerFilter('out')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          ledgerFilter === 'out'
+                            ? 'bg-red-500 text-white shadow-sm'
+                            : 'text-[#9B9BB5] hover:text-red-500'
+                        }`}
+                      >
+                        ▼ Keluar
+                      </button>
+                    </div>
                     <button
-                      onClick={() => setLedgerFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        ledgerFilter === 'all'
-                          ? 'bg-white text-[#1A1A2E] shadow-sm'
-                          : 'text-[#9B9BB5] hover:text-[#4A4A6A]'
-                      }`}
+                      onClick={async () => {
+                        setIsLoadingLedger(true);
+                        try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
+                        finally { setIsLoadingLedger(false); }
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-[#2980B9] font-semibold hover:underline flex-shrink-0"
                     >
-                      Semua
-                    </button>
-                    <button
-                      onClick={() => setLedgerFilter('in')}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        ledgerFilter === 'in'
-                          ? 'bg-green-500 text-white shadow-sm'
-                          : 'text-[#9B9BB5] hover:text-green-600'
-                      }`}
-                    >
-                      ▲ Masuk
-                    </button>
-                    <button
-                      onClick={() => setLedgerFilter('out')}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        ledgerFilter === 'out'
-                          ? 'bg-red-500 text-white shadow-sm'
-                          : 'text-[#9B9BB5] hover:text-red-500'
-                      }`}
-                    >
-                      ▼ Keluar
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
                     </button>
                   </div>
-                  {/* Count badge */}
-                  <span className="text-xs text-[#9B9BB5] font-medium">
+                  {/* Baris 2: Counter — terpisah agar tidak menggeser tombol */}
+                  <span className="text-xs text-[#9B9BB5] font-medium tabular-nums">
                     {ledgerFilter === 'all'
                       ? `${ledger.length} entri`
                       : ledgerFilter === 'in'
                       ? `${ledger.filter((e: any) => e.direction === 'in').length} entri masuk`
                       : `${ledger.filter((e: any) => e.direction === 'out').length} entri keluar`}
                   </span>
-                  <button onClick={async () => {
-                    setIsLoadingLedger(true);
-                    try { const d = await api.stock.getLedger(); setLedger(Array.isArray(d) ? d : []); } catch {}
-                    finally { setIsLoadingLedger(false); }
-                  }} className="flex items-center gap-1.5 text-xs text-[#2980B9] font-semibold hover:underline">
-                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLedger ? 'animate-spin' : ''}`} /> Refresh
-                  </button>
                 </div>
               </div>
               {isLoadingLedger ? (
@@ -1261,6 +1266,7 @@ export default function HospitalDashboard() {
                         <th className="py-2 text-left">Jenis</th>
                         <th className="py-2 text-left">Gol. Darah</th>
                         <th className="py-2 text-center">Jumlah</th>
+                        <th className="py-2 text-left">Exp. Date</th>
                         <th className="py-2 text-left">Keterangan</th>
                         <th className="py-2 text-left">Dicatat Oleh</th>
                         <th className="py-2 text-center">Aksi</th>
@@ -1275,7 +1281,7 @@ export default function HospitalDashboard() {
                         )
                         .map((entry: any) => (
                         <tr key={entry.id} className="border-b border-border/50 hover:bg-[#F9F9FC] transition-colors">
-                          <td className="py-2.5 text-[#4A4A6A]">{new Date(entry.recorded_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="py-2.5 text-[#4A4A6A] whitespace-nowrap">{new Date(entry.recorded_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td className="py-2.5">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                               entry.direction === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
@@ -1285,7 +1291,23 @@ export default function HospitalDashboard() {
                           </td>
                           <td className="py-2.5 font-bold text-[#1A1A2E]">{entry.blood_type}</td>
                           <td className="py-2.5 text-center font-bold">{entry.quantity} ktg</td>
-                          <td className="py-2.5 text-[#4A4A6A] max-w-[180px]">
+                          {/* Kolom Exp. Date */}
+                          <td className="py-2.5 whitespace-nowrap">
+                            {entry.exp_date ? (
+                              <span className={`text-xs font-semibold ${
+                                new Date(entry.exp_date) < new Date()
+                                  ? 'text-red-500'
+                                  : new Date(entry.exp_date) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                                  ? 'text-orange-500'
+                                  : 'text-[#27AE60]'
+                              }`}>
+                                {new Date(entry.exp_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                            ) : (
+                              <span className="text-[#9B9BB5] text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 text-[#4A4A6A] max-w-[160px]">
                             <div className="truncate">{entry.reason_detail || entry.reason}</div>
                             {entry.bag_codes && (
                               <div className="text-[9px] font-mono text-[#9B9BB5] mt-0.5 truncate" title={typeof entry.bag_codes === 'string' ? JSON.parse(entry.bag_codes).join(', ') : entry.bag_codes.join(', ')}>
@@ -1295,17 +1317,21 @@ export default function HospitalDashboard() {
                           </td>
                           <td className="py-2.5 text-[#4A4A6A]">{entry.actor_name}</td>
                           <td className="py-2.5 text-center">
-                            {entry.direction === 'in' && entry.bag_codes && (
-                              <button 
+                            {entry.bag_codes && (
+                              <button
                                 onClick={() => {
-                                  let codes = [];
+                                  let codes: string[] = [];
                                   try { codes = typeof entry.bag_codes === 'string' ? JSON.parse(entry.bag_codes) : entry.bag_codes; } catch(e) {}
                                   if (!Array.isArray(codes)) codes = [entry.bag_codes];
                                   setPrintBagInfo({ bagCodes: codes, bloodType: entry.blood_type, expDate: entry.exp_date || '-', sourceName: entry.source_name || entry.source_type });
                                   setShowPrintModal(true);
                                 }}
-                                className="text-blue-500 hover:text-blue-700 p-1.5 bg-blue-50 hover:bg-blue-100 rounded transition-colors inline-block"
-                                title="Cetak Label Barcode"
+                                className={`p-1.5 rounded transition-colors inline-block ${
+                                  entry.direction === 'in'
+                                    ? 'text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100'
+                                    : 'text-orange-500 hover:text-orange-700 bg-orange-50 hover:bg-orange-100'
+                                }`}
+                                title={entry.direction === 'in' ? 'Cetak Label Barcode (Masuk)' : 'Cetak Label Barcode (Keluar)'}
                               >
                                 <Printer className="w-4 h-4" />
                               </button>
@@ -1319,7 +1345,7 @@ export default function HospitalDashboard() {
                         (ledgerFilter === 'out' && entry.direction === 'out')
                       ).length === 0 && (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-sm text-[#9B9BB5]">
+                          <td colSpan={8} className="py-8 text-center text-sm text-[#9B9BB5]">
                             Tidak ada data {ledgerFilter === 'in' ? 'masuk' : 'keluar'} yang tercatat.
                           </td>
                         </tr>
