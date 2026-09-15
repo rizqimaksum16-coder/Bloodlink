@@ -165,16 +165,39 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Messages are required.' });
   }
 
+  // Fetch data stok real-time dari Database agar Zuma pintar & tahu stok aktual
+  let stockDataText = '';
+  try {
+    const [stockRows] = await pool.query(`
+      SELECT u.org as pmi_name, s.blood_type, SUM(s.stock_qty) as total_stock
+      FROM blood_stock s
+      JOIN users u ON s.owner_pmi_id = u.id
+      WHERE s.stock_qty > 0
+      GROUP BY u.org, s.blood_type
+      ORDER BY u.org ASC, s.blood_type ASC
+      LIMIT 25
+    `);
+
+    if (stockRows.length > 0) {
+      const summary = stockRows.map(r => `${r.pmi_name}: Golongan ${r.blood_type} (${r.total_stock} kantong)`).join('\n- ');
+      stockDataText = `\n\n[DATA STOK DARAH REAL-TIME SAAT INI DI SYSTEM DATABASE ONE BLOOD!]:\n- ${summary}\n\n*Gunakan data stok di atas jika pengguna menanyakan ketersediaan/stok darah di PMI terdekat! Sebutkan nama PMI dan jumlah kantongnya jika ada.*`;
+    } else {
+      stockDataText = '\n\n[DATA STOK DARAH SAAT INI]: Saat ini belum ada stok darah yang tercatat di database (kosong).';
+    }
+  } catch (dbErr) {
+    console.error('[Zuma DB Context Error]:', dbErr.message);
+  }
+
   // Inject system prompt khusus dengan persona Zuma (Asisten AI Smart Donor Darah)
   const systemPrompt = `Nama Anda adalah Zuma, Asisten AI resmi platform One Blood! (Bloodlink).
-Tugas Anda: Membantu pengguna terkait informasi donor darah, syarat donor, lokasi PMI/Rumah Sakit, kecocokan golongan darah, jadwal donor, dan bantuan darurat donor darah.
+Tugas Anda: Membantu pengguna terkait informasi donor darah, syarat donor, lokasi PMI/Rumah Sakit, kecocokan golongan darah, jadwal donor, stok darah real-time, dan bantuan darurat donor darah.
 
 Aturan Respons Zuma:
 1. Sapa dengan ramah dan percaya diri jika pengguna pertama kali menyapa.
-2. Jawablah dengan RINGKAS, JELAS, PADAT, dan MUDAH DIPAHAMI (maksimal 2-4 kalimat atau bullet points jika perlu penjelasan urutan).
-3. Untuk kasus darurat butuh darah segera, SELALU ingatkan untuk segera menghubungi PMI terdekat atau memantau fitur Peta/Stok di platform One Blood!.
+2. Jawablah dengan RINGKAS, JELAS, PADAT, dan MUDAH DIPAHAMI (maksimal 2-4 kalimat atau bullet points jika perlu).
+3. Jika pengguna menanyakan STOK DARAH / PMI TERDEKAT, GUNAKAN DATA STOK REAL-TIME dari database yang tertera di bawah ini untuk menjawab secara spesifik (sebutkan nama PMI & jumlah stoknya jika ada)!
 4. Jika ditanya hal di luar kesehatan dan donor darah, tolak secara halus dan alihkan kembali ke topik donor darah & One Blood!.
-5. Gunakan bahasa Indonesia yang ramah, profesional, dan berempati.`;
+5. Gunakan bahasa Indonesia yang ramah, profesional, dan berempati.${stockDataText}`;
 
   const optimizedMessages = [
     { role: 'system', content: systemPrompt },
