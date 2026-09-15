@@ -165,24 +165,28 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Messages are required.' });
   }
 
-  // Fetch data stok real-time dari Database agar Zuma pintar & tahu stok aktual
+  // Fetch data stok real-time dari Database (PMI & RS) agar Zuma pintar & tahu stok aktual
   let stockDataText = '';
   try {
     const [stockRows] = await pool.query(`
-      SELECT u.org as pmi_name, s.blood_type, SUM(s.stock_qty) as total_stock
+      SELECT 
+        COALESCE(NULLIF(u.org, ''), u.name) as org_name,
+        u.role,
+        s.blood_type, 
+        SUM(s.stock_qty) as total_stock
       FROM blood_stock s
-      JOIN users u ON s.owner_pmi_id = u.id
+      JOIN users u ON (s.owner_pmi_id = u.id OR s.owner_hospital_id = u.id)
       WHERE s.stock_qty > 0
-      GROUP BY u.org, s.blood_type
-      ORDER BY u.org ASC, s.blood_type ASC
-      LIMIT 25
+      GROUP BY u.id, s.blood_type
+      ORDER BY org_name ASC, s.blood_type ASC
+      LIMIT 30
     `);
 
     if (stockRows.length > 0) {
-      const summary = stockRows.map(r => `${r.pmi_name}: Golongan ${r.blood_type} (${r.total_stock} kantong)`).join('\n- ');
-      stockDataText = `\n\n[DATA STOK DARAH REAL-TIME SAAT INI DI SYSTEM DATABASE ONE BLOOD!]:\n- ${summary}\n\n*Gunakan data stok di atas jika pengguna menanyakan ketersediaan/stok darah di PMI terdekat! Sebutkan nama PMI dan jumlah kantongnya jika ada.*`;
+      const summary = stockRows.map(r => `${r.org_name} (${r.role.toUpperCase()}): Golongan ${r.blood_type} (${r.total_stock} kantong)`).join('\n- ');
+      stockDataText = `\n\n[DATA STOK DARAH REAL-TIME SAAT INI DI DATABASE ONE BLOOD!]:\n- ${summary}\n\n*PENTING: Gunakan DATA STOK DI ATAS untuk menjawab secara LANGSUNG dan SPESIFIK jika pengguna menanyakan stok darah atau lokasi PMI/RS. Sebutkan nama PMI/RS dan jumlah kantong darahnya.*`;
     } else {
-      stockDataText = '\n\n[DATA STOK DARAH SAAT INI]: Saat ini belum ada stok darah yang tercatat di database (kosong).';
+      stockDataText = '\n\n[DATA STOK DARAH SAAT INI]: Saat ini belum ada stok darah yang tercatat di database (0 kantong).';
     }
   } catch (dbErr) {
     console.error('[Zuma DB Context Error]:', dbErr.message);
