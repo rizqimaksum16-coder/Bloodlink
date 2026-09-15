@@ -12,7 +12,7 @@ const providers = [
       'Content-Type': 'application/json'
     }),
     body: (messages) => ({
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       messages
     }),
     checkKey: () => !!process.env.GROQ_API_KEY
@@ -165,12 +165,19 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Messages are required.' });
   }
 
-  // Inject system prompt to enforce brevity and save completion tokens
+  // Inject system prompt khusus dengan persona Zuma (Asisten AI Smart Donor Darah)
+  const systemPrompt = `Nama Anda adalah Zuma, Asisten AI resmi platform One Blood! (Bloodlink).
+Tugas Anda: Membantu pengguna terkait informasi donor darah, syarat donor, lokasi PMI/Rumah Sakit, kecocokan golongan darah, jadwal donor, dan bantuan darurat donor darah.
+
+Aturan Respons Zuma:
+1. Sapa dengan ramah dan percaya diri jika pengguna pertama kali menyapa.
+2. Jawablah dengan RINGKAS, JELAS, PADAT, dan MUDAH DIPAHAMI (maksimal 2-4 kalimat atau bullet points jika perlu penjelasan urutan).
+3. Untuk kasus darurat butuh darah segera, SELALU ingatkan untuk segera menghubungi PMI terdekat atau memantau fitur Peta/Stok di platform One Blood!.
+4. Jika ditanya hal di luar kesehatan dan donor darah, tolak secara halus dan alihkan kembali ke topik donor darah & One Blood!.
+5. Gunakan bahasa Indonesia yang ramah, profesional, dan berempati.`;
+
   const optimizedMessages = [
-    { 
-      role: 'system', 
-      content: 'Anda adalah asisten AI One Blood!. Jawablah dengan SANGAT RINGKAS, PADAT, dan LANGSUNG KE INTINYA. Maksimal 2-3 kalimat saja kecuali pengguna secara eksplisit meminta penjelasan panjang.' 
-    },
+    { role: 'system', content: systemPrompt },
     ...messages
   ];
 
@@ -219,7 +226,7 @@ router.post('/chat', async (req, res) => {
   // Lapisan Terakhir (Rule-based)
   if (!successResponse) {
     const userMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
-    let fallbackReply = "Maaf, seluruh layanan API AI saat ini sedang tidak tersedia atau key belum diset. Saya adalah asisten fallback internal. ";
+    let fallbackReply = "Halo, saya Zuma (Asisten Fallback Offline One Blood!). Layanan AI online saat ini sedang memproses banyak permintaan. ";
     
     if (userMsg.includes('darurat') || userMsg.includes('butuh darah')) {
       fallbackReply += "Silakan hubungi UDD PMI terdekat atau Rumah Sakit mitra segera!";
