@@ -969,9 +969,6 @@ export default function HospitalDashboard() {
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.bgClass} ${sc.textClass}`}>
-                    {sc.label}
-                  </span>
                   <button
                     onClick={() => { setBroadcastType(blood.type); setShowBroadcastModal(true); }}
                     title={`Broadcast Darurat Donor Golongan ${blood.type}`}
