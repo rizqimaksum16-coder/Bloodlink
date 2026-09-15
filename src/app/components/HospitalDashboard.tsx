@@ -1826,11 +1826,11 @@ export default function HospitalDashboard() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pilih Golongan Darah Target</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {['A+', 'B+', 'AB+', 'O+', 'Semua'].map(bt => (
+                <div className="flex flex-wrap gap-1.5">
+                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Semua'].map(bt => (
                     <button key={bt} onClick={() => setBroadcastType(bt)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${broadcastType === bt ? 'text-white' : 'border border-border text-[#4A4A6A]'}`}
-                      style={broadcastType === bt ? { background: bt === 'Semua' ? '#1A1A2E' : '#C0392B' } : {}}>
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${broadcastType === bt ? 'text-white' : 'border border-border text-[#4A4A6A]'}`}
+                      style={broadcastType === bt ? { background: bt === 'Semua' ? '#1A1A2E' : (btColor[bt] || '#C0392B') } : {}}>
                       {bt}
                     </button>
                   ))}
