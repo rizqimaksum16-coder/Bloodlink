@@ -103,11 +103,11 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/notifications/broadcast — 🔒 Hanya PMI & SuperAdmin
+// POST /api/notifications/broadcast — 🔒 PMI, Rumah Sakit & SuperAdmin
 // Mengirim notifikasi darurat ke semua donor registered berdasarkan golongan darah
 const { requireRole } = require('../middleware/auth');
 
-router.post('/broadcast', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+router.post('/broadcast', authMiddleware, requireRole('pmi', 'superadmin', 'rs'), async (req, res) => {
   const { blood_type, title, message } = req.body;
   if (!title || !message) {
     return res.status(400).json({ error: 'title dan message wajib diisi' });

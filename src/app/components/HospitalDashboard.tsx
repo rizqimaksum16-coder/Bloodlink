@@ -2,7 +2,8 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
-  RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan, ShieldAlert, ScanLine
+  RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan, ShieldAlert, ScanLine,
+  Megaphone, Loader2, Send
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -198,6 +199,43 @@ export default function HospitalDashboard() {
   const [qcBagCode, setQcBagCode] = useState('');
   const [isQcProcessing, setIsQcProcessing] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
+
+  // Broadcast Modal State
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastType, setBroadcastType] = useState('Semua');
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcastSent, setBroadcastSent] = useState(false);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  const handleBroadcast = async () => {
+    const orgName = user?.org || user?.name || 'Rumah Sakit';
+    const finalMsg = broadcastMsg.trim() ||
+      `Halo, ${orgName} membutuhkan donor darah golongan ${broadcastType} segera. Stok kami sangat terbatas. Harap mendonorkan darah Anda segera.`;
+
+    setIsBroadcasting(true);
+    try {
+      const result: any = await (api.notifications as any).broadcast({
+        blood_type: broadcastType,
+        title: `🚨 Darurat Stok Darah ${broadcastType} (${orgName})`,
+        message: finalMsg
+      });
+      setBroadcastSent(true);
+      if (result.sent > 0) {
+        toast.success(`Broadcast terkirim ke ${result.sent} donor golongan ${broadcastType}!`);
+      } else {
+        toast.info(result.message || `Tidak ada donor terdaftar dengan golongan ${broadcastType}.`);
+      }
+      setTimeout(() => {
+        setBroadcastSent(false);
+        setShowBroadcastModal(false);
+        setBroadcastMsg('');
+      }, 2500);
+    } catch {
+      toast.error('Gagal mengirim broadcast. Pastikan backend berjalan dan coba lagi.');
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
 
   // Koordinat RS yang sedang login — dipakai untuk kalkulasi jarak dinamis ke PMI
   const [hospitalCoords, setHospitalCoords] = useState<{ lat: number; lng: number }>({ lat: -7.2678, lng: 112.7584 });
@@ -930,7 +968,19 @@ export default function HospitalDashboard() {
                     {blood.stock}<span className="text-[10px] font-medium text-gray-400 ml-0.5">ktg</span>
                   </span>
                 </div>
-
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.bgClass} ${sc.textClass}`}>
+                    {sc.label}
+                  </span>
+                  <button
+                    onClick={() => { setBroadcastType(blood.type); setShowBroadcastModal(true); }}
+                    title={`Broadcast Darurat Donor Golongan ${blood.type}`}
+                    className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-[#C0392B] transition-colors flex items-center gap-1 text-[10px] font-bold px-2 border border-red-100 active:scale-95"
+                  >
+                    <Megaphone className="w-3 h-3 text-[#C0392B]" />
+                    <span>Broadcast</span>
+                  </button>
+                </div>
               </div>
 
 
@@ -1121,10 +1171,16 @@ export default function HospitalDashboard() {
               {user?.org || 'Rumah Sakit A'}
             </h1>
           </div>
-          <button onClick={() => { setShowOrderForm(true); setOrderStep('form'); }}
-            className="flex items-center justify-center gap-2 bg-[#C0392B] text-white px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#922B21] transition-all shadow-md active:scale-95 duration-150 w-full sm:w-auto">
-            <Plus className="w-4 h-4" /> Pesan Darah ke PMI
-          </button>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <button onClick={() => setShowBroadcastModal(true)}
+              className="flex items-center justify-center gap-2 bg-[#C0392B] text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-[#922B21] transition-all shadow-md active:scale-95 duration-150 flex-1 sm:flex-none">
+              <Megaphone className="w-4 h-4" /> Broadcast Donor Darurat
+            </button>
+            <button onClick={() => { setShowOrderForm(true); setOrderStep('form'); }}
+              className="flex items-center justify-center gap-2 bg-[#2980B9] text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-[#1F618D] transition-all shadow-md active:scale-95 duration-150 flex-1 sm:flex-none">
+              <Plus className="w-4 h-4" /> Pesan Darah ke PMI
+            </button>
+          </div>
         </div>
 
         {/* Interactive Stats Cards */}
@@ -1748,6 +1804,77 @@ export default function HospitalDashboard() {
           }}
           onClose={() => setShowQrScanner(false)}
         />
+      )}
+
+      {/* ── Broadcast Modal ─────────────────────────────────── */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#C0392B]/10 flex items-center justify-center">
+                  <Megaphone className="w-4 h-4 text-[#C0392B]" />
+                </div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Broadcast Donor Darurat</h3>
+              </div>
+              <button onClick={() => setShowBroadcastModal(false)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Fields */}
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pilih Golongan Darah Target</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {['A+', 'B+', 'AB+', 'O+', 'Semua'].map(bt => (
+                    <button key={bt} onClick={() => setBroadcastType(bt)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${broadcastType === bt ? 'text-white' : 'border border-border text-[#4A4A6A]'}`}
+                      style={broadcastType === bt ? { background: bt === 'Semua' ? '#1A1A2E' : '#C0392B' } : {}}>
+                      {bt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pesan Broadcast</label>
+                <textarea
+                  rows={3}
+                  value={broadcastMsg}
+                  onChange={e => setBroadcastMsg(e.target.value)}
+                  placeholder={`Halo, ${user?.org || 'Rumah Sakit'} membutuhkan donor darah golongan ${broadcastType} segera. Stok kami sangat terbatas. Harap mendonorkan darah Anda segera.`}
+                  className="w-full p-3 rounded-xl border border-border text-xs text-[#1A1A2E] focus:outline-none focus:border-[#C0392B] resize-none"
+                />
+              </div>
+
+              <div className="bg-[#FDEDEC] rounded-xl p-3 flex items-start gap-2 border border-[#FADBD8]">
+                <AlertTriangle className="w-4 h-4 text-[#C0392B] shrink-0 mt-0.5" />
+                <p className="text-[11px] text-[#C0392B]">
+                  Notifikasi darurat akan langsung dikirim ke aplikasi seluruh pendonor terdaftar (<span className="font-bold">registered = 1</span>) dengan golongan darah yang sesuai.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button onClick={() => setShowBroadcastModal(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
+                Batal
+              </button>
+              <button onClick={handleBroadcast}
+                disabled={isBroadcasting || broadcastSent}
+                className="flex items-center gap-2 bg-[#C0392B] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#922B21] transition-colors disabled:opacity-50 shadow-md">
+                {broadcastSent ? (
+                  <><CheckCircle className="w-4 h-4" /> Broadcast Terkirim!</>
+                ) : isBroadcasting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Mengirim...</>
+                ) : (
+                  <><Send className="w-4 h-4" /> Kirim Broadcast</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
