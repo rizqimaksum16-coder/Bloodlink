@@ -155,6 +155,12 @@ export const api = {
         body: JSON.stringify(data)
       }),
 
+    broadcast: (data: { blood_type: string; title: string; message: string }) =>
+      apiFetch('/notifications/broadcast', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+
     markRead: (id: string) =>
       apiFetch(`/notifications/${id}/read`, { method: 'PUT' }),
 
@@ -167,6 +173,7 @@ export const api = {
     deleteAll: () =>
       apiFetch('/notifications', { method: 'DELETE' })
   },
+
 
   // Blood Stock API
   stock: {

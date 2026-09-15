@@ -103,4 +103,56 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/notifications/broadcast — 🔒 Hanya PMI & SuperAdmin
+// Mengirim notifikasi darurat ke semua donor registered berdasarkan golongan darah
+const { requireRole } = require('../middleware/auth');
+
+router.post('/broadcast', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+  const { blood_type, title, message } = req.body;
+  if (!title || !message) {
+    return res.status(400).json({ error: 'title dan message wajib diisi' });
+  }
+
+  try {
+    // Query semua donor REGISTERED berdasarkan golongan darah di donor_profiles
+    let query = `
+      SELECT u.id as user_id
+      FROM donor_profiles dp
+      JOIN users u ON dp.user_id = u.id
+      WHERE u.role = 'donor'
+        AND dp.registered = 1
+    `;
+    const params = [];
+
+    if (blood_type && blood_type !== 'Semua') {
+      query += ` AND dp.blood_type = ?`;
+      params.push(blood_type);
+    }
+
+    const [donors] = await pool.query(query, params);
+
+    if (donors.length === 0) {
+      return res.json({ sent: 0, message: `Tidak ada donor terdaftar dengan golongan darah ${blood_type || 'yang sesuai'}.` });
+    }
+
+    // Batch INSERT notifikasi ke semua donor yang cocok
+    const values = donors.map(d => {
+      const id = `N-BC-${Date.now()}-${Math.floor(Math.random() * 99999)}`;
+      return [id, d.user_id, 'darurat', title, message];
+    });
+
+    await pool.query(
+      `INSERT INTO notifications (id, user_id, type, title, message) VALUES ?`,
+      [values]
+    );
+
+    console.log(`[Broadcast] ${title} → dikirim ke ${donors.length} donor (golongan: ${blood_type || 'Semua'})`);
+    res.json({ sent: donors.length, message: `Broadcast berhasil dikirim ke ${donors.length} donor.` });
+  } catch (err) {
+    console.error('Error broadcast notifikasi:', err);
+    res.status(500).json({ error: 'Gagal mengirim broadcast notifikasi' });
+  }
+});
+
 module.exports = router;
+

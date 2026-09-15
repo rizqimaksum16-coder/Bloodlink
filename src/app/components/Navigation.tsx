@@ -707,7 +707,7 @@ const getNotifAction = (role?: string) => {
       return { to: '/dashboard/driver', label: 'Lihat Tugas Kurir →' };
     case 'donor':
     default:
-      return { to: '/events', label: 'Daftar Donor Sekarang →' };
+      return { to: '/search', label: 'Cari PMI & Stok Darah →' };
   }
 };
 

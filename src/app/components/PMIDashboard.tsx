@@ -3,7 +3,7 @@ import { useSearchParams, useLocation } from 'react-router';
 import {
   Droplets, Users, Bell, Calendar, CheckCircle, Clock, AlertTriangle,
   MapPin, Phone, Plus, Search, Filter, Send, X, ChevronDown, TrendingUp,
-  Package, Truck, BarChart2, Megaphone, Trash2, Save, RefreshCw
+  Package, Truck, BarChart2, Megaphone, Trash2, Save, RefreshCw, Loader2
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Progress } from './ui/progress';
@@ -448,6 +448,7 @@ export default function PMIDashboard() {
   const [broadcastType, setBroadcastType] = useState('O-');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
   const [showAllBatches, setShowAllBatches] = useState<Record<string, boolean>>({});
 
@@ -884,9 +885,33 @@ export default function PMIDashboard() {
     }
   };
 
-  const handleBroadcast = () => {
-    setBroadcastSent(true);
-    setTimeout(() => { setBroadcastSent(false); setShowBroadcastModal(false); setBroadcastMsg(''); }, 2000);
+  const handleBroadcast = async () => {
+    const finalMsg = broadcastMsg.trim() ||
+      `Halo, PMI membutuhkan donor darah golongan ${broadcastType} segera. Stok kami sangat kritis. Harap segera hubungi kami.`;
+
+    setIsBroadcasting(true);
+    try {
+      const result: any = await (api.notifications as any).broadcast({
+        blood_type: broadcastType,
+        title: `🚨 Darurat Stok Darah ${broadcastType}`,
+        message: finalMsg
+      });
+      setBroadcastSent(true);
+      if (result.sent > 0) {
+        toast.success(`Broadcast terkirim ke ${result.sent} donor golongan ${broadcastType}!`);
+      } else {
+        toast.info(result.message || `Tidak ada donor terdaftar dengan golongan ${broadcastType}.`);
+      }
+      setTimeout(() => {
+        setBroadcastSent(false);
+        setShowBroadcastModal(false);
+        setBroadcastMsg('');
+      }, 2500);
+    } catch {
+      toast.error('Gagal mengirim broadcast. Pastikan backend berjalan dan coba lagi.');
+    } finally {
+      setIsBroadcasting(false);
+    }
   };
 
   const filteredDonors = donorList.filter(d => {
@@ -1696,9 +1721,12 @@ export default function PMIDashboard() {
               </div>
 
               <button onClick={handleBroadcast}
-                className="w-full py-3 rounded-xl bg-[#C0392B] text-white font-semibold text-sm hover:bg-[#922B21] transition-colors flex items-center justify-center gap-2">
+                disabled={isBroadcasting || broadcastSent}
+                className="w-full py-3 rounded-xl bg-[#C0392B] text-white font-semibold text-sm hover:bg-[#922B21] disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                 {broadcastSent ? (
                   <><CheckCircle className="w-4 h-4" /> Broadcast Terkirim!</>
+                ) : isBroadcasting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Mengirim...</>
                 ) : (
                   <><Send className="w-4 h-4" /> Kirim Broadcast</>
                 )}
