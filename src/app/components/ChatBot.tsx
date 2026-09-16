@@ -102,7 +102,7 @@ export default function ChatBot() {
               <h3 className="font-semibold text-sm leading-tight flex items-center gap-1.5">
                 NARA <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
               </h3>
-              <p className="text-[11px] text-white/80">Asisten AI One Blood!</p>
+              <p className="text-[11px] text-white/80">Nadi & Blood Response Assistant!</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
