@@ -354,12 +354,13 @@ export default function PMIDashboard() {
           return { type, stock: 0, target: 50, status: 'critical' as StockStatus, expiringSoon: 0, predictedShortfall: true, batches };
         });
         setStocks(mergedStocks);
-        if (driverData?.length) {
-          setDrivers(driverData.map((d: any) => ({
-            id: String(d.id), name: d.name, email: d.email,
-            phone: d.phone || '-', vehicleNo: d.address || '-', org: d.org || user?.org || 'PMI'
-          })));
-        }
+        // Selalu update state driver (termasuk array kosong)
+        setDrivers(Array.isArray(driverData) ? driverData.map((d: any) => ({
+          id: String(d.id), name: d.name, email: d.email,
+          phone: d.phone || '-',
+          vehicleNo: d.address || '-',  // vehicle_no disimpan di kolom address
+          org: d.org || user?.org || 'PMI'
+        })) : []);
         if (eventsData?.length) {
           setEventsList(eventsData.map((e: any) => ({
             id: e.id, name: e.name,
@@ -727,8 +728,22 @@ export default function PMIDashboard() {
     } catch (e) { console.warn('Gagal hapus driver dari API:', e); }
 
     setDrivers(prev => prev.filter(d => d.id !== id));
-
     toast.success('Driver berhasil dihapus.');
+  };
+
+  const refreshDrivers = async () => {
+    try {
+      const data: any = await api.users.getAll('driver', []);
+      setDrivers(Array.isArray(data) ? data.map((d: any) => ({
+        id: String(d.id), name: d.name, email: d.email,
+        phone: d.phone || '-',
+        vehicleNo: d.address || '-',
+        org: d.org || user?.org || 'PMI'
+      })) : []);
+      toast.success(`${Array.isArray(data) ? data.length : 0} driver dimuat ulang.`);
+    } catch (e) {
+      toast.error('Gagal memuat ulang driver.');
+    }
   };
 
   const handleDiscardExpired = (type: string) => {
@@ -1431,6 +1446,11 @@ export default function PMIDashboard() {
               <button onClick={() => setShowAddDriverModal(true)}
                 className="bg-[#1ABC9C] hover:bg-[#16A085] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm shadow-teal-100">
                 <Plus className="w-4 h-4" /> Tambah Driver Baru
+              </button>
+              <button onClick={refreshDrivers}
+                title="Muat ulang daftar driver dari database"
+                className="p-2 rounded-xl border border-border text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors flex items-center gap-1.5 text-xs">
+                <RefreshCw className="w-4 h-4" />
               </button>
             </div>
 
