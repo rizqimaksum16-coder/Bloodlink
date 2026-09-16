@@ -285,11 +285,11 @@ export default function PMIDashboard() {
     async function loadPMIData() {
       try {
         const [reqData, stockData, driverData, eventsData, publicReqData, bagsData, donorData, ledgerData] = await Promise.all([
-          api.orders.getRequests([]),
-          api.stock.getPMIStock([]),
-          api.users.getAll('driver', []),
-          api.events.getMine([]),
-          api.orders.getPublicRequests([]),
+          api.orders.getRequests([]).catch(() => []),
+          api.stock.getPMIStock([]).catch(() => []),
+          api.users.getAll('driver', []).catch(() => []),
+          api.events.getMine([]).catch(() => []),
+          api.orders.getPublicRequests([]).catch(() => []),
           api.stock.getBags({ status: 'available' }).catch(() => []),
           api.users.getAll('donor', []).catch(() => []),
           api.stock.getLedger().catch(() => [])
@@ -1457,9 +1457,9 @@ export default function PMIDashboard() {
             {/* Drivers list */}
             {(() => {
               const filteredDrivers = drivers.filter(d => 
-                d.name.toLowerCase().includes(driverSearchQuery.toLowerCase()) ||
-                d.email.toLowerCase().includes(driverSearchQuery.toLowerCase()) ||
-                d.vehicleNo.toLowerCase().includes(driverSearchQuery.toLowerCase())
+                (d.name?.toLowerCase() || '').includes(driverSearchQuery.toLowerCase()) ||
+                (d.email?.toLowerCase() || '').includes(driverSearchQuery.toLowerCase()) ||
+                (d.vehicleNo?.toLowerCase() || '').includes(driverSearchQuery.toLowerCase())
               );
 
               if (filteredDrivers.length === 0) {
