@@ -295,6 +295,7 @@ export default function PMIDashboard() {
           setRequests(reqData.map((r: any) => ({
             id: r.id, hospital: r.hospital, bloodType: r.blood_type,
             qty: r.qty, priority: r.priority, status: r.status,
+            pmi: r.pmi || null,
             time: r.created_at ? new Date(r.created_at).toLocaleString('id-ID') : 'Baru saja', address: r.address || '-',
             contact: r.contact || '-'
           })));
