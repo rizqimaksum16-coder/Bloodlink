@@ -273,11 +273,12 @@ export const api = {
     getAll: (role?: string, fallback?: any[]) =>
       apiFetch(role ? `/users?role=${encodeURIComponent(role)}` : '/users', {}, fallback),
 
-    create: (data: { name: string; email: string; password: string; role?: string; phone?: string; vehicle_no?: string }) =>
+    create: (data: { name: string; email: string; password: string; role?: string; phone?: string; vehicle_no?: string; org?: string }) =>
       apiFetch('/users', {
         method: 'POST',
         body: JSON.stringify(data)
       }),
+
 
     delete: (id: string | number) =>
       apiFetch(`/users/${id}`, { method: 'DELETE' }),

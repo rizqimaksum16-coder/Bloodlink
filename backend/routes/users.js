@@ -70,7 +70,8 @@ router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, r
     const userId = require('crypto').randomUUID();
     const avatar = name.substring(0, 2).toUpperCase();
     const org = req.body.org || null;
-    const address = req.body.address || null;
+    // Untuk driver: simpan nomor kendaraan di kolom 'address'
+    const address = role === 'driver' ? (req.body.vehicle_no || req.body.address || null) : (req.body.address || null);
     const phone = req.body.phone || null;
     const latitude = req.body.latitude || null;
     const longitude = req.body.longitude || null;

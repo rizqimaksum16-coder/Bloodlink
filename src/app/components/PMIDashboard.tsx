@@ -354,7 +354,7 @@ export default function PMIDashboard() {
         if (driverData?.length) {
           setDrivers(driverData.map((d: any) => ({
             id: String(d.id), name: d.name, email: d.email,
-            phone: '-', vehicleNo: '-', org: user?.org || 'PMI'
+            phone: d.phone || '-', vehicleNo: d.address || '-', org: d.org || user?.org || 'PMI'
           })));
         }
         if (eventsData?.length) {
@@ -665,14 +665,19 @@ export default function PMIDashboard() {
     // Tambah ke API MySQL
     try {
       const res: any = await api.users.create({
-        name: newDriverName, email: newDriverEmail,
+        name: newDriverName,
+        email: newDriverEmail,
         password: newDriverPassword || 'driver123',
-        role: 'driver', phone: newDriverPhone
+        role: 'driver',
+        phone: newDriverPhone,
+        org: orgName,
+        vehicle_no: newDriverVehicle
       });
       if (res?.user?.id) newId = String(res.user.id);
     } catch (e: any) {
       toast.warning('Akun driver tersimpan lokal (backend offline): ' + e.message);
     }
+
 
     const addedDriver = {
       id: newId,
