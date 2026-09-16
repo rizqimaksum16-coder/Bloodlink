@@ -273,7 +273,7 @@ export const api = {
     getAll: (role?: string, fallback?: any[]) =>
       apiFetch(role ? `/users?role=${encodeURIComponent(role)}` : '/users', {}, fallback),
 
-    create: (data: { name: string; email: string; password: string; role?: string; phone?: string; vehicle_no?: string; org?: string }) =>
+    create: (data: { name: string; email: string; password: string; role?: string; phone?: string; vehicle_no?: string; org?: string; address?: string; latitude?: number; longitude?: number }) =>
       apiFetch('/users', {
         method: 'POST',
         body: JSON.stringify(data)

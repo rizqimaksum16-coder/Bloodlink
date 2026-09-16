@@ -11,6 +11,7 @@ import { Badge } from './ui/badge';
 import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
 import { api, apiFetch } from '../utils/api';
+import { validateName, validateEmail, validatePassword, validatePhone, validateVehiclePlate, validateFutureDate, validatePositiveInt } from '../utils/validate';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 import StockActionModal, { StockActionType } from './StockActionModal';
@@ -269,6 +270,7 @@ export default function PMIDashboard() {
   const [showAddDriverModal, setShowAddDriverModal] = useState(false);
   const [isSubmittingDriver, setIsSubmittingDriver] = useState(false);
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
+  const [driverErrors, setDriverErrors] = useState<Record<string,string>>({});
   const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
   const [approvingPublicRequestId, setApprovingPublicRequestId] = useState<string | null>(null);
   const [chosenDriverId, setChosenDriverId] = useState<string>('');
@@ -399,12 +401,19 @@ export default function PMIDashboard() {
   const [newEventCapacity, setNewEventCapacity] = useState(100);
   const [newEventDescription, setNewEventDescription] = useState('');
 
+  const [eventErrors, setEventErrors] = useState<Record<string,string>>({});
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEventName || !newEventDate || !newEventLocation) {
-      toast.error('Nama event, tanggal, dan lokasi wajib diisi!');
-      return;
-    }
+    const errs: Record<string,string> = {};
+    if (!newEventName.trim() || newEventName.trim().length < 3) errs.name = 'Nama event minimal 3 karakter.';
+    const dateErr = validateFutureDate(newEventDate);
+    if (dateErr) errs.date = dateErr;
+    if (!newEventLocation.trim() || newEventLocation.trim().length < 3) errs.location = 'Lokasi minimal 3 karakter.';
+    const capErr = validatePositiveInt(newEventCapacity, 'Kapasitas', 10000);
+    if (capErr) errs.capacity = capErr;
+    if (Object.keys(errs).length > 0) { setEventErrors(errs); return; }
+    setEventErrors({});
     try {
       const res: any = await api.events.create({
         name: newEventName,
@@ -646,33 +655,41 @@ export default function PMIDashboard() {
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmittingDriver) return; // cegah double-submit
-    if (!newDriverName || !newDriverEmail) {
-      toast.error('Mohon lengkapi nama dan email driver!');
-      return;
-    }
+    if (isSubmittingDriver) return;
 
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(newDriverEmail)) {
-      toast.error('Format email tidak valid!');
+    // Validasi semua field
+    const errs: Record<string,string> = {};
+    const nameErr = validateName(newDriverName);
+    if (nameErr) errs.name = nameErr;
+    const emailErr = validateEmail(newDriverEmail);
+    if (emailErr) errs.email = emailErr;
+    const pwErr = validatePassword(newDriverPassword);
+    if (pwErr) errs.password = pwErr;
+    const phoneErr = validatePhone(newDriverPhone, false);
+    if (phoneErr) errs.phone = phoneErr;
+    const plateErr = validateVehiclePlate(newDriverVehicle, false);
+    if (plateErr) errs.vehicle = plateErr;
+
+    if (Object.keys(errs).length > 0) {
+      setDriverErrors(errs);
       return;
     }
+    setDriverErrors({});
 
     setIsSubmittingDriver(true);
     const orgName = user?.org || 'PMI Pusat';
     let newId = `drv_${Date.now()}`;
 
     try {
-      // Tambah ke API MySQL
       try {
         const res: any = await api.users.create({
-          name: newDriverName,
-          email: newDriverEmail,
-          password: newDriverPassword || 'driver123',
+          name: newDriverName.trim(),
+          email: newDriverEmail.trim().toLowerCase(),
+          password: newDriverPassword,
           role: 'driver',
           phone: newDriverPhone,
           org: orgName,
-          vehicle_no: newDriverVehicle
+          vehicle_no: newDriverVehicle.trim().toUpperCase()
         });
         if (res?.user?.id) newId = String(res.user.id);
       } catch (e: any) {
@@ -681,23 +698,22 @@ export default function PMIDashboard() {
 
       const addedDriver = {
         id: newId,
-        name: newDriverName,
-        email: newDriverEmail,
-        phone: newDriverPhone || '081234567890',
-        vehicleNo: newDriverVehicle || 'L 1234 AB',
+        name: newDriverName.trim(),
+        email: newDriverEmail.trim().toLowerCase(),
+        phone: newDriverPhone || '-',
+        vehicleNo: newDriverVehicle.trim().toUpperCase() || '-',
         org: orgName,
-        password: newDriverPassword || 'demo123'
+        password: newDriverPassword
       };
 
       setDrivers(prev => [...prev, addedDriver]);
-
       setNewDriverName('');
       setNewDriverEmail('');
       setNewDriverPhone('');
       setNewDriverVehicle('');
       setNewDriverPassword('');
       setShowAddDriverModal(false);
-      toast.success(`Driver "${newDriverName}" berhasil ditambahkan!`);
+      toast.success(`Driver "${newDriverName.trim()}" berhasil ditambahkan!`);
     } finally {
       setIsSubmittingDriver(false);
     }
@@ -1629,26 +1645,34 @@ export default function PMIDashboard() {
                 <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Buat Event Donor Baru</h3>
                 <p className="text-xs text-[#9B9BB5] mt-0.5">Event akan langsung tampil di halaman donor</p>
               </div>
-              <button onClick={() => setShowAddEventModal(false)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
+              <button onClick={() => { setShowAddEventModal(false); setEventErrors({}); }} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateEvent} className="space-y-4">
+            <form onSubmit={handleCreateEvent} className="space-y-4" noValidate>
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nama Event *</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nama Event <span className="text-[#C0392B]">*</span></label>
                 <input
                   type="text" placeholder="Contoh: Donor Darah Hari Pahlawan"
-                  value={newEventName} onChange={e => setNewEventName(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                  value={newEventName} onChange={e => { setNewEventName(e.target.value); setEventErrors(prev => ({...prev, name: ''})); }}
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none transition-colors ${
+                    eventErrors.name ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {eventErrors.name && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {eventErrors.name}</p>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Tanggal *</label>
+                  <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Tanggal <span className="text-[#C0392B]">*</span></label>
                   <input
-                    type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                    type="date" value={newEventDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => { setNewEventDate(e.target.value); setEventErrors(prev => ({...prev, date: ''})); }}
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none transition-colors ${
+                      eventErrors.date ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                    }`}
                   />
+                  {eventErrors.date && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {eventErrors.date}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Waktu</label>
@@ -1659,19 +1683,26 @@ export default function PMIDashboard() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Lokasi *</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Lokasi <span className="text-[#C0392B]">*</span></label>
                 <input
                   type="text" placeholder="Contoh: Mall Grand Indonesia"
-                  value={newEventLocation} onChange={e => setNewEventLocation(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                  value={newEventLocation} onChange={e => { setNewEventLocation(e.target.value); setEventErrors(prev => ({...prev, location: ''})); }}
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none transition-colors ${
+                    eventErrors.location ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {eventErrors.location && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {eventErrors.location}</p>}
               </div>
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Kapasitas Peserta</label>
                 <input
-                  type="number" min={1} value={newEventCapacity} onChange={e => setNewEventCapacity(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:border-[#C0392B] transition-colors"
+                  type="number" min={1} value={newEventCapacity}
+                  onChange={e => { setNewEventCapacity(Number(e.target.value)); setEventErrors(prev => ({...prev, capacity: ''})); }}
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none transition-colors ${
+                    eventErrors.capacity ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {eventErrors.capacity && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {eventErrors.capacity}</p>}
               </div>
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Deskripsi (opsional)</label>
@@ -1682,7 +1713,7 @@ export default function PMIDashboard() {
                 />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowAddEventModal(false)}
+                <button type="button" onClick={() => { setShowAddEventModal(false); setEventErrors({}); }}
                   className="flex-1 py-2.5 rounded-xl border border-border text-sm text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
                   Batal
                 </button>
@@ -1772,76 +1803,92 @@ export default function PMIDashboard() {
               </button>
             </div>
 
-            <form onSubmit={handleAddDriver} className="space-y-4">
+            <form onSubmit={handleAddDriver} className="space-y-3" noValidate>
+              {/* Nama */}
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nama Lengkap</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nama Lengkap <span className="text-[#C0392B]">*</span></label>
                 <input
                   type="text"
-                  required
                   placeholder="Contoh: Budi Santoso"
                   value={newDriverName}
-                  onChange={e => setNewDriverName(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                  onChange={e => { setNewDriverName(e.target.value); setDriverErrors(prev => ({...prev, name: ''})); }}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    driverErrors.name ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {driverErrors.name && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {driverErrors.name}</p>}
               </div>
 
+              {/* Email */}
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Email Aktif (Untuk Login)</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Email Aktif (Untuk Login) <span className="text-[#C0392B]">*</span></label>
                 <input
-                  type="email"
-                  required
+                  type="text"
                   placeholder="Contoh: budi@kurir.id"
                   value={newDriverEmail}
-                  onChange={e => setNewDriverEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                  onChange={e => { setNewDriverEmail(e.target.value); setDriverErrors(prev => ({...prev, email: ''})); }}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    driverErrors.email ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {driverErrors.email && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {driverErrors.email}</p>}
               </div>
 
+              {/* Password */}
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Password Akun Driver</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Password Akun Driver <span className="text-[#C0392B]">*</span></label>
                 <input
                   type="password"
-                  required
-                  placeholder="Masukkan password untuk login..."
+                  placeholder="Minimal 6 karakter"
                   value={newDriverPassword}
-                  onChange={e => setNewDriverPassword(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                  onChange={e => { setNewDriverPassword(e.target.value); setDriverErrors(prev => ({...prev, password: ''})); }}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    driverErrors.password ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {driverErrors.password && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {driverErrors.password}</p>}
               </div>
 
+              {/* Telepon */}
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nomor Telepon</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   placeholder="Contoh: 081234567890"
                   value={newDriverPhone}
-                  onChange={e => setNewDriverPhone(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                  onChange={e => { setNewDriverPhone(e.target.value.replace(/[^0-9+\-() ]/g, '')); setDriverErrors(prev => ({...prev, phone: ''})); }}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    driverErrors.phone ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {driverErrors.phone && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {driverErrors.phone}</p>}
               </div>
 
+              {/* Plat */}
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nomor Kendaraan (Plat Nomer)</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-1">Nomor Kendaraan (Plat Nomor)</label>
                 <input
                   type="text"
                   placeholder="Contoh: L 1234 AB"
                   value={newDriverVehicle}
-                  onChange={e => setNewDriverVehicle(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-border text-xs focus:outline-none focus:border-[#C0392B] transition-colors"
+                  onChange={e => { setNewDriverVehicle(e.target.value.toUpperCase()); setDriverErrors(prev => ({...prev, vehicle: ''})); }}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none transition-colors ${
+                    driverErrors.vehicle ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-border focus:border-[#C0392B]'
+                  }`}
                 />
+                {driverErrors.vehicle && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">⚠ {driverErrors.vehicle}</p>}
               </div>
 
               <div className="flex gap-2 pt-2">
-                <button type="button" onClick={() => setShowAddDriverModal(false)}
+                <button type="button" onClick={() => { setShowAddDriverModal(false); setDriverErrors({}); }}
                   className="flex-1 py-2.5 rounded-xl border border-border text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
                   Batal
                 </button>
                 <button type="submit"
                   disabled={isSubmittingDriver}
                   className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                    isSubmittingDriver
-                      ? 'bg-[#1ABC9C]/50 cursor-not-allowed'
-                      : 'bg-[#1ABC9C] hover:bg-[#16A085]'
+                    isSubmittingDriver ? 'bg-[#1ABC9C]/50 cursor-not-allowed' : 'bg-[#1ABC9C] hover:bg-[#16A085]'
                   }`}>
                   {isSubmittingDriver ? (
                     <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Menyimpan...</>
