@@ -216,15 +216,42 @@ router.put('/deliveries/:id/status', authMiddleware, requireRole('driver', 'pmi'
 });
 
 // PUT /api/orders/requests/:id/status — 🔒 PMI/superadmin bisa update status
+// Ketika PMI set status = 'diproses', otomatis assign pmi_id = req.user.id
 router.put('/requests/:id/status', authMiddleware, requireRole('pmi', 'superadmin', 'rs'), async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   try {
-    await pool.query('UPDATE blood_requests SET status = ? WHERE id = ?', [status, id]);
+    if (req.user.role === 'pmi' && status === 'diproses') {
+      // Assign request ke PMI yang menyetujuinya
+      await pool.query(
+        'UPDATE blood_requests SET status = ?, pmi_id = ? WHERE id = ?',
+        [status, req.user.id, id]
+      );
+    } else {
+      await pool.query('UPDATE blood_requests SET status = ? WHERE id = ?', [status, id]);
+    }
     res.json({ message: 'Status permintaan berhasil diperbarui' });
   } catch (err) {
     console.error('Error update request status:', err);
     res.status(500).json({ error: 'Gagal memperbarui status permintaan' });
+  }
+});
+
+// PATCH /api/orders/requests/:id/assign-pmi — PMI klaim/claim request (sebelum approve)
+router.patch('/requests/:id/assign-pmi', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Pastikan request belum di-assign ke PMI lain
+    const [rows] = await pool.query('SELECT pmi_id FROM blood_requests WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Request tidak ditemukan' });
+    if (rows[0].pmi_id && rows[0].pmi_id !== req.user.id && req.user.role !== 'superadmin') {
+      return res.status(409).json({ error: 'Request ini sudah diambil oleh PMI lain' });
+    }
+    await pool.query('UPDATE blood_requests SET pmi_id = ? WHERE id = ?', [req.user.id, id]);
+    res.json({ message: 'Request berhasil diklaim oleh PMI Anda' });
+  } catch (err) {
+    console.error('Error assign PMI to request:', err);
+    res.status(500).json({ error: 'Gagal mengklaim request' });
   }
 });
 

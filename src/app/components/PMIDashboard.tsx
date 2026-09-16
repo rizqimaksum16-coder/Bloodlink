@@ -10,7 +10,7 @@ import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
-import { api } from '../utils/api';
+import { api, apiFetch } from '../utils/api';
 import { useAutoSave } from '../context/AutoSaveContext';
 import { useAuth } from '../context/AuthContext';
 import StockActionModal, { StockActionType } from './StockActionModal';
@@ -468,6 +468,10 @@ export default function PMIDashboard() {
 
 
   const myPmiName = user?.org || 'PMI Pusat';
+  // Tampilkan hanya:
+  // - Request yang belum di-assign ke PMI manapun (!r.pmi)
+  // - Request yang sudah di-assign ke PMI kita sendiri
+  // Sembunyikan request yang sudah diklaim PMI LAIN
   const displayedRequests = requests.filter(r => !r.pmi || r.pmi.toLowerCase() === myPmiName.toLowerCase());
 
   const pendingCount = displayedRequests.filter(r => r.status === 'pending').length;
@@ -567,7 +571,11 @@ export default function PMIDashboard() {
     // Bersihkan state pilihan kantong
     setSelectedBagCodes([]);
 
-    // Sync ke API MySQL
+    // Sync ke API MySQL — assign pmi_id sekaligus update status
+    try {
+      // Klaim request ke PMI yang login (assign pmi_id) sebelum set status
+      await apiFetch(`/orders/requests/${approvingRequestId}/assign-pmi`, { method: 'PATCH' });
+    } catch (e) { console.warn('Gagal assign PMI ke request:', e); }
     try {
       await api.users.updateRequestStatus(approvingRequestId, 'diproses');
     } catch (e) { console.warn('Gagal sync status ke API:', e); }
@@ -943,10 +951,9 @@ export default function PMIDashboard() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: 'Request Pending', value: String(pendingCount), sub: 'Butuh persetujuan', icon: Bell, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]', pulse: pendingCount > 0 },
-            { label: 'Hampir Kadaluarsa', value: `${expiringSoon} ktg`, sub: 'Dalam 7 hari', icon: Clock, iconBg: 'bg-[#FEF9E7]', iconColor: 'text-[#E67E22]', subColor: 'text-[#E67E22]', pulse: false },
             { label: 'Donor Aktif', value: `${eligibleDonors}/${totalDonors}`, sub: 'Siap donor', icon: Users, iconBg: 'bg-[#EAF7FB]', iconColor: 'text-[#2980B9]', subColor: 'text-[#2980B9]', pulse: false },
           ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, subColor, pulse }) => (
             <div key={label} className="bg-white rounded-2xl border border-border shadow-sm p-5">
