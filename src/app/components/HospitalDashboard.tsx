@@ -968,16 +968,6 @@ export default function HospitalDashboard() {
                     {blood.stock}<span className="text-[10px] font-medium text-gray-400 ml-0.5">ktg</span>
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => { setBroadcastType(blood.type); setShowBroadcastModal(true); }}
-                    title={`Broadcast Darurat Donor Golongan ${blood.type}`}
-                    className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-[#C0392B] transition-colors flex items-center gap-1 text-[10px] font-bold px-2 border border-red-100 active:scale-95"
-                  >
-                    <Megaphone className="w-3 h-3 text-[#C0392B]" />
-                    <span>Broadcast</span>
-                  </button>
-                </div>
               </div>
 
 
