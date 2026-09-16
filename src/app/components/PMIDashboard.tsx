@@ -267,6 +267,7 @@ export default function PMIDashboard() {
   const [newDriverVehicle, setNewDriverVehicle] = useState('');
   const [newDriverPassword, setNewDriverPassword] = useState('');
   const [showAddDriverModal, setShowAddDriverModal] = useState(false);
+  const [isSubmittingDriver, setIsSubmittingDriver] = useState(false);
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
   const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
   const [approvingPublicRequestId, setApprovingPublicRequestId] = useState<string | null>(null);
@@ -583,18 +584,15 @@ export default function PMIDashboard() {
     // Bersihkan state pilihan kantong
     setSelectedBagCodes([]);
 
-    // Sync ke API MySQL — assign pmi_id sekaligus update status
-    try {
-      // Klaim request ke PMI yang login (assign pmi_id) sebelum set status
-      await apiFetch(`/orders/requests/${approvingRequestId}/assign-pmi`, { method: 'PATCH' });
-    } catch (e) { console.warn('Gagal assign PMI ke request:', e); }
-    try {
-      await api.users.updateRequestStatus(approvingRequestId, 'diproses');
-    } catch (e) { console.warn('Gagal sync status ke API:', e); }
-    
-    try {
-      await api.orders.createDelivery(newDelivery);
-    } catch (e) { console.warn('Gagal sync delivery ke API:', e); }
+    // Sync ke API MySQL — jalankan semua sekaligus (paralel) agar tidak lambat
+    await Promise.allSettled([
+      apiFetch(`/orders/requests/${approvingRequestId}/assign-pmi`, { method: 'PATCH' })
+        .catch(e => console.warn('Gagal assign PMI ke request:', e)),
+      api.users.updateRequestStatus(approvingRequestId, 'diproses')
+        .catch(e => console.warn('Gagal sync status ke API:', e)),
+      api.orders.createDelivery(newDelivery)
+        .catch(e => console.warn('Gagal sync delivery ke API:', e)),
+    ]);
 
     // 4. Beri feedback sukses
     toast.success(`Permintaan disetujui! Driver "${selectedDriver.name}" telah ditugaskan.`);
@@ -648,6 +646,7 @@ export default function PMIDashboard() {
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingDriver) return; // cegah double-submit
     if (!newDriverName || !newDriverEmail) {
       toast.error('Mohon lengkapi nama dan email driver!');
       return;
@@ -659,46 +658,51 @@ export default function PMIDashboard() {
       return;
     }
 
+    setIsSubmittingDriver(true);
     const orgName = user?.org || 'PMI Pusat';
     let newId = `drv_${Date.now()}`;
 
-    // Tambah ke API MySQL
     try {
-      const res: any = await api.users.create({
+      // Tambah ke API MySQL
+      try {
+        const res: any = await api.users.create({
+          name: newDriverName,
+          email: newDriverEmail,
+          password: newDriverPassword || 'driver123',
+          role: 'driver',
+          phone: newDriverPhone,
+          org: orgName,
+          vehicle_no: newDriverVehicle
+        });
+        if (res?.user?.id) newId = String(res.user.id);
+      } catch (e: any) {
+        toast.warning('Akun driver tersimpan lokal (backend offline): ' + e.message);
+      }
+
+      const addedDriver = {
+        id: newId,
         name: newDriverName,
         email: newDriverEmail,
-        password: newDriverPassword || 'driver123',
-        role: 'driver',
-        phone: newDriverPhone,
+        phone: newDriverPhone || '081234567890',
+        vehicleNo: newDriverVehicle || 'L 1234 AB',
         org: orgName,
-        vehicle_no: newDriverVehicle
-      });
-      if (res?.user?.id) newId = String(res.user.id);
-    } catch (e: any) {
-      toast.warning('Akun driver tersimpan lokal (backend offline): ' + e.message);
+        password: newDriverPassword || 'demo123'
+      };
+
+      setDrivers(prev => [...prev, addedDriver]);
+
+      setNewDriverName('');
+      setNewDriverEmail('');
+      setNewDriverPhone('');
+      setNewDriverVehicle('');
+      setNewDriverPassword('');
+      setShowAddDriverModal(false);
+      toast.success(`Driver "${newDriverName}" berhasil ditambahkan!`);
+    } finally {
+      setIsSubmittingDriver(false);
     }
-
-
-    const addedDriver = {
-      id: newId,
-      name: newDriverName,
-      email: newDriverEmail,
-      phone: newDriverPhone || '081234567890',
-      vehicleNo: newDriverVehicle || 'L 1234 AB',
-      org: orgName,
-      password: newDriverPassword || 'demo123'
-    };
-
-    setDrivers(prev => [...prev, addedDriver]);
-
-    setNewDriverName('');
-    setNewDriverEmail('');
-    setNewDriverPhone('');
-    setNewDriverVehicle('');
-    setNewDriverPassword('');
-    setShowAddDriverModal(false);
-    toast.success(`Driver "${newDriverName}" berhasil ditambahkan!`);
   };
+
 
   const handleDeleteDriver = async (id: string) => {
     // Hapus dari API MySQL
@@ -1833,8 +1837,15 @@ export default function PMIDashboard() {
                   Batal
                 </button>
                 <button type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#1ABC9C] hover:bg-[#16A085] text-white text-xs font-bold transition-colors">
-                  Simpan Driver
+                  disabled={isSubmittingDriver}
+                  className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                    isSubmittingDriver
+                      ? 'bg-[#1ABC9C]/50 cursor-not-allowed'
+                      : 'bg-[#1ABC9C] hover:bg-[#16A085]'
+                  }`}>
+                  {isSubmittingDriver ? (
+                    <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Menyimpan...</>
+                  ) : 'Simpan Driver'}
                 </button>
               </div>
             </form>
