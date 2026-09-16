@@ -60,12 +60,17 @@ async function consumeBagsFIFO({ ownerType, ownerId, bloodType, qty, reason }) {
 // GET /api/stock/hospital — 🔒 Harus login
 router.get('/hospital', authMiddleware, async (req, res) => {
   try {
+    // RS hanya lihat stok miliknya sendiri; superadmin lihat semua
+    const isRS = req.user.role === 'rs';
+    const whereExtra = isRS ? 'AND bs.owner_hospital_id = ?' : '';
+    const params = isRS ? [req.user.id] : [];
     const [rows] = await pool.query(
       `SELECT bs.id, bs.owner_hospital_id AS hospital_id, bs.blood_type, bs.stock_qty AS stock, bs.stock_qty AS quantity, bs.status, bs.updated_at, hu.name AS hospital_name
        FROM blood_stock bs
        JOIN users hu ON hu.id = bs.owner_hospital_id
-       WHERE bs.owner_hospital_id IS NOT NULL
-       ORDER BY bs.blood_type`
+       WHERE bs.owner_hospital_id IS NOT NULL ${whereExtra}
+       ORDER BY bs.blood_type`,
+      params
     );
     res.json(rows);
   } catch (err) {
@@ -75,14 +80,19 @@ router.get('/hospital', authMiddleware, async (req, res) => {
 });
 
 // GET /api/stock/pmi — 🔒 Harus login
+// PMI hanya lihat stok miliknya; RS/superadmin lihat semua (untuk pilih PMI saat order)
 router.get('/pmi', authMiddleware, async (req, res) => {
   try {
+    const isPMI = req.user.role === 'pmi';
+    const whereExtra = isPMI ? 'AND bs.owner_pmi_id = ?' : '';
+    const params = isPMI ? [req.user.id] : [];
     const [rows] = await pool.query(
       `SELECT bs.id, bs.owner_pmi_id AS pmi_id, bs.blood_type, bs.stock_qty AS stock, bs.stock_qty AS quantity, bs.status, bs.updated_at, pu.name AS pmi_name, pu.latitude AS lat, pu.longitude AS lng, pu.address AS pmi_address
        FROM blood_stock bs
        JOIN users pu ON pu.id = bs.owner_pmi_id
-       WHERE bs.owner_pmi_id IS NOT NULL
-       ORDER BY bs.blood_type`
+       WHERE bs.owner_pmi_id IS NOT NULL ${whereExtra}
+       ORDER BY bs.blood_type`,
+      params
     );
     res.json(rows);
   } catch (err) {

@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 
-// GET /api/users — Ambil semua user (berdasarkan role opsional)
+// GET /api/users — Ambil user sesuai hak akses role
 router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   const { role } = req.query;
   try {
@@ -15,9 +15,28 @@ router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (r
       LEFT JOIN donor_profiles dp ON dp.user_id = u.id
     `;
     const params = [];
-    if (role) {
-      query += ' WHERE u.role = ?';
+    const conditions = [];
+
+    if (req.user.role === 'pmi') {
+      // PMI hanya lihat driver yang berada di bawah organisasinya sendiri
+      conditions.push(`u.org = ?`);
+      params.push(req.user.org);
+      // Pastikan yang tampil hanya driver (bukan PMI/RS lain)
+      conditions.push(`u.role = 'driver'`);
+    } else if (req.user.role === 'rs') {
+      // RS hanya lihat donor & driver (bukan data PMI/RS lain)
+      conditions.push(`u.role IN ('donor', 'driver')`);
+    }
+    // superadmin tidak ada batasan
+
+    // Filter tambahan dari query param (hanya berlaku jika tidak bertentangan)
+    if (role && req.user.role === 'superadmin') {
+      conditions.push('u.role = ?');
       params.push(role);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
     query += ' ORDER BY u.created_at DESC';
     const [rows] = await pool.query(query, params);
@@ -67,10 +86,18 @@ router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, r
   }
 });
 
-// DELETE /api/users/:id — Hapus user (hanya superadmin atau pmi)
+// DELETE /api/users/:id — Hapus user (superadmin semua; PMI hanya hapus driver di org-nya)
 router.delete('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
   const { id } = req.params;
   try {
+    if (req.user.role === 'pmi') {
+      // PMI hanya boleh hapus driver di organisasinya
+      const [target] = await pool.query('SELECT role, org FROM users WHERE id = ?', [id]);
+      if (target.length === 0) return res.status(404).json({ error: 'User tidak ditemukan' });
+      if (target[0].role !== 'driver' || target[0].org !== req.user.org) {
+        return res.status(403).json({ error: 'Anda hanya bisa menghapus driver di organisasi Anda' });
+      }
+    }
     await pool.query('DELETE FROM users WHERE id = ?', [id]);
     res.json({ message: 'Pengguna berhasil dihapus' });
   } catch (err) {
