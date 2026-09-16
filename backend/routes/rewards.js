@@ -12,6 +12,8 @@ async function ensureClaimsTable() {
       user_id     VARCHAR(50) NOT NULL,
       reward_id   VARCHAR(50) NOT NULL,
       claimed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+      FOREIGN KEY (reward_id) REFERENCES rewards(id) ON DELETE CASCADE,
       UNIQUE KEY uq_user_reward (user_id, reward_id)
     )
   `);

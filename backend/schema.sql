@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS public_blood_requests;
 DROP TABLE IF EXISTS blood_requests;
 DROP TABLE IF EXISTS hospitals;
 DROP TABLE IF EXISTS pmi_units;
+DROP TABLE IF EXISTS reward_claims;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS activity_logs;
 DROP TABLE IF EXISTS rewards;
@@ -252,13 +253,15 @@ INSERT INTO activity_logs (id, action, blood_type, quantity, user_name, time_ago
 ('al1', 'Sistem Diinisialisasi', 'O+', 10, 'Super Admin', 'Baru saja', true);
 
 INSERT INTO rewards (id, name, description, points, icon, available) VALUES
-('rw1', 'Voucher Indomaret Rp25.000', 'Dapat ditukarkan di seluruh Indomaret Surabaya',       500,  '🛒', true),
-('rw2', 'Sertifikat Donor Digital',   'Sertifikat resmi dengan QR verifikasi dari PMI',        0,    '📜', true),
-('rw3', 'Diskon Lab 20% RS Mitra',    'Diskon cek kesehatan di RS mitra Suroboyo Blood',       1000, '🏥', true),
-('rw4', 'Kaos Eksklusif Donor',       'Kaos edisi terbatas untuk Veteran Donor',               2000, '👕', true),
-('rw5', 'Tiket Bioskop 2x',           'Dua tiket bioskop XXI untuk pendonor aktif',            1500, '🎬', false),
-('rw6', 'Badge Pahlawan Darah',        'Badge digital eksklusif setelah 10x donor',            0,    '🏅', false),
-('rw7', 'Voucher Alfamart Rp15.000',  'Dapat ditukarkan di seluruh Alfamart',                  300,  '🏪', true);
+('rw1', 'Voucher Indomaret Rp25.000', 'Dapat ditukarkan di seluruh Indomaret Surabaya',              500,  '🛒', true),
+('rw2', 'Sertifikat Donor Digital',   'Sertifikat resmi dengan QR verifikasi dari PMI',               0,    '📜', true),
+('rw3', 'Diskon Lab 20% RS Mitra',    'Diskon cek kesehatan di RS mitra Blood Link',                  1000, '🏥', true),
+('rw4', 'Kaos Eksklusif Donor',       'Kaos edisi terbatas untuk Veteran Donor',                      2000, '👕', true),
+('rw5', 'Tiket Bioskop 2x',           'Dua tiket bioskop XXI untuk pendonor aktif',                   1500, '🎬', true),
+('rw6', 'Badge Pahlawan Darah',        'Badge digital eksklusif setelah 10x donor',                   0,    '🏅', true),
+('rw7', 'Voucher Alfamart Rp15.000',  'Dapat ditukarkan di seluruh Alfamart',                         300,  '🏪', true),
+('rw8', 'Tumbler Blood Link',          'Tumbler eksklusif edisi terbatas Blood Link',                 800,  '🥤', true),
+('rw9', 'E-Book Kesehatan Donor',      'Panduan lengkap menjaga kesehatan pendonor',                  100,  '📖', true);
 
 INSERT INTO donor_profiles (id, user_id, blood_type, dob, phone, address, weight_kg, registered, total_donations, last_donation, next_eligible, points, level, streak) VALUES
 ('dp-1', 'usr-donor', 'O+', '1990-01-01', '081234567890', 'Surabaya', 70.0, true, 0, NULL, NULL, 0, 'Pemula', 0);
@@ -272,6 +275,16 @@ INSERT INTO bot_dictionary (id, keywords, response) VALUES
 ('bd5', '["interval","jeda","waktu","berapa lama","bulan","tunggu","bisa lagi"]', 'Interval minimal antara satu donor dengan donor darah berikutnya adalah 2 bulan (60 hari) untuk pria, dan 3 bulan (90 hari) untuk wanita. Anda dapat melihat estimasi tanggal donor berikutnya di halaman profil Anda.'),
 ('bd6', '["poin","point","reward","hadiah","tukar","voucher"]', 'Setiap kali berhasil mendonorkan darah, Anda akan mendapatkan poin yang dapat ditukarkan dengan berbagai hadiah menarik di menu "Reward". Semakin sering Anda donor, semakin banyak poin terkumpul dan semakin tinggi level keanggotaan Anda!'),
 ('bd7', '["halo","hai","pagi","siang","sore","malam","assalamualaikum","hello","hi"]', 'Halo! Saya Diana, asisten AI Blood Link. Ada yang bisa saya bantu seputar donor darah, syarat, alur, atau manfaatnya hari ini?');
+
+CREATE TABLE reward_claims (
+    id          VARCHAR(50) PRIMARY KEY,
+    user_id     VARCHAR(50) NOT NULL,
+    reward_id   VARCHAR(50) NOT NULL,
+    claimed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+    FOREIGN KEY (reward_id) REFERENCES rewards(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_reward (user_id, reward_id)
+);
 
 INSERT INTO master_achievements (id, name, description, icon_name, color, bg_color, min_donations) VALUES
 ('A001', 'Donor Pertama', 'Selesaikan donasi pertamamu', 'Heart', '#ef4444', '#fef2f2', 1),
