@@ -291,13 +291,13 @@ export default function BloodSearch() {
         qty: Number(qty) || 1,
         priority: urgency,
         address: activeHospital?.address || '',
-        contact: ''
+        contact: '',
+        pmi_id: pmiId
       });
       setConfirmedPMIId(pmiId);
       toast.success(`Permintaan darah ${selectedBloodType} ke ${pmiName} berhasil dikirim!`);
     } catch (e: any) {
-      toast.warning('Permintaan tersimpan lokal (backend offline): ' + e.message);
-      setConfirmedPMIId(pmiId);
+      toast.error('Gagal membuat permintaan: ' + e.message);
     }
   };
 

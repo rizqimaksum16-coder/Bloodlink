@@ -272,18 +272,23 @@ Aturan Respons Zuma:
   res.json(successResponse);
 });
 
+// Helper: heuristic scoring tanpa ML
+function heuristicScore(distanceKm, stock, qty) {
+  const maxDist = 50;
+  const distScore = Math.max(0, 1 - distanceKm / maxDist) * 40; // 0-40
+  const stockRatio = Math.min(stock / Math.max(qty, 1), 3) / 3;
+  const stockScore = stockRatio * 60; // 0-60
+  return Math.round(distScore + stockScore);
+}
+
 router.post('/matching', async (req, res) => {
   const { bloodType, qty, lat, lng } = req.body;
 
   const ML_API_URL = process.env.ML_API_URL;
   const ML_API_KEY = process.env.ML_INTERNAL_API_KEY;
 
-  if (!ML_API_URL) {
-    return res.status(503).json({ error: 'ML service belum dikonfigurasi. Pastikan variabel ML_API_URL sudah diset di server.' });
-  }
-
   try {
-    // 1. Ambil stok PMI dari database (hanya yang stoknya > 0)
+    // 1. Ambil stok PMI dari database (hanya yang stoknya > 0, dan hanya role pmi)
     const [rows] = await pool.query(`
       SELECT 
         u.id, u.org as name, u.address, u.phone, 
@@ -291,7 +296,12 @@ router.post('/matching', async (req, res) => {
         s.stock_qty as stock, s.status
       FROM blood_stock s
       JOIN users u ON s.owner_pmi_id = u.id
-      WHERE s.blood_type = ? AND s.owner_pmi_id IS NOT NULL AND s.stock_qty > 0
+      WHERE s.blood_type = ? 
+        AND s.owner_pmi_id IS NOT NULL 
+        AND s.stock_qty > 0
+        AND u.role = 'pmi'
+        AND u.org IS NOT NULL
+        AND u.org != ''
     `, [bloodType || 'O+']);
 
     if (!rows.length) {
@@ -328,7 +338,24 @@ router.post('/matching', async (req, res) => {
       };
     });
 
-    // 3. Kirim ke ML FastAPI XGBoost (timeout 10 detik)
+    // 3. Jika ML_API_URL tidak dikonfigurasi, gunakan heuristic scoring sebagai fallback
+    if (!ML_API_URL) {
+      console.warn('[AI Matching] ML_API_URL tidak dikonfigurasi, menggunakan heuristic scoring.');
+      const recommendations = mlPayload
+        .map(item => ({
+          ...item._meta,
+          aiScore: heuristicScore(item.distance_km, item._meta.stock, qty || 1)
+        }))
+        .sort((a, b) => b.aiScore - a.aiScore);
+
+      return res.json({
+        modelUsed: 'Heuristic (Fallback)',
+        recommendations,
+        provider: 'Bloodlink Heuristic Fallback'
+      });
+    }
+
+    // 4. Kirim ke ML FastAPI XGBoost (timeout 10 detik)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -356,13 +383,23 @@ router.post('/matching', async (req, res) => {
       mlResult = await mlResponse.json();
     } catch (mlError) {
       clearTimeout(timeoutId);
-      console.error('[AI Matching] ML XGBoost Error:', mlError.message);
-      return res.status(503).json({
-        error: `ML service XGBoost tidak dapat dihubungi: ${mlError.message}`
+      console.warn('[AI Matching] ML XGBoost Error, fallback ke heuristic:', mlError.message);
+      // Fallback ke heuristic scoring jika ML error
+      const recommendations = mlPayload
+        .map(item => ({
+          ...item._meta,
+          aiScore: heuristicScore(item.distance_km, item._meta.stock, qty || 1)
+        }))
+        .sort((a, b) => b.aiScore - a.aiScore);
+
+      return res.json({
+        modelUsed: 'Heuristic (ML Unavailable)',
+        recommendations,
+        provider: 'Bloodlink Heuristic Fallback'
       });
     }
 
-    // 4. Gabungkan skor ML dengan data PMI dan urutkan
+    // 5. Gabungkan skor ML dengan data PMI dan urutkan
     const scoreMap = {};
     (mlResult.predictions || []).forEach(p => {
       scoreMap[p.id] = p.aiScore;
@@ -371,7 +408,7 @@ router.post('/matching', async (req, res) => {
     const recommendations = mlPayload
       .map(item => ({
         ...item._meta,
-        aiScore: scoreMap[String(item._meta.id)] ?? 0
+        aiScore: scoreMap[String(item._meta.id)] ?? heuristicScore(item.distance_km, item._meta.stock, qty || 1)
       }))
       .sort((a, b) => b.aiScore - a.aiScore);
 
