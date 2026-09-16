@@ -258,7 +258,6 @@ export default function PMIDashboard() {
   const [publicRequests, setPublicRequests] = useState<any[]>([]);
 
   const [donorList, setDonorList] = useState<Donor[]>([]);
-  const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
   
   const [drivers, setDrivers] = useState<any[]>([]);
 
@@ -279,20 +278,31 @@ export default function PMIDashboard() {
   const [assigningBagsRequestId, setAssigningBagsRequestId] = useState<string | null>(null);
   const [selectedBagCodes, setSelectedBagCodes] = useState<string[]>([]);
 
+  // States untuk Event Donor
+  const [eventsList, setEventsList] = useState<DonorEvent[]>(donorEvents);
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [eventErrors, setEventErrors] = useState<Record<string, string>>({});
+  const [newEventName, setNewEventName] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventTime, setNewEventTime] = useState('');
+  const [newEventLocation, setNewEventLocation] = useState('');
+  const [newEventCapacity, setNewEventCapacity] = useState<number>(50);
+  const [newEventDescription, setNewEventDescription] = useState('');
+
   // Load data dari MySQL API
   useEffect(() => {
     if (!user) return;
     async function loadPMIData() {
       try {
-        const [reqData, stockData, driverData, eventsData, publicReqData, bagsData, donorData, ledgerData] = await Promise.all([
+        const [reqData, stockData, driverData, publicReqData, bagsData, donorData, ledgerData, eventsData] = await Promise.all([
           api.orders.getRequests([]).catch(() => []),
           api.stock.getPMIStock([]).catch(() => []),
           api.users.getAll('driver', []).catch(() => []),
-          api.events.getMine([]).catch(() => []),
           api.orders.getPublicRequests([]).catch(() => []),
           api.stock.getBags({ status: 'available' }).catch(() => []),
           api.users.getAll('donor', []).catch(() => []),
-          api.stock.getLedger().catch(() => [])
+          api.stock.getLedger().catch(() => []),
+          api.events.getMine([]).catch(() => [])
         ]);
         if (reqData?.length) {
           setRequests(reqData.map((r: any) => ({
@@ -361,13 +371,7 @@ export default function PMIDashboard() {
           vehicleNo: d.address || '-',  // vehicle_no disimpan di kolom address
           org: d.org || user?.org || 'PMI'
         })) : []);
-        if (eventsData?.length) {
-          setEventsList(eventsData.map((e: any) => ({
-            id: e.id, name: e.name,
-            date: e.date, location: e.location,
-            target: e.capacity || 100, registered: e.registered || 0
-          })));
-        }
+        
         if (donorData?.length) {
           setDonorList(donorData.map((d: any) => ({
             id: String(d.id),
@@ -383,6 +387,16 @@ export default function PMIDashboard() {
         if (ledgerData && Array.isArray(ledgerData)) {
           setLedger(ledgerData);
         }
+        if (eventsData && Array.isArray(eventsData)) {
+          setEventsList(eventsData.map((e: any) => ({
+            id: String(e.id),
+            name: e.name,
+            date: e.date ? (typeof e.date === 'string' ? e.date.split('T')[0] : format(new Date(e.date), 'yyyy-MM-dd')) : '-',
+            location: e.location || e.address || '-',
+            target: e.capacity || 50,
+            registered: e.registered_count || e.bookings_count || 0
+          })));
+        }
       } catch (err) {
         console.warn('Gagal memuat data PMI dari API, menggunakan data lokal.');
       }
@@ -393,67 +407,7 @@ export default function PMIDashboard() {
   // Realtime refresh tidak digunakan (polling opsional jika diperlukan)
   useEffect(() => { return; }, []);
 
-  // ─── State & Handler: Buat Event ──────────────────────────────────────────
-  const [showAddEventModal, setShowAddEventModal] = useState(false);
-  const [newEventName, setNewEventName] = useState('');
-  const [newEventDate, setNewEventDate] = useState('');
-  const [newEventTime, setNewEventTime] = useState('');
-  const [newEventLocation, setNewEventLocation] = useState('');
-  const [newEventCapacity, setNewEventCapacity] = useState(100);
-  const [newEventDescription, setNewEventDescription] = useState('');
-
-  const [eventErrors, setEventErrors] = useState<Record<string,string>>({});
-
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errs: Record<string,string> = {};
-    if (!newEventName.trim() || newEventName.trim().length < 3) errs.name = 'Nama event minimal 3 karakter.';
-    const dateErr = validateFutureDate(newEventDate);
-    if (dateErr) errs.date = dateErr;
-    if (!newEventLocation.trim() || newEventLocation.trim().length < 3) errs.location = 'Lokasi minimal 3 karakter.';
-    const capErr = validatePositiveInt(newEventCapacity, 'Kapasitas', 10000);
-    if (capErr) errs.capacity = capErr;
-    if (Object.keys(errs).length > 0) { setEventErrors(errs); return; }
-    setEventErrors({});
-    try {
-      const res: any = await api.events.create({
-        name: newEventName,
-        date: newEventDate,
-        time: newEventTime,
-        location: newEventLocation,
-        capacity: newEventCapacity,
-        description: newEventDescription,
-        organizer: user?.org || 'PMI'
-      });
-      const created = res?.event;
-      if (created) {
-        setEventsList(prev => [...prev, {
-          id: created.id,
-          name: created.name,
-          date: created.date,
-          location: created.location,
-          target: created.capacity,
-          registered: 0
-        }]);
-      }
-      toast.success(`Event "${newEventName}" berhasil dibuat!`);
-      setShowAddEventModal(false);
-      setNewEventName(''); setNewEventDate(''); setNewEventTime('');
-      setNewEventLocation(''); setNewEventCapacity(100); setNewEventDescription('');
-    } catch (err: any) {
-      toast.error('Gagal membuat event: ' + err.message);
-    }
-  };
-
-  const handleDeleteEvent = async (id: string) => {
-    try {
-      await api.events.delete(id);
-      setEventsList(prev => prev.filter(ev => ev.id !== id));
-      toast.success('Event berhasil dihapus.');
-    } catch (err: any) {
-      toast.error('Gagal menghapus event: ' + err.message);
-    }
-  };
+  // ─── Handler: Tab & Fitur Lainnya ──────────────────────────────────────────
 
   const [searchDonor, setSearchDonor] = useState('');
   const [filterBlood, setFilterBlood] = useState('Semua');
@@ -746,6 +700,68 @@ export default function PMIDashboard() {
     }
   };
 
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      await api.events.delete(id).catch((e: any) => console.warn('Gagal hapus event dari API:', e));
+    } catch (e) { console.warn('Gagal hapus event:', e); }
+    setEventsList(prev => prev.filter(e => e.id !== id));
+    toast.success('Event berhasil dihapus.');
+  };
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    const nameVal = newEventName.trim();
+    const dateVal = newEventDate;
+    const locVal = newEventLocation.trim();
+    const capVal = newEventCapacity;
+
+    if (!nameVal) errs.name = 'Nama event tidak boleh kosong';
+    else if (nameVal.length < 3) errs.name = 'Nama event minimal 3 karakter';
+    if (!dateVal) errs.date = 'Tanggal event tidak boleh kosong';
+    else if (!validateFutureDate(dateVal)) errs.date = 'Tanggal event tidak valid';
+    if (!locVal) errs.location = 'Lokasi event tidak boleh kosong';
+    if (capVal < 1) errs.capacity = 'Kapasitas minimal 1 orang';
+
+    if (Object.keys(errs).length > 0) {
+      setEventErrors(errs);
+      return;
+    }
+    setEventErrors({});
+
+    try {
+      const res: any = await api.events.create({
+        name: nameVal,
+        date: dateVal,
+        time: newEventTime || undefined,
+        location: locVal,
+        address: locVal,
+        description: newEventDescription.trim() || undefined,
+        capacity: capVal,
+        organizer: user?.org || user?.name || 'PMI'
+      });
+      const newId = res?.event?.id ? String(res.event.id) : `evt_${Date.now()}`;
+      setEventsList(prev => [...prev, {
+        id: newId,
+        name: nameVal,
+        date: dateVal,
+        location: locVal,
+        target: capVal,
+        registered: 0
+      }]);
+      setNewEventName('');
+      setNewEventDate('');
+      setNewEventTime('');
+      setNewEventLocation('');
+      setNewEventCapacity(50);
+      setNewEventDescription('');
+      setShowAddEventModal(false);
+      toast.success(`Event "${nameVal}" berhasil dibuat!`);
+    } catch (err: any) {
+      toast.error('Gagal membuat event: ' + (err.message || 'Terjadi kesalahan'));
+    }
+  };
+
   const handleDiscardExpired = (type: string) => {
     const item = stocks.find(s => s.type === type);
     if (!item) return;
@@ -1028,8 +1044,8 @@ export default function PMIDashboard() {
               { value: 'public-requests', label: 'Permintaan Publik', icon: Droplets },
               { value: 'stock', label: 'Manajemen Stok', icon: Package },
               { value: 'donors', label: 'Database Donor', icon: Users },
-              { value: 'drivers', label: 'Kelola Driver', icon: Truck },
               { value: 'events', label: 'Event Donor', icon: Calendar },
+              { value: 'drivers', label: 'Kelola Driver', icon: Truck },
               { value: 'ledger', label: 'Riwayat Stok', icon: RefreshCw },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-sm data-[state=active]:bg-[#C0392B] data-[state=active]:text-white flex items-center gap-1.5">
