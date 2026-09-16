@@ -24,7 +24,7 @@ router.get('/requests', authMiddleware, async (req, res) => {
       FROM blood_requests r
       JOIN users u ON u.id = r.hospital_id
       LEFT JOIN users p ON p.id = r.pmi_id
-      ${isPMI ? 'WHERE (r.pmi_id = ? OR r.pmi_id IS NULL)' : ''}
+      ${isPMI ? 'WHERE r.pmi_id = ?' : ''}
       ORDER BY r.created_at DESC
     `;
     const params = isPMI ? [req.user.id] : [];
@@ -41,7 +41,7 @@ const MAX_QTY_PER_ORDER = 30;
 
 router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async (req, res) => {
   // Gunakan hospital_id jika ada (dari admin), jika tidak gunakan ID user yang login
-  const { hospital_id, hospital, blood_type, qty, quantity, priority, urgency = priority || 'normal', address, contact } = req.body;
+  const { hospital_id, hospital, blood_type, qty, quantity, priority, urgency = priority || 'normal', address, contact, pmi_id } = req.body;
   const hospitalRef = hospital_id || req.user.id;
   const qtyVal = quantity || qty;
 
@@ -49,25 +49,32 @@ router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async 
     return res.status(400).json({ error: 'Rumah sakit, golongan darah, dan jumlah kantong wajib diisi' });
   }
 
+  if (!pmi_id) {
+    return res.status(400).json({ error: 'Pilih PMI tujuan terlebih dahulu' });
+  }
+
   if (Number(qtyVal) < 1 || Number(qtyVal) > MAX_QTY_PER_ORDER) {
     return res.status(400).json({ error: `Jumlah kantong per pemesanan harus antara 1–${MAX_QTY_PER_ORDER} kantong.` });
+  }
+
+  // Validasi pmi_id ada di database dan role-nya pmi
+  const [pmiCheck] = await pool.query("SELECT id, org FROM users WHERE id = ? AND role = 'pmi'", [pmi_id]);
+  if (!pmiCheck.length) {
+    return res.status(400).json({ error: 'PMI tujuan tidak valid' });
   }
 
   const id = 'REQ-' + Date.now();
   try {
     await pool.query(
-      'INSERT INTO blood_requests (id, hospital_id, blood_type, quantity, urgency) VALUES (?, ?, ?, ?, ?)',
-      [id, hospitalRef, blood_type, qtyVal, urgency]
+      'INSERT INTO blood_requests (id, hospital_id, pmi_id, blood_type, quantity, urgency) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, hospitalRef, pmi_id, blood_type, qtyVal, urgency]
     );
 
-    // Notify all PMI users
-    const [pmis] = await pool.query("SELECT id FROM users WHERE role = 'pmi'");
-    for (const pmi of pmis) {
-      await pool.query(
-        "INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, 'request', 'Permintaan Darah Baru', ?)",
-        ['N-' + Date.now() + Math.floor(Math.random()*1000), pmi.id, `Ada permintaan darah ${blood_type} sebanyak ${qtyVal} kantong.`]
-      );
-    }
+    // Notify only the target PMI
+    await pool.query(
+      "INSERT INTO notifications (id, user_id, type, title, message) VALUES (?, ?, 'request', 'Permintaan Darah Baru', ?)",
+      ['N-' + Date.now() + Math.floor(Math.random()*1000), pmi_id, `Ada permintaan darah ${blood_type} sebanyak ${qtyVal} kantong dari RS.`]
+    );
 
     res.json({ message: 'Permintaan darah berhasil dibuat', id });
   } catch (err) {

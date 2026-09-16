@@ -188,7 +188,7 @@ export default function HospitalDashboard() {
   const [selectedBlood, setSelectedBlood] = useState('O+');
   const [selectedQty, setSelectedQty] = useState<number | string>(1);
   const [selectedUrgency, setSelectedUrgency] = useState<Urgency>('normal');
-  const [selectedPMI, setSelectedPMI] = useState('');
+  const [selectedPMI, setSelectedPMI] = useState<{id: string; name: string} | null>(null);
   const [orderStep, setOrderStep] = useState<'form' | 'ai' | 'confirm' | 'done'>('form');
   const [orders, setOrders] = useState<BloodOrder[]>(bloodOrders);
   const [pmiList, setPmiList] = useState<PMIOption[]>(pmiOptions);
@@ -418,10 +418,30 @@ export default function HospitalDashboard() {
 
   const fetchDynamicPMIList = async (bloodType: string, reqQty: number) => {
     setIsLoadingPMI(true);
-    // Menggunakan timeout kecil untuk simulasi delay AI
-    setTimeout(() => {
+    try {
+      const pmiData = await api.users.getAll('pmi', []);
+      if (Array.isArray(pmiData) && pmiData.length > 0) {
+        const mapped: PMIOption[] = pmiData.map((p: any, i: number) => ({
+          id: p.id,
+          name: p.org || p.name,
+          address: p.address || '-',
+          distance: '-',
+          stock: 0,
+          capacity: 100,
+          score: Math.max(60, 95 - i * 5),
+          travelTime: '-'
+        }));
+        setPmiList(mapped);
+        // Auto-pilih PMI pertama jika belum ada pilihan
+        if (!selectedPMI && mapped.length > 0) {
+          setSelectedPMI({ id: mapped[0].id, name: mapped[0].name });
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal fetch daftar PMI:', err);
+    } finally {
       setIsLoadingPMI(false);
-    }, 1000);
+    }
   };
 
   const MAX_QTY_PER_ORDER = 30;
@@ -447,12 +467,17 @@ export default function HospitalDashboard() {
         qty: Number(selectedQty) || 0,
         urgency: selectedUrgency,
         status: 'menunggu',
-        pmi: selectedPMI || pmiList[0]?.name || 'PMI A',
+        pmi: selectedPMI?.name || pmiList[0]?.name || 'PMI',
         createdAt: 'Baru saja',
         updatedAt: 'Baru saja',
         trackingPct: 0,
         deliveryId: ''
       };
+
+      if (!selectedPMI?.id) {
+        toast.error('Pilih PMI tujuan terlebih dahulu!');
+        return;
+      }
 
       // Optimistic UI update
       setOrders(prev => [newOrder, ...prev]);
@@ -463,10 +488,15 @@ export default function HospitalDashboard() {
           blood_type: selectedBlood,
           qty: Number(selectedQty) || 1,
           urgency: selectedUrgency,
-          hospital: user?.id
+          hospital: user?.id,
+          pmi_id: selectedPMI.id
         });
+        toast.success(`Pesanan berhasil dikirim ke ${selectedPMI.name}!`);
       } catch (e: any) {
-        toast.warning('Pesanan tersimpan lokal (backend offline): ' + e.message);
+        toast.error('Gagal membuat pesanan: ' + e.message);
+        // Rollback optimistic update
+        setOrders(prev => prev.filter(o => o.id !== tempId));
+        return;
       }
 
       setOrderStep('done');
@@ -1532,8 +1562,8 @@ export default function HospitalDashboard() {
                   </div>
                 ) : (
                   pmiList.map((pmi, i) => (
-                    <button key={pmi.id} onClick={() => setSelectedPMI(pmi.name)}
-                      className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${selectedPMI === pmi.name ? 'border-[#C0392B] bg-[#FDEDEC]/30 font-semibold' : 'border-border bg-white hover:border-[#C0392B]/50'}`}>
+                    <button key={pmi.id} onClick={() => setSelectedPMI({ id: pmi.id, name: pmi.name })}
+                      className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${selectedPMI?.id === pmi.id ? 'border-[#C0392B] bg-[#FDEDEC]/30 font-semibold' : 'border-border bg-white hover:border-[#C0392B]/50'}`}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
                           {i === 0 && <span className="text-[10px] font-bold bg-[#C0392B] text-white px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-2.5 h-2.5" /> Rekomendasi AI</span>}
@@ -1566,7 +1596,7 @@ export default function HospitalDashboard() {
                     { label: 'Golongan Darah', value: selectedBlood },
                     { label: 'Jumlah', value: `${selectedQty} kantong` },
                     { label: 'Urgensi', value: urgencyConfig[selectedUrgency].label },
-                    { label: 'PMI Tujuan', value: selectedPMI || pmiList[0]?.name || 'PMI A' },
+                    { label: 'PMI Tujuan', value: selectedPMI?.name || pmiList[0]?.name || 'PMI' },
                     { label: 'Rumah Sakit', value: user?.org || 'Rumah Sakit A' },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex items-center justify-between">
