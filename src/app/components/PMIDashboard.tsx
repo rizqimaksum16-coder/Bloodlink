@@ -1993,8 +1993,8 @@ export default function PMIDashboard() {
                       className="flex-1 py-2.5 rounded-xl border border-border text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
                       Batal
                     </button>
-                    <button type="button" onClick={confirmApprovalWithDriver} disabled={drivers.length === 0}
-                      className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${drivers.length === 0 ? 'bg-[#BDC3C7] cursor-not-allowed' : 'bg-[#C0392B] hover:bg-[#922B21]'}`}>
+                    <button type="button" onClick={confirmApprovalWithDriver} disabled={drivers.length === 0 || !chosenDriverId}
+                      className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${drivers.length === 0 || !chosenDriverId ? 'bg-[#BDC3C7] cursor-not-allowed' : 'bg-[#C0392B] hover:bg-[#922B21]'}`}>
                       Konfirmasi & Kirim
                     </button>
                   </div>
@@ -2075,8 +2075,8 @@ export default function PMIDashboard() {
                       className="flex-1 py-2.5 rounded-xl border border-border text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
                       Batal
                     </button>
-                    <button type="button" onClick={confirmPublicApprovalWithDriver} disabled={drivers.length === 0}
-                      className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${drivers.length === 0 ? 'bg-[#BDC3C7] cursor-not-allowed' : 'bg-[#C0392B] hover:bg-[#922B21]'}`}>
+                    <button type="button" onClick={confirmPublicApprovalWithDriver} disabled={drivers.length === 0 || !chosenDriverId}
+                      className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${drivers.length === 0 || !chosenDriverId ? 'bg-[#BDC3C7] cursor-not-allowed' : 'bg-[#C0392B] hover:bg-[#922B21]'}`}>
                       Konfirmasi & Kirim
                     </button>
                   </div>
