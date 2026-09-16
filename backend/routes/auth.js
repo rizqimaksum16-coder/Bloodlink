@@ -100,14 +100,15 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Email atau password salah' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, org: user.org }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        org: user.org
       }
     });
   } catch (err) {
@@ -126,7 +127,7 @@ router.get('/me', async (req, res) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const [users] = await pool.query('SELECT id, email, name, role, created_at FROM users WHERE id = ?', [decoded.id]);
+    const [users] = await pool.query('SELECT id, email, name, role, org, address, phone, created_at FROM users WHERE id = ?', [decoded.id]);
     
     if (users.length === 0) {
       return res.status(404).json({ error: 'User tidak ditemukan' });

@@ -17,23 +17,13 @@ router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (r
     const params = [];
     const conditions = [];
 
-    if (req.user.role === 'pmi') {
-      // PMI hanya lihat driver yang berada di bawah organisasinya sendiri
-      conditions.push(`u.org = ?`);
-      params.push(req.user.org);
-      // Pastikan yang tampil hanya driver (bukan PMI/RS lain)
-      conditions.push(`u.role = 'driver'`);
-    } else if (req.user.role === 'rs') {
-      // RS melihat donor, driver, atau daftar PMI (untuk keperluan pemesanan darah)
-      if (role === 'pmi') {
-        conditions.push(`u.role = 'pmi'`);
-      } else {
-        conditions.push(`u.role IN ('donor', 'driver')`);
-      }
-    } else if (role && req.user.role === 'superadmin') {
-      // superadmin filter berdasarkan role jika diminta
+    if (role) {
       conditions.push('u.role = ?');
       params.push(role);
+    } else if (req.user.role === 'pmi') {
+      conditions.push("u.role = 'driver'");
+    } else if (req.user.role === 'rs') {
+      conditions.push("u.role IN ('donor', 'driver')");
     }
 
     if (conditions.length > 0) {
