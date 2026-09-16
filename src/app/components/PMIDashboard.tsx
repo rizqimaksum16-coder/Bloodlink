@@ -1161,20 +1161,18 @@ export default function PMIDashboard() {
                         </div>
                         <div>
                           <p className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Golongan {blood.type}</p>
-                          <p className="text-xs text-[#9B9BB5]">{blood.stock} / {blood.target} kantong</p>
+                          <p className="text-sm font-bold text-[#1A1A2E]">{blood.stock} kantong</p>
                         </div>
                       </div>
+                      <span className={`text-[11px] px-2.5 py-1 rounded-full font-bold ${blood.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                        {blood.stock > 0 ? 'Tersedia' : 'Kosong'}
+                      </span>
                     </div>
 
-                    {/* Progress bar reflects changes instantly */}
-                    <div className="h-2 bg-[#F4F4F8] rounded-full overflow-hidden mt-3 mb-2">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, background: sc.bar }} />
-                    </div>
-                    <div className="flex items-center justify-between text-xs mt-1 mb-3">
+                    <div className="flex items-center justify-between text-xs mt-2 mb-3">
                       <span className="text-[#9B9BB5] flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" /> Terakhir: {blood.lastUpdated || 'Tidak ada data'}
                       </span>
-                      <span className="text-[#9B9BB5] font-semibold">{pct}% dari target</span>
                     </div>
 
                     {/* Expired warning / Expiring soon warning */}

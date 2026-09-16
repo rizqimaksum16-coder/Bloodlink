@@ -256,7 +256,7 @@ export function StockActionModal({
               <input
                 type="number"
                 min="1"
-                max={actionType === 'in' ? 100 : currentStock}
+                max={actionType === 'in' ? undefined : currentStock}
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
                 required
