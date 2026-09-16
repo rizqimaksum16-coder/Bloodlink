@@ -1751,7 +1751,7 @@ export default function PMIDashboard() {
       )}
       {/* ── Add Driver Modal ───────────────────────────────── */}
       {showAddDriverModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-border">
             <div className="flex items-center justify-between mb-5">
               <div>
