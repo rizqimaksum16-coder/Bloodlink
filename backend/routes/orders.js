@@ -6,6 +6,8 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 // GET /api/orders/requests (Blood Requests) — 🔒 Harus login
 router.get('/requests', authMiddleware, async (req, res) => {
   try {
+    // Superadmin melihat semua, PMI hanya melihat miliknya sendiri
+    const isPMI = req.user.role === 'pmi';
     const query = `
       SELECT 
         r.id, 
@@ -22,9 +24,11 @@ router.get('/requests', authMiddleware, async (req, res) => {
       FROM blood_requests r
       JOIN users u ON u.id = r.hospital_id
       LEFT JOIN users p ON p.id = r.pmi_id
+      ${isPMI ? 'WHERE (r.pmi_id = ? OR r.pmi_id IS NULL)' : ''}
       ORDER BY r.created_at DESC
     `;
-    const [rows] = await pool.query(query);
+    const params = isPMI ? [req.user.id] : [];
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error('Error fetch blood requests:', err);
@@ -75,6 +79,7 @@ router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async 
 // GET /api/orders/deliveries — 🔒 Harus login
 router.get('/deliveries', authMiddleware, async (req, res) => {
   try {
+    const isPMI = req.user.role === 'pmi';
     const query = `
       SELECT 
         d.id, d.order_id, r.blood_type, r.quantity, 
@@ -89,9 +94,11 @@ router.get('/deliveries', authMiddleware, async (req, res) => {
       JOIN users h ON r.hospital_id = h.id
       LEFT JOIN users p ON r.pmi_id = p.id
       LEFT JOIN users u ON d.driver_id = u.id
+      ${isPMI ? 'WHERE r.pmi_id = ?' : ''}
       ORDER BY d.updated_at DESC
     `;
-    const [rows] = await pool.query(query);
+    const params = isPMI ? [req.user.id] : [];
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error('Error fetch deliveries:', err);
@@ -264,14 +271,15 @@ router.get('/blood', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/orders/public-requests — Ambil semua permintaan publik (PMI/RS)
+// GET /api/orders/public-requests — Ambil permintaan publik (PMI hanya lihat miliknya / yang belum di-assign)
 router.get('/public-requests', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (req, res) => {
   try {
-    const query = `
-      SELECT * FROM public_blood_requests 
-      ORDER BY created_at DESC
-    `;
-    const [rows] = await pool.query(query);
+    const isPMI = req.user.role === 'pmi';
+    const query = isPMI
+      ? `SELECT * FROM public_blood_requests WHERE pmi_id = ? OR pmi_id IS NULL ORDER BY created_at DESC`
+      : `SELECT * FROM public_blood_requests ORDER BY created_at DESC`;
+    const params = isPMI ? [req.user.id] : [];
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error('Error fetch public requests:', err);
