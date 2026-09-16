@@ -9,7 +9,7 @@ type Message = {
 
 const INITIAL_MESSAGE: Message = {
   role: 'assistant',
-  content: 'Halo! Saya Zuma, Asisten AI One Blood! 🩸 Ada yang bisa saya bantu terkait donor darah, syarat donor, lokasi PMI, atau rekomendasi kecocokan darah?'
+  content: 'Hai, aku NARA. Ada yang bisa aku bantu?'
 };
 
 const QUICK_PROMPTS = [
@@ -63,7 +63,7 @@ export default function ChatBot() {
       }
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, terjadi kesalahan saat menghubungi Zuma.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, terjadi kesalahan saat menghubungi NARA.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +85,7 @@ export default function ChatBot() {
       <button
         onClick={() => setIsOpen(true)}
         className={`fixed bottom-6 right-6 w-14 h-14 bg-[#C0392B] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#A93226] hover:scale-105 active:scale-95 transition-all z-50 ${isOpen ? 'scale-0' : 'scale-100'}`}
-        title="Buka Chat AI Zuma"
+        title="Buka Chat AI NARA"
       >
         <MessageCircle className="w-6 h-6" />
       </button>
@@ -100,7 +100,7 @@ export default function ChatBot() {
             </div>
             <div>
               <h3 className="font-semibold text-sm leading-tight flex items-center gap-1.5">
-                Zuma <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                NARA <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
               </h3>
               <p className="text-[11px] text-white/80">Asisten AI One Blood!</p>
             </div>
@@ -142,7 +142,7 @@ export default function ChatBot() {
                 <Bot className="w-4 h-4" />
               </div>
               <div className="px-4 py-3 bg-white border border-gray-200 rounded-2xl rounded-tl-xs shadow-xs flex items-center gap-2 text-xs font-medium text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin text-[#C0392B]" /> Zuma sedang berpikir...
+                <Loader2 className="w-4 h-4 animate-spin text-[#C0392B]" /> NARA sedang berpikir...
               </div>
             </div>
           )}
@@ -185,7 +185,7 @@ export default function ChatBot() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Tanyakan ke Zuma..."
+            placeholder="Tanyakan ke NARA..."
             className="flex-1 px-4 py-2.5 bg-gray-100 border border-transparent rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#C0392B]/40 focus:bg-white focus:border-gray-200 transition-all placeholder:text-gray-400"
           />
           <button

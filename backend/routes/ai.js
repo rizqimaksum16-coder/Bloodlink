@@ -165,7 +165,7 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Messages are required.' });
   }
 
-  // Fetch data stok real-time dari Database (PMI & RS) agar Zuma pintar & tahu stok aktual
+  // Fetch data stok real-time dari Database (PMI & RS) agar NARA pintar & tahu stok aktual
   let stockDataText = '';
   try {
     const [stockRows] = await pool.query(`
@@ -189,14 +189,14 @@ router.post('/chat', async (req, res) => {
       stockDataText = '\n\n[DATA STOK DARAH SAAT INI]: Saat ini belum ada stok darah yang tercatat di database (0 kantong).';
     }
   } catch (dbErr) {
-    console.error('[Zuma DB Context Error]:', dbErr.message);
+    console.error('[NARA DB Context Error]:', dbErr.message);
   }
 
-  // Inject system prompt khusus dengan persona Zuma (Asisten AI Smart Donor Darah)
-  const systemPrompt = `Nama Anda adalah Zuma, Asisten AI resmi platform One Blood! (Bloodlink).
+  // Inject system prompt khusus dengan persona NARA (Asisten AI Smart Donor Darah)
+  const systemPrompt = `Nama Anda adalah NARA (Nadi & Blood Response Assistant), Asisten AI resmi platform One Blood! (Bloodlink).
 Tugas Anda: Membantu pengguna terkait informasi donor darah, syarat donor, lokasi PMI/Rumah Sakit, kecocokan golongan darah, jadwal donor, stok darah real-time, dan bantuan darurat donor darah.
 
-Aturan Respons Zuma:
+Aturan Respons NARA:
 1. Sapa dengan ramah dan percaya diri jika pengguna pertama kali menyapa.
 2. Jawablah dengan RINGKAS, JELAS, PADAT, dan MUDAH DIPAHAMI (maksimal 2-4 kalimat atau bullet points jika perlu).
 3. Jika pengguna menanyakan STOK DARAH / PMI TERDEKAT, GUNAKAN DATA STOK REAL-TIME dari database yang tertera di bawah ini untuk menjawab secara spesifik (sebutkan nama PMI & jumlah stoknya jika ada)!
@@ -253,7 +253,7 @@ Aturan Respons Zuma:
   // Lapisan Terakhir (Rule-based)
   if (!successResponse) {
     const userMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
-    let fallbackReply = "Halo, saya Zuma (Asisten Fallback Offline One Blood!). Layanan AI online saat ini sedang memproses banyak permintaan. ";
+    let fallbackReply = "Halo, aku NARA (Nadi & Blood Response Assistant). Layanan AI online saat ini sedang memproses banyak permintaan. ";
     
     if (userMsg.includes('darurat') || userMsg.includes('butuh darah')) {
       fallbackReply += "Silakan hubungi UDD PMI terdekat atau Rumah Sakit mitra segera!";
