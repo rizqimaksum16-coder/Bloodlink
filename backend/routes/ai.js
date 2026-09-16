@@ -291,7 +291,9 @@ router.post('/matching', async (req, res) => {
     // 1. Ambil stok PMI dari database (hanya yang stoknya > 0, dan hanya role pmi)
     const [rows] = await pool.query(`
       SELECT 
-        u.id, u.org as name, u.address, u.phone, 
+        u.id, 
+        COALESCE(NULLIF(NULLIF(u.org, '-'), ''), u.name, 'PMI Unit') as name, 
+        u.address, u.phone, 
         u.latitude as lat, u.longitude as lng,
         s.stock_qty as stock, s.status
       FROM blood_stock s
@@ -300,8 +302,6 @@ router.post('/matching', async (req, res) => {
         AND s.owner_pmi_id IS NOT NULL 
         AND s.stock_qty > 0
         AND u.role = 'pmi'
-        AND u.org IS NOT NULL
-        AND u.org != ''
     `, [bloodType || 'O+']);
 
     if (!rows.length) {

@@ -296,6 +296,7 @@ export default function PMIDashboard() {
             id: r.id, hospital: r.hospital, bloodType: r.blood_type,
             qty: r.qty, priority: r.priority, status: r.status,
             pmi: r.pmi || null,
+            pmiId: r.pmi_id || null,
             time: r.created_at ? new Date(r.created_at).toLocaleString('id-ID') : 'Baru saja', address: r.address || '-',
             contact: r.contact || '-'
           })));
@@ -468,12 +469,22 @@ export default function PMIDashboard() {
   };
 
 
-  const myPmiName = user?.org || 'PMI Pusat';
+  const myPmiName = user?.org || user?.name || 'PMI Pusat';
   // Tampilkan hanya:
-  // - Request yang belum di-assign ke PMI manapun (!r.pmi)
-  // - Request yang sudah di-assign ke PMI kita sendiri
-  // Sembunyikan request yang sudah diklaim PMI LAIN
-  const displayedRequests = requests.filter(r => !r.pmi || r.pmi.toLowerCase() === myPmiName.toLowerCase());
+  // - Request yang ditujukan ke PMI ini (berdasarkan pmiId atau nama PMI)
+  // Jangan gunakan !r.pmi karena itu akan mem-broadcast request tak terassign ke SEMUA PMI
+  const displayedRequests = requests.filter(r => {
+    if ((r as any).pmiId && user?.id) {
+      return (r as any).pmiId === user.id;
+    }
+    if (r.pmi) {
+      const pmiLower = r.pmi.toLowerCase().trim();
+      const myOrgLower = (user?.org || '').toLowerCase().trim();
+      const myNameLower = (user?.name || '').toLowerCase().trim();
+      return (myOrgLower && pmiLower === myOrgLower) || (myNameLower && pmiLower === myNameLower);
+    }
+    return false; // Jangan tampilkan ke PMI ini jika tidak jelas tujuannya
+  });
 
   const pendingCount = displayedRequests.filter(r => r.status === 'pending').length;
   const criticalStocks = stocks.filter(s => s.status === 'critical').length;

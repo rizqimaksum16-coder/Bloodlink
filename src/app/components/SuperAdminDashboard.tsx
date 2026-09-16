@@ -319,7 +319,12 @@ export default function SuperAdminDashboard() {
           name: orgForm.adminName,
           email: safeEmail,
           password: newPassword || 'password123',
-          role: orgForm.type
+          role: orgForm.type,
+          org: orgForm.name,
+          address: orgForm.address,
+          phone: orgForm.phone,
+          latitude: orgForm.coords[0],
+          longitude: orgForm.coords[1]
         });
         toast.success(`Akun ${orgForm.type.toUpperCase()} "${orgForm.name}" berhasil dibuat!`);
       }

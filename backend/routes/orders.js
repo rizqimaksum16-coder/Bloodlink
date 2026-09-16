@@ -7,7 +7,19 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 router.get('/requests', authMiddleware, async (req, res) => {
   try {
     // Superadmin melihat semua, PMI hanya melihat miliknya sendiri
+    // Superadmin melihat semua, PMI hanya miliknya, RS hanya miliknya
     const isPMI = req.user.role === 'pmi';
+    const isRS = req.user.role === 'rs';
+    let whereClause = '';
+    const params = [];
+    if (isPMI) {
+      whereClause = 'WHERE r.pmi_id = ?';
+      params.push(req.user.id);
+    } else if (isRS) {
+      whereClause = 'WHERE r.hospital_id = ?';
+      params.push(req.user.id);
+    }
+
     const query = `
       SELECT 
         r.id, 
@@ -16,18 +28,18 @@ router.get('/requests', authMiddleware, async (req, res) => {
         r.urgency AS priority, 
         r.status, 
         r.created_at, 
-        u.org AS hospital,
+        COALESCE(NULLIF(NULLIF(u.org, '-'), ''), u.name, 'Rumah Sakit') AS hospital,
         u.address AS address, 
         u.phone AS contact,
-        p.org AS pmi,
-        r.hospital_id
+        COALESCE(NULLIF(NULLIF(p.org, '-'), ''), p.name, 'PMI Unit') AS pmi,
+        r.hospital_id,
+        r.pmi_id
       FROM blood_requests r
       JOIN users u ON u.id = r.hospital_id
       LEFT JOIN users p ON p.id = r.pmi_id
-      ${isPMI ? 'WHERE r.pmi_id = ?' : ''}
+      ${whereClause}
       ORDER BY r.created_at DESC
     `;
-    const params = isPMI ? [req.user.id] : [];
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
@@ -87,10 +99,22 @@ router.post('/requests', authMiddleware, requireRole('rs', 'superadmin'), async 
 router.get('/deliveries', authMiddleware, async (req, res) => {
   try {
     const isPMI = req.user.role === 'pmi';
+    const isRS = req.user.role === 'rs';
+    let whereClause = '';
+    const params = [];
+    if (isPMI) {
+      whereClause = 'WHERE r.pmi_id = ?';
+      params.push(req.user.id);
+    } else if (isRS) {
+      whereClause = 'WHERE r.hospital_id = ?';
+      params.push(req.user.id);
+    }
+
     const query = `
       SELECT 
         d.id, d.order_id, r.blood_type, r.quantity, 
-        COALESCE(p.org, 'PMI') AS pmi_name, h.org AS hospital_name, 
+        COALESCE(NULLIF(NULLIF(p.org, '-'), ''), p.name, 'PMI') AS pmi_name, 
+        COALESCE(NULLIF(NULLIF(h.org, '-'), ''), h.name, 'Rumah Sakit') AS hospital_name, 
         u.name AS driver_name, u.phone AS driver_phone, 
         d.status, d.eta, d.distance_km AS distance, d.pct, 
         IF(r.urgency IN ('mendesak', 'darurat'), 1, 0) AS urgent, 
@@ -101,10 +125,9 @@ router.get('/deliveries', authMiddleware, async (req, res) => {
       JOIN users h ON r.hospital_id = h.id
       LEFT JOIN users p ON r.pmi_id = p.id
       LEFT JOIN users u ON d.driver_id = u.id
-      ${isPMI ? 'WHERE r.pmi_id = ?' : ''}
+      ${whereClause}
       ORDER BY d.updated_at DESC
     `;
-    const params = isPMI ? [req.user.id] : [];
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
@@ -293,7 +316,7 @@ router.get('/blood', authMiddleware, async (req, res) => {
     const query = `
       SELECT 
         o.id, o.blood_type, o.quantity AS qty, o.urgency, o.status, o.created_at, o.updated_at,
-        p.org AS pmi
+        COALESCE(NULLIF(NULLIF(p.org, '-'), ''), p.name, 'PMI Unit') AS pmi
       FROM blood_orders o
       LEFT JOIN users p ON p.id = o.pmi_id
       ORDER BY o.created_at DESC
@@ -372,8 +395,8 @@ router.get('/deliveries/:id/location', authMiddleware, async (req, res) => {
       `SELECT 
         d.driver_lat AS lat, d.driver_lng AS lng, d.location_updated_at,
         u.name AS driver_name, d.status, d.eta, d.pct,
-        COALESCE(p.org, 'PMI') AS from_name,
-        h.org AS to_name,
+        COALESCE(NULLIF(NULLIF(p.org, '-'), ''), p.name, 'PMI') AS from_name,
+        COALESCE(NULLIF(NULLIF(h.org, '-'), ''), h.name, 'Rumah Sakit') AS to_name,
         r.blood_type, r.quantity
        FROM deliveries d
        JOIN blood_requests r ON d.order_id = r.id

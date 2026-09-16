@@ -9,7 +9,7 @@ router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (r
   const { role } = req.query;
   try {
     let query = `
-      SELECT u.id, u.email, u.name, u.role, u.created_at, u.address, u.phone, u.latitude, u.longitude,
+      SELECT u.id, u.email, u.name, u.role, u.org, u.created_at, u.address, u.phone, u.latitude, u.longitude,
              dp.blood_type, dp.last_donation AS last_donor_date, dp.total_donations
       FROM users u
       LEFT JOIN donor_profiles dp ON dp.user_id = u.id
@@ -24,13 +24,14 @@ router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (r
       // Pastikan yang tampil hanya driver (bukan PMI/RS lain)
       conditions.push(`u.role = 'driver'`);
     } else if (req.user.role === 'rs') {
-      // RS hanya lihat donor & driver (bukan data PMI/RS lain)
-      conditions.push(`u.role IN ('donor', 'driver')`);
-    }
-    // superadmin tidak ada batasan
-
-    // Filter tambahan dari query param (hanya berlaku jika tidak bertentangan)
-    if (role && req.user.role === 'superadmin') {
+      // RS melihat donor, driver, atau daftar PMI (untuk keperluan pemesanan darah)
+      if (role === 'pmi') {
+        conditions.push(`u.role = 'pmi'`);
+      } else {
+        conditions.push(`u.role IN ('donor', 'driver')`);
+      }
+    } else if (role && req.user.role === 'superadmin') {
+      // superadmin filter berdasarkan role jika diminta
       conditions.push('u.role = ?');
       params.push(role);
     }
@@ -49,9 +50,14 @@ router.get('/', authMiddleware, requireRole('pmi', 'rs', 'superadmin'), async (r
 
 // POST /api/users — Buat akun baru (driver/rs/pmi oleh PMI atau superadmin)
 router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
-  const { name, email, password, role = 'driver', org, phone, vehicle_no } = req.body;
+  const { name, email, password, role = 'driver' } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Nama, email, dan password wajib diisi' });
+  }
+
+  // Validasi org wajib untuk PMI dan RS
+  if ((role === 'pmi' || role === 'rs') && !req.body.org) {
+    return res.status(400).json({ error: 'Nama unit/organisasi (org) wajib diisi untuk akun PMI/RS' });
   }
 
   try {
@@ -63,7 +69,7 @@ router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, r
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = require('crypto').randomUUID();
     const avatar = name.substring(0, 2).toUpperCase();
-    const org = req.body.org || '-';
+    const org = req.body.org || null;
     const address = req.body.address || null;
     const phone = req.body.phone || null;
     const latitude = req.body.latitude || null;
@@ -78,7 +84,7 @@ router.post('/', authMiddleware, requireRole('pmi', 'superadmin'), async (req, r
 
     res.json({
       message: `Akun ${role} berhasil dibuat`,
-      user: { id: userId, name, email, role }
+      user: { id: userId, name, email, role, org }
     });
   } catch (err) {
     console.error('Error create user:', err);
@@ -109,11 +115,11 @@ router.delete('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (r
 // PUT /api/users/:id — Update data user
 router.put('/:id', authMiddleware, requireRole('pmi', 'superadmin'), async (req, res) => {
   const { id } = req.params;
-  const { name, role, address, phone, latitude, longitude } = req.body;
+  const { name, org, role, address, phone, latitude, longitude } = req.body;
   try {
     await pool.query(
-      'UPDATE users SET name = COALESCE(?, name), role = COALESCE(?, role), address = COALESCE(?, address), phone = COALESCE(?, phone), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude) WHERE id = ?',
-      [name, role, address, phone, latitude, longitude, id]
+      'UPDATE users SET name = COALESCE(?, name), org = COALESCE(?, org), role = COALESCE(?, role), address = COALESCE(?, address), phone = COALESCE(?, phone), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude) WHERE id = ?',
+      [name, org, role, address, phone, latitude, longitude, id]
     );
     res.json({ message: 'Data pengguna berhasil diperbarui' });
   } catch (err) {

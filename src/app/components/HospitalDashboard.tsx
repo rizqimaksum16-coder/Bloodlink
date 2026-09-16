@@ -423,7 +423,7 @@ export default function HospitalDashboard() {
       if (Array.isArray(pmiData) && pmiData.length > 0) {
         const mapped: PMIOption[] = pmiData.map((p: any, i: number) => ({
           id: p.id,
-          name: p.org || p.name,
+          name: (p.org && p.org !== '-' && p.org.trim() !== '') ? p.org : (p.name || 'PMI Unit'),
           address: p.address || '-',
           distance: '-',
           stock: 0,
