@@ -298,10 +298,16 @@ export const api = {
         body: JSON.stringify(payload)
       }),
 
-    chat: (messages: any[]) =>
+    chat: (messages: any[], extra?: { location?: { lat: number; lng: number } }) =>
       apiFetch('/ai/chat', {
         method: 'POST',
-        body: JSON.stringify({ messages })
+        body: JSON.stringify({ messages, ...(extra || {}) })
+      }),
+
+    searchStock: (payload: { blood_type?: string; qty?: number; lat?: number; lng?: number; role_filter?: string }) =>
+      apiFetch('/ai/search-stock', {
+        method: 'POST',
+        body: JSON.stringify(payload)
       })
   }
 };

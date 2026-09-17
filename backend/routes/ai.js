@@ -159,56 +159,277 @@ function parseOpenAIResponse(data) {
   };
 }
 
+// ─── Cache stok darah (refresh tiap 15 detik) untuk kinerja ────────────────
+let stockCache = { data: null, timestamp: 0 };
+const CACHE_TTL_MS = 15000;
+
+async function getAggregatedStock() {
+  const now = Date.now();
+  if (stockCache.data && (now - stockCache.timestamp) < CACHE_TTL_MS) {
+    return stockCache.data;
+  }
+  try {
+    const [stockRows] = await pool.query(`
+      SELECT
+        u.id AS owner_id,
+        COALESCE(NULLIF(u.org, ''), NULLIF(u.name, ''), CONCAT(u.role, '_', u.id)) AS org_name,
+        u.role,
+        u.phone,
+        u.address,
+        u.latitude AS lat,
+        u.longitude AS lng,
+        s.blood_type,
+        s.stock_qty AS total_stock,
+        s.status,
+        s.updated_at
+      FROM blood_stock s
+      JOIN users u ON (s.owner_pmi_id = u.id OR s.owner_hospital_id = u.id)
+      WHERE s.stock_qty >= 0
+      ORDER BY org_name ASC, s.blood_type ASC
+    `);
+
+    // Kelompokkan per organisasi
+    const grouped = {};
+    stockRows.forEach(r => {
+      if (!grouped[r.owner_id]) {
+        grouped[r.owner_id] = {
+          id: r.owner_id,
+          name: r.org_name,
+          role: r.role,
+          phone: r.phone || '-',
+          address: r.address || '-',
+          lat: r.lat, lng: r.lng,
+          updated_at: r.updated_at,
+          stocks: {},
+          total_bags: 0
+        };
+      }
+      grouped[r.owner_id].stocks[r.blood_type] = {
+        stock: r.total_stock,
+        status: r.status
+      };
+      grouped[r.owner_id].total_bags += Number(r.total_stock || 0);
+    });
+
+    const result = Object.values(grouped);
+    stockCache = { data: result, timestamp: now };
+    return result;
+  } catch (e) {
+    console.error('[Aggregated Stock Query Error]:', e.message);
+    return [];
+  }
+}
+
+// Helper: Format stok jadi text yang mudah dipahami LLM
+function formatStockForLLM(stockList, opts = {}) {
+  const { filterBloodType = null, filterRole = null, minStock = 0, limit = 999 } = opts;
+
+  let filtered = stockList.filter(org => {
+    if (filterRole && org.role !== filterRole) return false;
+    if (filterBloodType) {
+      const s = org.stocks[filterBloodType];
+      if (!s || (s.stock || 0) < minStock) return false;
+    } else {
+      if (org.total_bags < minStock) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    if (filterBloodType) {
+      return `Saat ini TIDAK ADA stok darah golongan ${filterBloodType} yang tersedia di database.\n` +
+             `Silakan hubungi unit PMI terdekat untuk melakukan broadcast donor darurat.`;
+    }
+    return 'Saat ini belum ada stok darah yang tercatat di database.';
+  }
+
+  filtered = filtered.slice(0, limit);
+
+  const lines = [];
+  lines.push(`=== DATA STOK DARAH REAL-TIME (${filtered.length} unit) ===`);
+  lines.push('Format: [NAMA UNIT] (ROLE) - Alamat • Telepon');
+  lines.push('');
+
+  filtered.forEach((org, idx) => {
+    lines.push(`${idx + 1}. ${org.name} (${org.role.toUpperCase()})`);
+    lines.push(`   Alamat: ${org.address}`);
+    if (org.phone && org.phone !== '-') lines.push(`   Telp: ${org.phone}`);
+
+    if (filterBloodType) {
+      const s = org.stocks[filterBloodType];
+      const st = s?.status === 'critical' ? 'KRITIS' : s?.status === 'low' ? 'RENDAM' : 'TERSEDIA';
+      lines.push(`   Gol. ${filterBloodType}: ${s?.stock || 0} kantong (${st})`);
+    } else {
+      const bloods = Object.entries(org.stocks);
+      if (bloods.length === 0) {
+        lines.push(`   (Tidak ada stok)`);
+      } else {
+        const stockStr = bloods.map(([bt, info]) => {
+          const emoji = info.stock === 0 ? '❌' : info.status === 'critical' ? '⚠️' : info.status === 'low' ? '🟡' : '✅';
+          return `${emoji} ${bt}: ${info.stock}ktg`;
+        }).join('  ');
+        lines.push(`   ${stockStr}`);
+      }
+    }
+    lines.push('');
+  });
+
+  return lines.join('\n');
+}
+
+// Cari golongan darah dari teks user
+function detectBloodType(text) {
+  const upper = text.toUpperCase();
+  const types = ['AB+', 'AB-', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-'];
+  for (const t of types) {
+    if (upper.includes(t)) return t;
+  }
+  // Alternatif: cek pattern "gol. A", "golongan B rhesus positif", "gol O negatif"
+  const patterns = [
+    /GOL(?:ONGAN)?\.?\s*([ABO])(?:\s*(?:RH|RESUS)?\s*([+\-]|POSITIF|NEGATIF))?/i,
+    /GOL(?:ONGAN)?\.?\s*DARAH\s*([ABO])(?:\s*([+\-]|POSITIF|NEGATIF))?/i
+  ];
+  for (const regex of patterns) {
+    const match = text.match(regex);
+    if (match) {
+      const base = match[1].toUpperCase();
+      let sign = (match[2] || '+').toString().toUpperCase();
+      if (sign === 'POSITIF' || sign === '+') sign = '+';
+      else if (sign === 'NEGATIF' || sign === '-') sign = '-';
+      return `${base}${sign}`;
+    }
+  }
+  return null;
+}
+
+// Endpoint interaktif: cari stok darah + AI matching
+router.post('/search-stock', async (req, res) => {
+  try {
+    const { blood_type, qty = 1, lat, lng, role_filter = null } = req.body;
+    const allStock = await getAggregatedStock();
+
+    let filtered = allStock.filter(org => {
+      if (role_filter && org.role !== role_filter) return false;
+      if (blood_type) {
+        const s = org.stocks[blood_type];
+        return s && s.stock >= qty;
+      }
+      return true;
+    });
+
+    // Hitung jarak jika koordinat diberikan
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+    if (!isNaN(userLat) && !isNaN(userLng)) {
+      filtered = filtered.map(org => {
+        const pLat = typeof org.lat === 'number' ? org.lat : -7.2657;
+        const pLng = typeof org.lng === 'number' ? org.lng : 112.7445;
+        const dLat = userLat - pLat;
+        const dLng = userLng - pLng;
+        const distance = Math.sqrt(dLat * dLat + dLng * dLng) * 111.12;
+        return { ...org, distance_km: parseFloat(distance.toFixed(2)) };
+      }).sort((a, b) => a.distance_km - b.distance_km);
+    }
+
+    res.json({
+      success: true,
+      total_units: filtered.length,
+      blood_type: blood_type || 'Semua',
+      data: filtered
+    });
+  } catch (err) {
+    console.error('search-stock error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.post('/chat', async (req, res) => {
-  const { messages } = req.body;
+  const { messages, location } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Messages are required.' });
   }
 
-  // Fetch data stok real-time dari Database (PMI & RS) agar NARA pintar & tahu stok aktual
-  let stockDataText = '';
-  try {
-    const [stockRows] = await pool.query(`
-      SELECT 
-        COALESCE(NULLIF(u.org, ''), u.name) as org_name,
-        u.role,
-        s.blood_type, 
-        SUM(s.stock_qty) as total_stock
-      FROM blood_stock s
-      JOIN users u ON (s.owner_pmi_id = u.id OR s.owner_hospital_id = u.id)
-      WHERE s.stock_qty > 0
-      GROUP BY u.id, s.blood_type
-      ORDER BY org_name ASC, s.blood_type ASC
-      LIMIT 30
-    `);
+  const lastMsg = messages[messages.length - 1]?.content || '';
+  const lastMsgLower = lastMsg.toLowerCase();
 
-    if (stockRows.length > 0) {
-      const summary = stockRows.map(r => `${r.org_name} (${r.role.toUpperCase()}): Golongan ${r.blood_type} (${r.total_stock} kantong)`).join('\n- ');
-      stockDataText = `\n\n[DATA STOK DARAH REAL-TIME SAAT INI DI DATABASE ONE BLOOD!]:\n- ${summary}\n\n*PENTING: Gunakan DATA STOK DI ATAS untuk menjawab secara LANGSUNG dan SPESIFIK jika pengguna menanyakan stok darah atau lokasi PMI/RS. Sebutkan nama PMI/RS dan jumlah kantong darahnya.*`;
+  const allStock = await getAggregatedStock();
+  const detectedBloodType = detectBloodType(lastMsg);
+  const isStockQuery = lastMsgLower.includes('stok') || lastMsgLower.includes('persediaan') ||
+                      lastMsgLower.includes('tersedia') || lastMsgLower.includes('golongan') ||
+                      lastMsgLower.includes('butuh darah') || lastMsgLower.includes('cari darah') ||
+                      lastMsgLower.includes('pmi') || lastMsgLower.includes('rumah sakit') ||
+                      lastMsgLower.includes('darurat') || !!detectedBloodType;
+
+  // ─── Jika ada indikasi query stok — siapkan konteks paling akurat ─────────
+  let stockDataText = '';
+  let interactivePayload = null;
+
+  if (isStockQuery) {
+    if (detectedBloodType) {
+      stockDataText = '\n\n' + formatStockForLLM(allStock, {
+        filterBloodType: detectedBloodType,
+        minStock: 1,
+        limit: 15
+      });
+      // Interaktif: kirim data terstruktur ke frontend untuk render kartu
+      const structured = allStock
+        .filter(org => {
+          const s = org.stocks[detectedBloodType];
+          return s && s.stock >= 1;
+        })
+        .slice(0, 5)
+        .map(org => ({
+          id: org.id,
+          name: org.name,
+          role: org.role,
+          address: org.address,
+          phone: org.phone,
+          blood_type: detectedBloodType,
+          stock: org.stocks[detectedBloodType]?.stock || 0,
+          status: org.stocks[detectedBloodType]?.status || 'available',
+          lat: org.lat, lng: org.lng
+        }));
+      interactivePayload = {
+        type: 'stock_results',
+        blood_type: detectedBloodType,
+        results: structured
+      };
     } else {
-      stockDataText = '\n\n[DATA STOK DARAH SAAT INI]: Saat ini belum ada stok darah yang tercatat di database (0 kantong).';
+      stockDataText = '\n\n' + formatStockForLLM(allStock, { minStock: 1, limit: 20 });
     }
-  } catch (dbErr) {
-    console.error('[NARA DB Context Error]:', dbErr.message);
+  } else {
+    // Hanya ringkasan stok global
+    const totalPMI = allStock.filter(o => o.role === 'pmi').length;
+    const totalRS = allStock.filter(o => o.role === 'rs').length;
+    const totalBags = allStock.reduce((s, o) => s + o.total_bags, 0);
+    stockDataText = `\n\n[RINGKASAN STOK GLOBAL saat ini]: Terdapat ${totalPMI} unit PMI dan ${totalRS} unit Rumah Sakit terdaftar dengan total ${totalBags} kantong darah di seluruh jaringan.`;
   }
 
-  // Inject system prompt khusus dengan persona NARA (Asisten AI Smart Donor Darah)
+  // Inject system prompt khusus dengan persona NARA
   const systemPrompt = `Nama Anda adalah NARA (Nadi & Blood Response Assistant), Asisten AI resmi platform One Blood! (Bloodlink).
 Tugas Anda: Membantu pengguna terkait informasi donor darah, syarat donor, lokasi PMI/Rumah Sakit, kecocokan golongan darah, jadwal donor, stok darah real-time, dan bantuan darurat donor darah.
 
 Aturan Respons NARA:
 1. Sapa dengan ramah dan percaya diri jika pengguna pertama kali menyapa.
 2. Jawablah dengan RINGKAS, JELAS, PADAT, dan MUDAH DIPAHAMI (maksimal 2-4 kalimat atau bullet points jika perlu).
-3. Jika pengguna menanyakan STOK DARAH / PMI TERDEKAT, GUNAKAN DATA STOK REAL-TIME dari database yang tertera di bawah ini untuk menjawab secara spesifik (sebutkan nama PMI & jumlah stoknya jika ada)!
+3. JIKA PENGGUNA MENANYAKAN STOK DARAH / PMI / STOK GOLONGAN TERTENTU:
+   - WAJIB gunakan DATA STOK REAL-TIME di bawah ini untuk menjawab SECARA SPESIFIK!
+   - Sebutkan NAMA LENGKAP unit PMI/RS, JUMLAH KANTONG per golongan, dan STATUS stoknya (TERSEDIA/RENDAM/KRITIS).
+   - Jika ada lebih dari 3 unit, sebutkan 3 TERDEKAT/TERBAIK terlebih dahulu lalu bilang "dan masih ada lagi".
+   - JANGAN pernah menjawab "Maaf saya tidak punya data stok untuk X" jika data ada di konteks!
 4. Jika ditanya hal di luar kesehatan dan donor darah, tolak secara halus dan alihkan kembali ke topik donor darah & One Blood!.
-5. Gunakan bahasa Indonesia yang ramah, profesional, dan berempati.${stockDataText}`;
+5. Gunakan bahasa Indonesia yang ramah, profesional, dan berempati.
+
+${stockDataText}
+
+PENTING: Jawaban Anda JANGAN mengulang penjelasan konteks ini. Cukup berikan jawaban langsung dengan data yang tersedia!`;
 
   const optimizedMessages = [
     { role: 'system', content: systemPrompt },
     ...messages
   ];
 
-  // Fallback 7 Lapis Logic
+  // ─── Fallback 7 Lapis ────────────────────────────────────────────────────
   const errors = [];
   let successResponse = null;
 
@@ -244,30 +465,72 @@ Aturan Respons NARA:
         reply: parsed.text,
         usage: parsed.usage
       };
-      break; // Stop loop on first success!
+      break;
     } catch (err) {
       errors.push(`[${provider.name}] Failed: ${err.message}`);
     }
   }
 
-  // Lapisan Terakhir (Rule-based)
+  // ─── Lapisan Terakhir (Rule-based SMARTER fallback) ──────────────────────
   if (!successResponse) {
-    const userMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
-    let fallbackReply = "Halo, aku NARA (Nadi & Blood Response Assistant). Layanan AI online saat ini sedang memproses banyak permintaan. ";
-    
-    if (userMsg.includes('darurat') || userMsg.includes('butuh darah')) {
-      fallbackReply += "Silakan hubungi UDD PMI terdekat atau Rumah Sakit mitra segera!";
+    const userMsg = lastMsgLower;
+    let fallbackReply;
+
+    if (isStockQuery && detectedBloodType) {
+      const available = allStock.filter(org => {
+        const s = org.stocks[detectedBloodType];
+        return s && s.stock >= 1;
+      }).slice(0, 3);
+
+      if (available.length > 0) {
+        const listText = available.map((o, i) =>
+          `${i + 1}. ${o.name} (${o.role.toUpperCase()}) — Gol. ${detectedBloodType}: ${o.stocks[detectedBloodType].stock} kantong • Alamat: ${o.address}`
+        ).join('\n');
+        fallbackReply = `Stok darah golongan ${detectedBloodType} saat ini tersedia di:\n\n${listText}\n\nSilakan klik unit di atas untuk memesan atau hubungi telepon yang tertera.`;
+      } else {
+        fallbackReply = `Mohon maaf, untuk saat ini stok darah golongan ${detectedBloodType} KOSONG di seluruh jaringan PMI dan Rumah Sakit mitra kami.\n\nSaran: Anda dapat menekan tombol "Broadcast Darurat" untuk memanggil pendonor aktif yang sesuai golongan darah ${detectedBloodType}.`;
+      }
+
+      interactivePayload = {
+        type: 'stock_results',
+        blood_type: detectedBloodType,
+        results: available.map(o => ({
+          id: o.id, name: o.name, role: o.role,
+          address: o.address, phone: o.phone,
+          blood_type: detectedBloodType,
+          stock: o.stocks[detectedBloodType]?.stock || 0,
+          status: o.stocks[detectedBloodType]?.status || 'available',
+          lat: o.lat, lng: o.lng
+        }))
+      };
+    } else if (userMsg.includes('syarat') && userMsg.includes('donor')) {
+      fallbackReply = `Syarat umum donor darah:\n✓ Usia 17-60 tahun (60-65 thn dengan persetujuan dokter)\n✓ Berat badan minimal 45 kg\n✓ Tekanan darah & kadar Hb normal\n✓ Tidak sedang sakit/puasa (min. 3 jam sebelum donor)\n✓ Jarak donor terakhir ≥ 56 hari (pria) / 84 hari (wanita)`;
+    } else if (userMsg.includes('darurat') || userMsg.includes('butuh darah')) {
+      fallbackReply = "Untuk kebutuhan darah darurat, silakan gunakan menu 'Cari Stok Darah' di aplikasi untuk melihat ketersediaan secara real-time, atau hubungi Unit Donor Darah PMI terdekat di 0800-100-1919!";
     } else {
-      fallbackReply += "Bagaimana saya dapat membantu Anda hari ini?";
+      fallbackReply = "Halo, aku NARA 👋 Asisten AI One Blood!. Ada yang bisa aku bantu seputar donor darah? Kamu bisa tanyakan stok darah, syarat donor, lokasi PMI, atau kecocokan golongan darah ya!";
     }
 
     successResponse = {
-      provider: 'Rule-Based Fallback',
+      provider: 'Rule-Based Smart Fallback',
       reply: fallbackReply,
       usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-      errors // include errors for debugging
+      errors
     };
   }
+
+  // Tambahkan payload interaktif jika ada (untuk frontend render kartu stok)
+  if (interactivePayload) {
+    successResponse.interactive = interactivePayload;
+  }
+
+  // Tambahkan metadata stok summary untuk debugging
+  successResponse._stockMeta = {
+    totalUnits: allStock.length,
+    totalBags: allStock.reduce((s, o) => s + o.total_bags, 0),
+    detectedBloodType,
+    isStockQuery
+  };
 
   res.json(successResponse);
 });
