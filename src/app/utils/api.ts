@@ -155,10 +155,39 @@ export const api = {
         body: JSON.stringify(data)
       }),
 
-    broadcast: (data: { blood_type: string; title: string; message: string }) =>
+    broadcast: (data: {
+      blood_type: string;
+      title: string;
+      message: string;
+      urgency_level?: 'routine' | 'urgent' | 'code-red';
+      radius_km?: number;
+      lat?: number;
+      lng?: number;
+      reason?: string;
+    }) =>
       apiFetch('/notifications/broadcast', {
         method: 'POST',
         body: JSON.stringify(data)
+      }),
+
+    broadcastPreview: (data: {
+      blood_type: string;
+      radius_km?: number;
+      lat?: number;
+      lng?: number;
+    }) =>
+      apiFetch('/notifications/broadcast-preview', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }, { eligible: 0, registered_total: 0, filtered_out: 0 }),
+
+    listBroadcastLogs: (scope?: 'own' | 'all') =>
+      apiFetch(`/notifications/broadcast-logs${scope ? `?scope=${scope}` : ''}`, { method: 'GET' }, { logs: [], total: 0 }),
+
+    updateBroadcastResponseFollowup: (id: number | string, status: string, notes: string) =>
+      apiFetch(`/notifications/broadcast-response/${id}/followup`, {
+        method: 'POST',
+        body: JSON.stringify({ status, notes })
       }),
 
     markRead: (id: string) =>

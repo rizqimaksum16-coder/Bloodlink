@@ -147,6 +147,7 @@ router.post('/emergency-response', authMiddleware, requireRole('donor'), async (
       return res.status(404).json({ error: 'Profil pendonor tidak ditemukan' });
     }
     const profile = profiles[0];
+    const donorProfileId = profile.id;
 
     // Pastikan tabel emergency_responses ada (aditif, aman jika sudah ada)
     await pool.query(`
@@ -162,11 +163,32 @@ router.post('/emergency-response', authMiddleware, requireRole('donor'), async (
       )
     `);
 
+    // Pastikan broadcast_response_views juga ada (untuk hubungkan respon dengan broadcast log)
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS broadcast_response_views (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        broadcast_log_id VARCHAR(60) NOT NULL,
+        emergency_response_id VARCHAR(60),
+        donor_id VARCHAR(60) NOT NULL,
+        donor_name VARCHAR(150),
+        donor_phone VARCHAR(50),
+        blood_type VARCHAR(20),
+        status VARCHAR(20) DEFAULT 'willing',
+        donor_message TEXT,
+        follow_up_status VARCHAR(20) DEFAULT 'new',
+        follow_up_notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_broadcast (broadcast_log_id),
+        INDEX idx_followup (follow_up_status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    } catch (e) { /* abaikan jika tabel sudah ada */ }
+
     const id = 'ER-' + Date.now();
     await pool.query(
       `INSERT INTO emergency_responses (id, donor_id, notification_id, blood_type, message, status)
        VALUES (?, ?, ?, ?, ?, 'willing')`,
-      [id, profile.id, notification_id || null, profile.blood_type, message || 'Saya bersedia donor']
+      [id, donorProfileId, notification_id || null, profile.blood_type, message || 'Saya bersedia donor']
     );
 
     if (notification_id) {
@@ -174,6 +196,98 @@ router.post('/emergency-response', authMiddleware, requireRole('donor'), async (
         'UPDATE notifications SET read_status = true WHERE id = ? AND user_id = ?',
         [notification_id, userId]
       );
+    }
+
+    // ─── BARU: SYNC ke broadcast_response_views — hubungkan respon donor dengan BROADCAST LOG
+    try {
+      // Ambil data donor lengkap untuk insert ke view
+      const [userRows] = await pool.query(
+        `SELECT u.name, COALESCE(NULLIF(dp.phone,''), u.phone) AS phone
+         FROM users u LEFT JOIN donor_profiles dp ON dp.user_id = u.id
+         WHERE u.id = ? LIMIT 1`,
+        [userId]
+      );
+      const donorInfo = userRows?.[0] || { name: null, phone: null };
+
+      // CARI broadcast_log_id yang cocok:
+      //   Jika ada notification_id → cari broadcast yang mengirim notif ini (via notification_id yang disimpan di audit)
+      //   Jika tidak ada → cari broadcast_response_views row TERBARU untuk donor ini dengan status='notified'
+      let matchedBroadcastLogId = null;
+      let matchedViewId = null;
+
+      // Strategy 1: Cari di broadcast_response_views terbaru untuk user donor ini
+      const [viewRows] = await pool.query(`
+        SELECT id, broadcast_log_id FROM broadcast_response_views
+        WHERE donor_id = ?
+        ORDER BY created_at DESC
+        LIMIT 5
+      `, [userId]);
+      if (Array.isArray(viewRows) && viewRows.length > 0) {
+        matchedViewId = viewRows[0].id;
+        matchedBroadcastLogId = viewRows[0].broadcast_log_id;
+      }
+
+      // Strategy 2: jika ada notification_id, cari dari tabel notifications + cross-reference waktu
+      if (!matchedBroadcastLogId && notification_id) {
+        const [notifRows] = await pool.query(`
+          SELECT created_at FROM notifications WHERE id = ? AND user_id = ? LIMIT 1
+        `, [notification_id, userId]);
+        if (notifRows?.[0]?.created_at) {
+          const notifTime = notifRows[0].created_at;
+          // Cari broadcast log yang created_at WAKTU YANG SAMA / mendekati dengan notif ini
+          const [logRows] = await pool.query(`
+            SELECT id FROM broadcast_logs
+            WHERE ABS(TIMESTAMPDIFF(SECOND, created_at, ?)) <= 30
+            ORDER BY ABS(TIMESTAMPDIFF(SECOND, created_at, ?)) ASC
+            LIMIT 1
+          `, [notifTime, notifTime]);
+          if (logRows?.[0]?.id) {
+            matchedBroadcastLogId = logRows[0].id;
+          }
+        }
+      }
+
+      if (matchedBroadcastLogId) {
+        if (matchedViewId) {
+          // UPDATE existing row (karena step 9 di broadcast endpoint sudah insert dengan status='notified')
+          await pool.query(`
+            UPDATE broadcast_response_views
+            SET status = 'willing',
+                emergency_response_id = ?,
+                donor_name = COALESCE(?, donor_name),
+                donor_phone = COALESCE(?, donor_phone),
+                blood_type = COALESCE(?, blood_type),
+                donor_message = ?,
+                follow_up_status = 'new'
+            WHERE id = ?
+          `, [
+            id,
+            donorInfo.name,
+            donorInfo.phone,
+            profile.blood_type,
+            message || 'Saya bersedia donor',
+            matchedViewId
+          ]);
+        } else {
+          // INSERT new row (broadcast lama sebelum step 9 diimplementasikan)
+          await pool.query(`
+            INSERT INTO broadcast_response_views
+            (broadcast_log_id, emergency_response_id, donor_id, donor_name, donor_phone, blood_type, status, donor_message, follow_up_status, follow_up_notes)
+            VALUES (?, ?, ?, ?, ?, ?, 'willing', ?, 'new', NULL)
+          `, [
+            matchedBroadcastLogId,
+            id,
+            userId,
+            donorInfo.name,
+            donorInfo.phone,
+            profile.blood_type,
+            message || 'Saya bersedia donor'
+          ]);
+        }
+      }
+    } catch (e) {
+      // Optional sync: jangan gagalkan flow utama jika error
+      console.warn('[emergency-response] sync broadcast_view skipped:', e.message);
     }
 
     // Notifikasi konfirmasi ke donor

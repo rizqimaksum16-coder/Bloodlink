@@ -3,8 +3,9 @@ import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
   RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan, ShieldAlert, ScanLine,
-  Megaphone, Loader2, Send, Sparkles
+  Megaphone, Loader2, Send, Sparkles, Heart, Users, Phone, Calendar, Bell, Filter
 } from 'lucide-react';
+import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
 import { format, addDays, isPast, isToday, differenceInDays } from 'date-fns';
@@ -181,7 +182,7 @@ function TrackingBar({ order }: { order: BloodOrder }) {
 export default function HospitalDashboard() {
   const { user } = useAuth();
   const { registerAutoSave } = useAutoSave();
-  const [activeTab, setActiveTab] = useState<'overview'|'stock'|'order'|'report'|'ledger'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview'|'stock'|'order'|'report'|'ledger'|'broadcast'>('overview');
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
@@ -206,6 +207,24 @@ export default function HospitalDashboard() {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  // Field BARU untuk broadcast — SEMUA OPSIONAL, default aman (TIDAK MENGUBAH ALUR USER)
+  const [broadcastUrgency, setBroadcastUrgency] = useState<'' | 'routine' | 'urgent' | 'code-red'>(''); // kosong = pakai default backend
+  const [broadcastRadiusKm, setBroadcastRadiusKm] = useState<number | ''>(''); // '' = tanpa filter radius
+  const [broadcastCodeRedReason, setBroadcastCodeRedReason] = useState('');
+  // Koordinat broadcast: default dari user yang login jika ada
+  const [broadcastLat, setBroadcastLat] = useState<number | ''>((user as any)?.latitude || (user as any)?.lat || '');
+  const [broadcastLng, setBroadcastLng] = useState<number | ''>((user as any)?.longitude || (user as any)?.lng || '');
+  const [broadcastUseMyLocation, setBroadcastUseMyLocation] = useState<boolean>(Boolean((user as any)?.latitude || (user as any)?.lat));
+  // Preview donor: estimasi akurat dari backend eligibility query
+  const [previewDonor, setPreviewDonor] = useState<{eligible: number; registered_total: number; filtered_out: number}>({ eligible: 0, registered_total: 0, filtered_out: 0 });
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  // State BARU untuk Tab Riwayat Broadcast + Follow-up donor
+  const [broadcastLogs, setBroadcastLogs] = useState<any[]>([]);
+  const [isLoadingBroadcastLogs, setIsLoadingBroadcastLogs] = useState(false);
+  const [expandedBroadcastLog, setExpandedBroadcastLog] = useState<string | null>(null);
+  const [followupInputMap, setFollowupInputMap] = useState<Record<number|string, {status: string; notes: string}>>({});
+  const [isSubmittingFollowup, setIsSubmittingFollowup] = useState<number|string|null>(null);
 
   // ─── Helper untuk generate & process Laporan ────────────────────────────────
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -316,26 +335,126 @@ export default function HospitalDashboard() {
 
     setIsBroadcasting(true);
     try {
-      const result: any = await (api.notifications as any).broadcast({
+      // Siapkan payload: HANYA MASUKKAN field jika user ISI / TIDAK KOSONG
+      const payload: any = {
         blood_type: broadcastType,
         title: `🚨 Darurat Stok Darah ${broadcastType} (${orgName})`,
         message: finalMsg
-      });
+      };
+      if (broadcastUrgency) payload.urgency_level = broadcastUrgency;
+      if (broadcastRadiusKm !== '' && Number(broadcastRadiusKm) > 0) {
+        payload.radius_km = Number(broadcastRadiusKm);
+        if (broadcastUseMyLocation && broadcastLat !== '' && broadcastLng !== '') {
+          payload.lat = Number(broadcastLat);
+          payload.lng = Number(broadcastLng);
+        }
+      }
+      if (broadcastUrgency === 'code-red' && broadcastCodeRedReason.trim()) {
+        payload.reason = broadcastCodeRedReason.trim();
+      }
+
+      const result: any = await (api.notifications as any).broadcast(payload);
       setBroadcastSent(true);
       if (result.sent > 0) {
         toast.success(`Broadcast terkirim ke ${result.sent} donor golongan ${broadcastType}!`);
       } else {
         toast.info(result.message || `Tidak ada donor terdaftar dengan golongan ${broadcastType}.`);
       }
+      // Tampilkan rate limit warning jika ada
+      if (result?._compliance?.rate_limit_warning) {
+        setTimeout(() => toast.warning(result._compliance.rate_limit_warning), 800);
+      }
+      // Refresh logs otomatis setelah kirim broadcast (jika tab broadcast terbuka)
+      setTimeout(async () => {
+        if (activeTab === 'broadcast') {
+          try {
+            const logsRes: any = await api.notifications.listBroadcastLogs();
+            if (logsRes?.logs) setBroadcastLogs(Array.isArray(logsRes.logs) ? logsRes.logs : []);
+          } catch {}
+        }
+      }, 1500);
       setTimeout(() => {
         setBroadcastSent(false);
         setShowBroadcastModal(false);
         setBroadcastMsg('');
+        setBroadcastUrgency('');
+        setBroadcastRadiusKm('');
+        setBroadcastCodeRedReason('');
       }, 2500);
-    } catch {
-      toast.error('Gagal mengirim broadcast. Pastikan backend berjalan dan coba lagi.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal mengirim broadcast. Pastikan backend berjalan dan coba lagi.');
     } finally {
       setIsBroadcasting(false);
+    }
+  };
+
+  // ─── BARU: Effect load broadcast logs ketika activeTab === 'broadcast' ───
+  useEffect(() => {
+    if (activeTab !== 'broadcast') return;
+    let alive = true;
+    (async () => {
+      setIsLoadingBroadcastLogs(true);
+      try {
+        const res: any = await api.notifications.listBroadcastLogs();
+        if (alive) {
+          setBroadcastLogs(res?.logs && Array.isArray(res.logs) ? res.logs : []);
+        }
+      } catch {
+        if (alive) setBroadcastLogs([]);
+      } finally {
+        if (alive) setIsLoadingBroadcastLogs(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [activeTab]);
+
+  // ─── BARU: Effect preview donor estimasi akurat saat modal show + perubahan filter ───
+  useEffect(() => {
+    if (!showBroadcastModal) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoadingPreview(true);
+      try {
+        const payload: any = { blood_type: broadcastType };
+        if (broadcastRadiusKm !== '' && Number(broadcastRadiusKm) > 0 && broadcastUseMyLocation && broadcastLat !== '' && broadcastLng !== '') {
+          payload.radius_km = Number(broadcastRadiusKm);
+          payload.lat = Number(broadcastLat);
+          payload.lng = Number(broadcastLng);
+        }
+        const res: any = await api.notifications.broadcastPreview(payload);
+        if (!cancelled) setPreviewDonor({
+          eligible: Number(res?.eligible || 0),
+          registered_total: Number(res?.registered_total || 0),
+          filtered_out: Number(res?.filtered_out || 0)
+        });
+      } catch {
+        if (!cancelled) setPreviewDonor({ eligible: 0, registered_total: 0, filtered_out: 0 });
+      } finally {
+        if (!cancelled) setIsLoadingPreview(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showBroadcastModal, broadcastType, broadcastRadiusKm, broadcastUseMyLocation, broadcastLat, broadcastLng]);
+
+  // ─── BARU: Handler follow-up status donor di riwayat broadcast ───
+  const handleFollowupSubmit = async (viewId: number|string) => {
+    const input = followupInputMap[viewId] || { status: 'contacted', notes: '' };
+    if (!input.notes.trim() && input.status === 'contacted') {
+      toast.info('Isi catatan follow-up minimal 1 karakter');
+      return;
+    }
+    setIsSubmittingFollowup(viewId);
+    try {
+      await api.notifications.updateBroadcastResponseFollowup(viewId, input.status, input.notes.trim());
+      toast.success('Status follow-up diperbarui');
+      setFollowupInputMap(prev => { const n = {...prev}; delete n[viewId]; return n; });
+      // Refresh logs
+      const logsRes: any = await api.notifications.listBroadcastLogs();
+      if (logsRes?.logs) setBroadcastLogs(Array.isArray(logsRes.logs) ? logsRes.logs : []);
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal update follow-up');
+    } finally {
+      setIsSubmittingFollowup(null);
     }
   };
 
@@ -1638,6 +1757,7 @@ export default function HospitalDashboard() {
               { value: 'stock', label: 'Stok RS', icon: Package },
               { value: 'order', label: 'Riwayat Order', icon: FileText },
               { value: 'report', label: 'Laporan', icon: BarChart2 },
+              { value: 'broadcast', label: 'Broadcast', icon: Megaphone },
               { value: 'ledger', label: 'Riwayat Stok', icon: RefreshCw },
             ].map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="rounded-lg text-xs data-[state=active]:bg-[#2980B9] data-[state=active]:text-white flex items-center gap-1.5 py-2.5 px-4 font-bold transition-all">
@@ -1931,6 +2051,211 @@ export default function HospitalDashboard() {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          {/* TAB 6: BROADCAST DONOR & RIWAYAT TANGGAPAN */}
+          <TabsContent value="broadcast" className="w-full space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-border shadow-xs">
+              <div>
+                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Riwayat Broadcast & Tanggapan Donor</h3>
+                <p className="text-xs text-[#9B9BB5] mt-0.5">Pantau hasil setiap broadcast, donor yang bersedia, dan status follow-up</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={async () => {
+                  setIsLoadingBroadcastLogs(true);
+                  try { const res: any = await api.notifications.listBroadcastLogs(); setBroadcastLogs(res?.logs && Array.isArray(res.logs) ? res.logs : []); }
+                  catch {} finally { setIsLoadingBroadcastLogs(false); }
+                }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F4F4F8] text-xs font-semibold text-[#4A4A6A] hover:bg-[#E9E9F0] transition-colors">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBroadcastLogs ? 'animate-spin' : ''}`} /> Refresh
+                </button>
+                <button onClick={() => setShowBroadcastModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2980B9] text-white text-xs font-bold hover:bg-[#1F618D] transition-colors shadow-sm">
+                  <Megaphone className="w-3.5 h-3.5" /> Kirim Broadcast Baru
+                </button>
+              </div>
+            </div>
+
+            {isLoadingBroadcastLogs ? (
+              <div className="bg-white rounded-2xl border border-border p-10 text-center shadow-xs">
+                <Loader2 className="w-6 h-6 text-[#2980B9] animate-spin mx-auto" />
+                <p className="text-xs text-[#9B9BB5] mt-3">Memuat riwayat broadcast...</p>
+              </div>
+            ) : broadcastLogs.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-border p-10 text-center shadow-xs">
+                <Megaphone className="w-10 h-10 text-[#D0D3DD] mx-auto mb-3" />
+                <p className="text-sm font-semibold text-[#4A4A6A]">Belum ada riwayat broadcast</p>
+                <p className="text-xs text-[#9B9BB5] mt-1">Kirim broadcast pertama untuk memanggil donor yang membutuhkan</p>
+                <button onClick={() => setShowBroadcastModal(true)} className="mt-4 px-4 py-2 rounded-xl bg-[#2980B9] text-white text-xs font-bold hover:bg-[#1F618D] transition-colors inline-flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5" /> Mulai Broadcast Pertama
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {broadcastLogs.map((log: any) => {
+                  const isExpanded = expandedBroadcastLog === log.id;
+                  const respCount = Number(log.response_count ?? 0);
+                  const willingCount = Array.isArray(log.responses) ? log.responses.filter((r:any) => r.status === 'willing').length : respCount;
+                  const urgencyColor: Record<string, string> = {
+                    'routine': 'bg-blue-100 text-blue-700 border-blue-200',
+                    'urgent': 'bg-orange-100 text-orange-700 border-orange-200',
+                    'code-red': 'bg-red-100 text-red-700 border-red-200'
+                  };
+                  const urgencyLabel: Record<string, string> = {
+                    'routine': 'Rutin', 'urgent': 'Urgent', 'code-red': 'Code Red'
+                  };
+                  return (
+                    <div key={log.id} className="bg-white rounded-2xl border border-border shadow-xs overflow-hidden">
+                      {/* Header Broadcast Log */}
+                      <div className="p-4 cursor-pointer hover:bg-[#EBF5FB]/30 transition-colors" onClick={() => setExpandedBroadcastLog(isExpanded ? null : log.id)}>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-bold ${urgencyColor[log.urgency_level] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                {urgencyLabel[log.urgency_level] || log.urgency_level || 'Info'}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#2980B9]/10 text-[#2980B9] text-[10px] font-bold">
+                                Gol. {log.blood_type || 'Semua'}
+                              </span>
+                              {log.radius_km > 0 && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                                  <MapPin className="w-3 h-3 mr-0.5" /> {log.radius_km} KM
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="font-bold text-[#1A1A2E] text-sm mt-2">{log.title}</h4>
+                            <p className="text-xs text-[#4A4A6A] mt-0.5 line-clamp-2">{log.message}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[10px] text-[#9B9BB5] flex-wrap">
+                              <span className="inline-flex items-center gap-1">
+                                <Users className="w-3 h-3" /> Dikirim ke <b className="text-[#4A4A6A]">{log.donor_sent ?? 0}</b> / {log.donor_total_candidates ?? 0} donor
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3 text-green-600" /> Lolos eligibilitas <b className="text-[#4A4A6A]">{log.donor_eligibility_passed ?? 0}</b>
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Heart className="w-3 h-3 text-[#C0392B]" /> Menyatakan bersedia <b className="text-[#C0392B]">{willingCount}</b>
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-3 shrink-0">
+                            <div className="text-right">
+                              <p className="text-[10px] text-[#9B9BB5]">{log.org_name || log.broadcaster_name || '-'}</p>
+                              <p className="text-[10px] text-[#4A4A6A] font-semibold mt-0.5">{new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                              {respCount > 0 && (
+                                <Badge className="mt-1.5 !bg-[#2980B9] !text-white !text-[10px] !border-0">{respCount} tanggapan</Badge>
+                              )}
+                            </div>
+                            <ChevronDown className={`w-4 h-4 text-[#9B9BB5] transition-transform shrink-0 mt-1 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detail Tanggapan Donor (Expandable) */}
+                      {isExpanded && (
+                        <div className="border-t border-border bg-[#FAFAFC] p-4 space-y-3">
+                          {!Array.isArray(log.responses) || log.responses.length === 0 ? (
+                            <div className="py-6 text-center">
+                              <Users className="w-8 h-8 text-[#D0D3DD] mx-auto mb-2" />
+                              <p className="text-xs text-[#9B9BB5]">Belum ada donor yang menyatakan bersedia untuk broadcast ini</p>
+                              <p className="text-[10px] text-[#BFC3D0] mt-1">Donor akan muncul di sini setelah mereka klik "Saya bersedia donor" di notifikasi</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="text-[10px] text-[#9B9BB5] font-semibold px-1 uppercase tracking-wide">Daftar Donor yang Menyatakan Bersedia ({log.responses.length})</div>
+                              {log.responses.map((resp: any, idx: number) => {
+                                const rid = resp.id || `${log.id}-${idx}`;
+                                const statusColor: Record<string, string> = {
+                                  'new': 'bg-blue-50 text-blue-700 border-blue-200',
+                                  'contacted': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                                  'scheduled': 'bg-purple-50 text-purple-700 border-purple-200',
+                                  'arrived': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                  'completed': 'bg-green-100 text-green-700 border-green-200',
+                                  'cancelled': 'bg-gray-100 text-gray-600 border-gray-200'
+                                };
+                                const statusLabel: Record<string, string> = {
+                                  'new': 'Baru', 'contacted': 'Sudah Dihubungi', 'scheduled': 'Dijadwalkan',
+                                  'arrived': 'Sudah Datang', 'completed': 'Selesai Donor', 'cancelled': 'Batal'
+                                };
+                                const currentInput = followupInputMap[rid] || { status: resp.follow_up_status || 'contacted', notes: '' };
+                                const isMyResp = isSubmittingFollowup === rid;
+                                return (
+                                  <div key={rid} className="bg-white rounded-xl border border-border p-3 hover:border-[#2980B9]/30 transition-colors">
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <p className="font-bold text-[#1A1A2E] text-sm">{resp.donor_name || 'Donor #' + (idx+1)}</p>
+                                          {resp.blood_type && (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white" style={{background: (btColor as any)[resp.blood_type] || '#C0392B'}}>
+                                              {resp.blood_type}
+                                            </span>
+                                          )}
+                                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-semibold ${statusColor[resp.follow_up_status] || statusColor['new']}`}>
+                                            Follow-up: {statusLabel[resp.follow_up_status] || resp.follow_up_status || 'Baru'}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[#4A4A6A] flex-wrap">
+                                          {resp.donor_phone && (
+                                            <a href={`tel:${resp.donor_phone}`} className="inline-flex items-center gap-1 hover:text-[#2980B9] font-semibold">
+                                              <Phone className="w-3 h-3" /> {resp.donor_phone}
+                                            </a>
+                                          )}
+                                          {resp.created_at && (
+                                            <span className="inline-flex items-center gap-1 text-[#9B9BB5]">
+                                              <Clock className="w-3 h-3" /> {new Date(resp.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {resp.donor_message && (
+                                          <div className="mt-2 p-2 bg-[#F4F4F8] rounded-lg">
+                                            <p className="text-[11px] text-[#4A4A6A] italic">"{resp.donor_message}"</p>
+                                          </div>
+                                        )}
+                                        {resp.follow_up_notes && (
+                                          <div className="mt-2">
+                                            <p className="text-[10px] font-semibold text-[#9B9BB5] uppercase tracking-wide mb-1">Riwayat Catatan:</p>
+                                            <pre className="text-[10px] text-[#4A4A6A] bg-[#FFF8E1] border border-yellow-100 rounded-md p-2 whitespace-pre-wrap font-sans leading-relaxed">{resp.follow_up_notes}</pre>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Form Follow-up Input */}
+                                    <div className="mt-3 pt-3 border-t border-dashed border-border space-y-2">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <select
+                                          value={currentInput.status}
+                                          onChange={(e) => setFollowupInputMap(prev => ({...prev, [rid]: {...(prev[rid] || {notes:''}), status: e.target.value}}))}
+                                          className="col-span-1 px-2.5 py-1.5 rounded-lg border border-border text-[11px] focus:outline-none focus:border-[#2980B9] bg-white"
+                                        >
+                                          {Object.entries(statusLabel).map(([k, v]) => (
+                                            <option key={k} value={k}>{v}</option>
+                                          ))}
+                                        </select>
+                                        <input
+                                          type="text"
+                                          placeholder="Catatan follow-up (misal: sudah dihubungi, janji jam 10 besok)"
+                                          value={currentInput.notes}
+                                          onChange={(e) => setFollowupInputMap(prev => ({...prev, [rid]: {...(prev[rid] || {status:'contacted'}), notes: e.target.value}}))}
+                                          className="col-span-1 sm:col-span-1 px-2.5 py-1.5 rounded-lg border border-border text-[11px] focus:outline-none focus:border-[#2980B9]"
+                                        />
+                                        <button
+                                          onClick={() => handleFollowupSubmit(rid)}
+                                          disabled={isMyResp}
+                                          className="col-span-1 px-3 py-1.5 rounded-lg bg-[#1A1A2E] text-white text-[11px] font-bold hover:bg-[#2D2D44] disabled:opacity-60 transition-colors inline-flex items-center justify-center gap-1"
+                                        >
+                                          {isMyResp ? (<><Loader2 className="w-3 h-3 animate-spin" /> Menyimpan...</>) : (<><Save className="w-3 h-3" /> Simpan Follow-up</>)}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
@@ -2326,14 +2651,17 @@ export default function HospitalDashboard() {
 
       {/* ── Broadcast Modal ─────────────────────────────────── */}
       {showBroadcastModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border my-8">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-1">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#C0392B]/10 flex items-center justify-center">
-                  <Megaphone className="w-4 h-4 text-[#C0392B]" />
+                <div className="w-8 h-8 rounded-xl bg-[#2980B9]/10 flex items-center justify-center">
+                  <Megaphone className="w-4 h-4 text-[#2980B9]" />
                 </div>
-                <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Broadcast Donor Darurat</h3>
+                <div>
+                  <h3 className="font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Broadcast Donor Darurat</h3>
+                  <p className="text-[10px] text-[#9B9BB5] mt-0.5">Kirim ke donor yang lolos eligibility screening</p>
+                </div>
               </div>
               <button onClick={() => setShowBroadcastModal(false)} className="p-1.5 rounded-lg text-[#9B9BB5] hover:bg-[#F4F4F8] transition-colors">
                 <X className="w-4 h-4" />
@@ -2342,6 +2670,7 @@ export default function HospitalDashboard() {
 
             {/* Form Fields */}
             <div className="space-y-4">
+              {/* 1. Golongan Darah */}
               <div>
                 <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pilih Golongan Darah Target</label>
                 <div className="flex flex-wrap gap-1.5">
@@ -2355,32 +2684,156 @@ export default function HospitalDashboard() {
                 </div>
               </div>
 
+              {/* 2. Pesan Broadcast */}
               <div>
-                <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pesan Broadcast</label>
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">Pesan Broadcast <span className="text-[#9B9BB5] font-normal">(opsional)</span></label>
                 <textarea
                   rows={3}
                   value={broadcastMsg}
                   onChange={e => setBroadcastMsg(e.target.value)}
                   placeholder={`Halo, ${user?.org || 'Rumah Sakit'} membutuhkan donor darah golongan ${broadcastType} segera. Stok kami sangat terbatas. Harap mendonorkan darah Anda segera.`}
-                  className="w-full p-3 rounded-xl border border-border text-xs text-[#1A1A2E] focus:outline-none focus:border-[#C0392B] resize-none"
+                  className="w-full p-3 rounded-xl border border-border text-xs text-[#1A1A2E] focus:outline-none focus:border-[#2980B9] resize-none"
                 />
               </div>
 
-              <div className="bg-[#FDEDEC] rounded-xl p-3 flex items-start gap-2 border border-[#FADBD8]">
-                <AlertTriangle className="w-4 h-4 text-[#C0392B] shrink-0 mt-0.5" />
-                <p className="text-[11px] text-[#C0392B]">
-                  Notifikasi darurat akan langsung dikirim ke aplikasi seluruh pendonor terdaftar (<span className="font-bold">registered = 1</span>) dengan golongan darah yang sesuai.
-                </p>
+              {/* 3. Level Urgensi (OPSIONAL) */}
+              <div className="pt-3 border-t border-border/50">
+                <label className="text-xs font-semibold text-[#4A4A6A] block mb-2">
+                  Tingkat Urgensi <span className="text-[#9B9BB5] font-normal">(opsional, kosongkan = default Urgent)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { v: '', label: 'Default (Urgent)', sub: 'Auto approve RS', active: 'bg-[#2980B9] text-white border-[#2980B9]' },
+                    { v: 'routine', label: 'Rutin', sub: 'Stok menipis', color: 'text-blue-700 border-blue-200', active: 'bg-blue-600 text-white border-blue-600' },
+                    { v: 'urgent', label: 'Urgent', sub: 'Stok < 2 hari', color: 'text-orange-700 border-orange-200', active: 'bg-orange-500 text-white border-orange-500' },
+                    { v: 'code-red', label: 'Code Red', sub: 'Kedaruratan massal', color: 'text-red-700 border-red-200', active: 'bg-[#C0392B] text-white border-[#C0392B]' },
+                  ] as const).map(({v, label, sub, color, active}) => (
+                    <button key={v} onClick={() => setBroadcastUrgency(v)}
+                      className={`px-2 py-2 rounded-lg border text-[10px] font-bold transition-colors flex flex-col items-center gap-0.5 ${broadcastUrgency === v ? active : `bg-white ${color || 'text-[#4A4A6A] border-border'}`}`}>
+                      <span className="text-xs">{label}</span>
+                      <span className={`font-normal ${broadcastUrgency === v ? 'opacity-85' : 'text-[#9B9BB5]'}`}>{sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3b. Code Red Reason */}
+              {broadcastUrgency === 'code-red' && (
+                <div className="bg-[#FDEDEC] border border-[#F5B7B1] rounded-xl p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[#C0392B] shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-[#C0392B] leading-relaxed">Untuk level <b>Code Red</b> (kedokteran gawat darurat / bencana massal), <b>WAJIB</b> mengisi alasan minimal 10 karakter.</p>
+                  </div>
+                  <textarea
+                    value={broadcastCodeRedReason}
+                    onChange={e => setBroadcastCodeRedReason(e.target.value)}
+                    placeholder="Contoh: Kecelakaan massal Tol X membutuhkan 40 donor darah O+ untuk korban luka."
+                    rows={2}
+                    className="w-full p-2.5 rounded-lg border border-[#F5B7B1] text-[11px] bg-white focus:outline-none focus:border-[#C0392B] resize-none"
+                  />
+                </div>
+              )}
+
+              {/* 4. Radius Geo + Lokasi Saya (OPSIONAL) */}
+              <div className="pt-3 border-t border-border/50 space-y-3">
+                <label className="text-xs font-semibold text-[#4A4A6A] block">
+                  Filter Radius & Lokasi <span className="text-[#9B9BB5] font-normal">(opsional)</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-[#9B9BB5] block mb-1">Radius (KM)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={broadcastRadiusKm}
+                      onChange={e => setBroadcastRadiusKm(e.target.value === '' ? '' : Math.max(1, Math.min(500, Number(e.target.value) || 0)))}
+                      placeholder="(kosong = seluruh Indonesia)"
+                      className="w-full px-3 py-2 rounded-xl border border-border text-xs focus:outline-none focus:border-[#2980B9]"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none mt-5">
+                    <input
+                      type="checkbox"
+                      checked={broadcastUseMyLocation}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setBroadcastUseMyLocation(checked);
+                        if (checked) {
+                          const lat = (user as any)?.latitude || (user as any)?.lat;
+                          const lng = (user as any)?.longitude || (user as any)?.lng;
+                          if (lat) setBroadcastLat(Number(lat));
+                          if (lng) setBroadcastLng(Number(lng));
+                        }
+                      }}
+                      className="w-3.5 h-3.5 accent-[#2980B9]"
+                    />
+                    <span className="text-[11px] text-[#4A4A6A] font-semibold flex items-center gap-1">
+                      <MapPin className="w-3 h-3" /> Lokasi RS
+                    </span>
+                  </label>
+                </div>
+                {broadcastRadiusKm !== '' && broadcastUseMyLocation && ((broadcastLat === '' || broadcastLng === '') && !((user as any)?.latitude || (user as any)?.lat)) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="any"
+                      value={broadcastLat}
+                      onChange={e => setBroadcastLat(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="Latitude (contoh: -7.2678)"
+                      className="w-full px-3 py-2 rounded-xl border border-border text-[10px] focus:outline-none focus:border-[#2980B9]"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      value={broadcastLng}
+                      onChange={e => setBroadcastLng(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="Longitude (contoh: 112.7584)"
+                      className="w-full px-3 py-2 rounded-xl border border-border text-[10px] focus:outline-none focus:border-[#2980B9]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Estimasi Donor Eligible (AKURAT via backend preview) */}
+              <div className="bg-[#EBF5FB] rounded-xl p-3 space-y-1 border border-[#D4E6F1]">
+                <div className="flex items-center gap-2">
+                  {isLoadingPreview ? (
+                    <Loader2 className="w-4 h-4 text-[#2980B9] animate-spin shrink-0" />
+                  ) : (
+                    <Users className="w-4 h-4 text-[#2980B9] shrink-0" />
+                  )}
+                  <p className="text-xs text-[#2471A3]">
+                    {isLoadingPreview ? (
+                      <span>Menghitung donor eligible...</span>
+                    ) : (
+                      <>
+                        <span className="font-bold text-[13px]">{previewDonor.eligible} donor</span> <span className="font-semibold">lolos screening</span> gol. {broadcastType}
+                      </>
+                    )}
+                  </p>
+                </div>
+                {!isLoadingPreview && (previewDonor.registered_total > 0 || previewDonor.filtered_out > 0) && (
+                  <div className="flex items-center gap-3 text-[10px] text-[#1A5276] ml-6 flex-wrap">
+                    {previewDonor.registered_total > 0 && (
+                      <span>Total terdaftar: <b>{previewDonor.registered_total}</b></span>
+                    )}
+                    {previewDonor.filtered_out > 0 && (
+                      <span>Tidak lolos (recovery/BB/usia/spam): <b>{previewDonor.filtered_out}</b></span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-2 mt-1">
               <button onClick={() => setShowBroadcastModal(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-[#4A4A6A] hover:bg-[#F4F4F8] transition-colors">
                 Batal
               </button>
               <button onClick={handleBroadcast}
-                disabled={isBroadcasting || broadcastSent}
+                disabled={isBroadcasting || broadcastSent || (broadcastUrgency === 'code-red' && broadcastCodeRedReason.trim().length < 10)}
                 className="flex items-center gap-2 bg-[#C0392B] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#922B21] transition-colors disabled:opacity-50 shadow-md">
                 {broadcastSent ? (
                   <><CheckCircle className="w-4 h-4" /> Broadcast Terkirim!</>
@@ -2391,6 +2844,9 @@ export default function HospitalDashboard() {
                 )}
               </button>
             </div>
+            {broadcastUrgency === 'code-red' && broadcastCodeRedReason.trim().length < 10 && (
+              <p className="text-[10px] text-[#C0392B] text-center -mt-1">Alasan Code Red minimal 10 karakter (saat ini {broadcastCodeRedReason.trim().length})</p>
+            )}
           </div>
         </div>
       )}
