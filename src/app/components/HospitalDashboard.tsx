@@ -3,7 +3,7 @@ import {
   Droplets, MapPin, Clock, CheckCircle, AlertTriangle, Plus,
   Truck, FileText, Navigation, Package, X, Star, Zap, BarChart2,
   RefreshCw, Trash2, ChevronDown, Save, ArrowDownCircle, ArrowUpCircle, Printer, Scan, ShieldAlert, ScanLine,
-  Megaphone, Loader2, Send
+  Megaphone, Loader2, Send, Sparkles
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
@@ -181,7 +181,7 @@ function TrackingBar({ order }: { order: BloodOrder }) {
 export default function HospitalDashboard() {
   const { user } = useAuth();
   const { registerAutoSave } = useAutoSave();
-  const [activeTab, setActiveTab] = useState<'overview'|'stock'|'requests'|'ledger'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview'|'stock'|'order'|'report'|'ledger'>('overview');
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
@@ -206,6 +206,108 @@ export default function HospitalDashboard() {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  // ─── Helper untuk generate & process Laporan ────────────────────────────────
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+  const processReportData = (ledgerData: any[], range: typeof reportRange) => {
+    const now = new Date();
+    const rangeDays = range === '30hari' ? 30 : range === '90hari' ? 90 : range === '1tahun' ? 365 : 3650;
+    const startDate = new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+
+    const filtered = (Array.isArray(ledgerData) ? ledgerData : []).filter((e: any) => {
+      const t = e.recorded_at || e.created_at ? new Date(e.recorded_at || e.created_at) : new Date();
+      return t >= startDate && t <= now;
+    });
+
+    const totalIn = filtered.filter((e: any) => e.direction === 'in').reduce((s: number, e: any) => s + (Number(e.quantity) || 0), 0);
+    const totalOut = filtered.filter((e: any) => e.direction === 'out').reduce((s: number, e: any) => s + (Number(e.quantity) || 0), 0);
+
+    const perBlood: Record<string, number> = {};
+    filtered.filter((e: any) => e.direction === 'out').forEach((e: any) => {
+      perBlood[e.blood_type] = (perBlood[e.blood_type] || 0) + (Number(e.quantity) || 0);
+    });
+
+    const monthly: Record<string, number> = {};
+    filtered.filter((e: any) => e.direction === 'out').forEach((e: any) => {
+      const d = e.recorded_at || e.created_at ? new Date(e.recorded_at || e.created_at) : new Date();
+      const m = monthNames[d.getMonth()];
+      monthly[m] = (monthly[m] || 0) + (Number(e.quantity) || 0);
+    });
+
+    const totalExpired = filtered.filter((e: any) => {
+      const exp = e.exp_date ? new Date(e.exp_date) : null;
+      return exp && exp < now;
+    }).reduce((s: number, e: any) => s + (Number(e.quantity) || 0), 0);
+
+    const monthsCount = Object.keys(monthly).length || 1;
+    const avgMonthly = Math.round(totalOut / monthsCount);
+
+    let topUsed = '-';
+    const bloodEntries = Object.entries(perBlood);
+    if (bloodEntries.length > 0) {
+      topUsed = bloodEntries.reduce((a, b) => b[1] > a[1] ? b : a)[0];
+    }
+
+    let highestMonth = '-';
+    const mEntries = Object.entries(monthly);
+    if (mEntries.length > 0) {
+      highestMonth = mEntries.reduce((a, b) => b[1] > a[1] ? b : a)[0];
+    }
+
+    const nowMonth = now.getMonth();
+    const barHistory: { month: string; used: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const idx = (nowMonth - i + 12) % 12;
+      const mName = monthNames[idx];
+      barHistory.push({ month: mName, used: monthly[mName] || 0 });
+    }
+
+    return { totalIn, totalOut, totalExpired, avgMonthly, topUsed, highestMonth, perBlood, perMonthStats: monthly, barHistory };
+  };
+
+  const exportReportCSV = () => {
+    try {
+      const rows: string[] = [];
+      rows.push('=== LAPORAN STOK & PEMAKAIAN DARAH - ' + (user?.org || 'Rumah Sakit') + ' ===');
+      rows.push('Tanggal Export: ' + new Date().toLocaleString('id-ID'));
+      rows.push('Range: ' + (reportRange === '30hari' ? '30 Hari Terakhir' : reportRange === '90hari' ? '90 Hari Terakhir' : reportRange === '1tahun' ? '1 Tahun Terakhir' : 'Semua Data'));
+      rows.push('');
+      rows.push('RINGKASAN');
+      rows.push(`Total Stok Masuk,${reportSummary.totalIn} kantong`);
+      rows.push(`Total Terpakai (Keluar),${reportSummary.totalOut} kantong`);
+      rows.push(`Total Kadaluarsa,${reportSummary.totalExpired} kantong`);
+      rows.push(`Rata-rata Bulanan,${reportSummary.avgMonthly} kantong`);
+      rows.push(`Golongan Paling Banyak Terpakai,${reportSummary.topUsed}`);
+      rows.push(`Bulan Tertinggi,${reportSummary.highestMonth}`);
+      rows.push('');
+      rows.push('PEMAKAIAN PER GOLONGAN DARAH');
+      rows.push('Golongan Darah,Jumlah (kantong)');
+      Object.entries(usagePerBloodType).forEach(([bt, qty]) => { rows.push(`${bt},${qty}`); });
+      rows.push('');
+      rows.push('RIWAYAT DETAIL (LEDGER)');
+      rows.push('Tanggal,Arah Transaksi,Golongan Darah,Jumlah (ktg),Tgl Kadaluarsa,Keterangan,Dicatat Oleh');
+      ledger.forEach((e: any) => {
+        const d = e.recorded_at || e.created_at ? new Date(e.recorded_at || e.created_at).toLocaleDateString('id-ID') : '-';
+        const exp = e.exp_date ? new Date(e.exp_date).toLocaleDateString('id-ID') : '-';
+        const reason = (e.reason_detail || e.reason || '-').toString().replace(/,/g, ' ').replace(/\n/g, ' ');
+        rows.push(`${d},${e.direction === 'in' ? 'MASUK' : 'KELUAR'},${e.blood_type || '-'},${e.quantity || 0},${exp},${reason},${e.actor_name || e.operator_name || '-'}`);
+      });
+
+      const csv = '\ufeff' + rows.join('\n'); // BOM agar Excel baca UTF-8 benar
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan_Darah_${user?.org || 'RS'}_${format(new Date(), 'yyyyMMdd')}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Laporan berhasil diexport ke CSV!');
+    } catch (e: any) {
+      console.error('Export error:', e);
+      toast.error('Gagal export laporan: ' + (e.message || 'Terjadi kesalahan'));
+    }
+  };
 
   const handleBroadcast = async () => {
     const orgName = user?.org || user?.name || 'Rumah Sakit';
@@ -267,6 +369,12 @@ export default function HospitalDashboard() {
   ];
   const [bloodHistory, setBloodHistory] = useState<{ month: string; used: number }[]>(staticBloodHistory);
 
+  // State untuk Laporan Lengkap
+  const [reportRange, setReportRange] = useState<'30hari'|'90hari'|'1tahun'|'semua'>('90hari');
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [usagePerBloodType, setUsagePerBloodType] = useState<Record<string, number>>({});
+  const [reportSummary, setReportSummary] = useState({ totalIn: 0, totalOut: 0, totalExpired: 0, avgMonthly: 0, topUsed: '-', highestMonth: '-' });
+
   // Load data dari MySQL API
   useEffect(() => {
     if (!user) return;
@@ -316,13 +424,18 @@ export default function HospitalDashboard() {
         const mergedStocks = baseTypes.map(type => {
           const found = myStocks.find((s: any) => s.blood_type === type);
           const batches = bagsByType[type] || [];
+          // Hitung expiringSoon SECARA NYATA dari batches dalam 7 hari
+          const expSoonCount = batches.reduce((sum, b) => {
+            if (isExpiringSoon(b.expDate) && !isExpired(b.expDate)) return sum + b.qty;
+            return sum;
+          }, 0);
           if (found) {
             return {
               type: found.blood_type, stock: found.stock,
-              status: found.status as any, expiringSoon: 0, batches
+              status: found.status as any, expiringSoon: expSoonCount, batches
             };
           }
-          return { type, stock: 0, status: 'critical', expiringSoon: 0, batches };
+          return { type, stock: 0, status: 'critical', expiringSoon: expSoonCount, batches };
         });
         setStocks(mergedStocks);
 
@@ -1114,33 +1227,301 @@ export default function HospitalDashboard() {
     </div>
   );
 
-  const renderReportSection = () => (
-    <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
-      <div className="mb-4 pb-2 border-b border-border">
-        <h3 className="font-bold text-[#1A1A2E] text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          Laporan Pemakaian Darah
-        </h3>
-        <p className="text-xs text-[#9B9BB5] mt-0.5">Statistik penggunaan darah bulanan di {user?.org || 'Rumah Sakit A'}</p>
-      </div>
-
-      <div className="py-3">
-        <h4 className="font-bold text-[#1A1A2E] mb-5 text-xs uppercase tracking-wider text-[#4A4A6A]">Pemakaian Darah 2026 (Kantong)</h4>
-        <div className="flex items-end gap-3 h-36 border-b border-border pb-2 px-2">
-          {bloodHistory.map(d => {
-            const max = Math.max(...bloodHistory.map(h => h.used));
-            const pct = (d.used / max) * 100;
-            return (
-              <div key={d.month} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                <span className="text-[10px] font-bold text-[#1A1A2E]">{d.used}</span>
-                <div className="w-full rounded-t bg-gradient-to-t from-[#C0392B] to-[#E74C3C] transition-all duration-700 hover:opacity-85" style={{ height: `${pct}%`, minHeight: '6px' }} />
-                <span className="text-[10px] text-[#9B9BB5] font-semibold mt-1">{d.month}</span>
-              </div>
-            );
-          })}
+  const renderReportSection = () => {
+    const maxHistory = Math.max(1, ...bloodHistory.map(h => h.used));
+    const baseTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    const totalUsedPerBT = baseTypes.reduce((s: number, bt) => s + (usagePerBloodType[bt] || 0), 0) || 1;
+    return (
+      <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+        {/* Header */}
+        <div className="mb-5 pb-3 border-b border-border flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-[#1A1A2E] text-base flex items-center gap-1.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <BarChart2 className="w-4 h-4 text-[#2980B9]" />
+              Laporan Stok &amp; Pemakaian Darah
+            </h3>
+            <p className="text-xs text-[#9B9BB5] mt-0.5">Analisis stok darah real-time di {user?.org || 'Rumah Sakit Mitra'}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Range Filter */}
+            <div className="flex items-center gap-0.5 bg-[#F4F4F8] rounded-lg p-0.5">
+              {[
+                { v: '30hari', l: '30 Hari' },
+                { v: '90hari', l: '90 Hari' },
+                { v: '1tahun', l: '1 Tahun' },
+                { v: 'semua', l: 'Semua' }
+              ].map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => {
+                    setReportRange(opt.v as typeof reportRange);
+                    // Recalculate langsung
+                    const r = processReportData(ledger, opt.v as typeof reportRange);
+                    setReportSummary({
+                      totalIn: r.totalIn, totalOut: r.totalOut, totalExpired: r.totalExpired,
+                      avgMonthly: r.avgMonthly, topUsed: r.topUsed, highestMonth: r.highestMonth
+                    });
+                    setUsagePerBloodType(r.perBlood);
+                    setBloodHistory(r.barHistory);
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${reportRange === opt.v ? 'bg-white text-[#1A1A2E] shadow-xs' : 'text-[#9B9BB5] hover:text-[#4A4A6A]'}`}
+                >
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={async () => {
+                setIsLoadingReport(true);
+                try {
+                  const data = await api.stock.getLedger();
+                  const arr = Array.isArray(data) ? data : [];
+                  setLedger(arr);
+                  const r = processReportData(arr, reportRange);
+                  setReportSummary({
+                    totalIn: r.totalIn, totalOut: r.totalOut, totalExpired: r.totalExpired,
+                    avgMonthly: r.avgMonthly, topUsed: r.topUsed, highestMonth: r.highestMonth
+                  });
+                  setUsagePerBloodType(r.perBlood);
+                  setBloodHistory(r.barHistory);
+                  toast.success('Laporan direfresh!');
+                } catch (e) {
+                  toast.error('Gagal refresh laporan');
+                } finally {
+                  setIsLoadingReport(false);
+                }
+              }}
+              disabled={isLoadingReport}
+              className="bg-[#EAF7FB] hover:bg-[#D5EFF8] text-[#2980B9] font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 text-[10px] transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${isLoadingReport ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={exportReportCSV}
+              className="bg-[#C0392B] hover:bg-[#922B21] text-white font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 text-[10px] transition-all shadow-sm active:scale-95"
+            >
+              <FileText className="w-3 h-3" />
+              Export CSV
+            </button>
+          </div>
         </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          {[
+            { l: 'Total Masuk', v: reportSummary.totalIn, u: 'ktg', c: '#27AE60', bg: '#EAFAF1' },
+            { l: 'Total Terpakai', v: reportSummary.totalOut, u: 'ktg', c: '#C0392B', bg: '#FDEDEC' },
+            { l: 'Kadaluarsa', v: reportSummary.totalExpired, u: 'ktg', c: '#8E44AD', bg: '#F4EFFE' },
+            { l: 'Rata-rata / bln', v: reportSummary.avgMonthly, u: 'ktg', c: '#2980B9', bg: '#EAF7FB' },
+            { l: 'Gol Terbanyak', v: reportSummary.topUsed, u: '', c: '#E67E22', bg: '#FEF9E7' },
+            { l: 'Bulan Tertinggi', v: reportSummary.highestMonth, u: '', c: '#2E4053', bg: '#F4F4F8' },
+          ].map(s => (
+            <div key={s.l} className="rounded-xl border border-border p-3 bg-white" style={{ borderColor: s.bg }}>
+              <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: s.c }}>{s.l}</p>
+              <div className="flex items-end gap-0.5 mt-1">
+                <p className="text-xl font-extrabold leading-none" style={{ color: s.c, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.v}</p>
+                {s.u && <span className="text-[9px] font-bold mb-0.5" style={{ color: s.c }}>{s.u}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {isLoadingReport && ledger.length === 0 ? (
+          <div className="py-16 text-center">
+            <Loader2 className="w-8 h-8 text-[#2980B9] animate-spin mx-auto mb-3" />
+            <p className="text-sm font-bold text-[#1A1A2E]">Menghasilkan Laporan...</p>
+            <p className="text-xs text-[#9B9BB5] mt-0.5">Sedang memproses data stok &amp; ledger</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Bar Chart Utama */}
+            <div className="bg-gray-50/80 rounded-xl p-4 border border-border/60">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-[#1A1A2E] text-xs uppercase tracking-wider text-[#4A4A6A] flex items-center gap-1">
+                  📈 Pemakaian 6 Bulan Terakhir (Kantong)
+                </h4>
+                {totalUsedPerBT > 0 && (
+                  <span className="text-[10px] font-bold bg-white border border-border rounded-full px-2 py-0.5 text-[#9B9BB5]">
+                    Total: {reportSummary.totalOut} kantong
+                  </span>
+                )}
+              </div>
+              <div className="flex items-end gap-3 h-40 border-b border-border pb-2 px-2">
+                {bloodHistory.map(d => {
+                  const pct = (d.used / maxHistory) * 100;
+                  return (
+                    <div key={d.month} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
+                      <span className={`text-[10px] font-bold transition-opacity ${d.used > 0 ? 'text-[#1A1A2E] opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>{d.used}</span>
+                      <div
+                        className="w-full rounded-t-md transition-all duration-700 hover:opacity-85 relative"
+                        style={{
+                          height: `${Math.max(pct, d.used > 0 ? 6 : 2)}%`,
+                          background: pct >= 80
+                            ? 'linear-gradient(to top, #C0392B, #E74C3C)'
+                            : pct >= 50
+                            ? 'linear-gradient(to top, #E67E22, #F39C12)'
+                            : 'linear-gradient(to top, #27AE60, #58D68D)'
+                        }}
+                        title={`${d.month}: ${d.used} kantong`}
+                      />
+                      <span className="text-[10px] text-[#9B9BB5] font-semibold mt-1">{d.month}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2 Kolom: Per Golongan + Komposisi */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Per Golongan Darah */}
+              <div className="rounded-xl border border-border p-4 bg-white">
+                <h4 className="font-bold text-[#1A1A2E] text-xs uppercase tracking-wider text-[#4A4A6A] mb-4 flex items-center gap-1">
+                  🩸 Pemakaian Per Golongan Darah
+                </h4>
+                {totalUsedPerBT > 1 ? (
+                  <div className="space-y-2.5">
+                    {baseTypes.map(bt => {
+                      const used = usagePerBloodType[bt] || 0;
+                      const pct = Math.round((used / totalUsedPerBT) * 100);
+                      const hasUsage = used > 0;
+                      return (
+                        <div key={bt}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0"
+                                style={{ background: btColor[bt] || '#C0392B' }}
+                              >
+                                {bt}
+                              </div>
+                              <span className="text-[11px] font-bold text-[#1A1A2E]">Golongan {bt}</span>
+                            </div>
+                            <div className="text-right flex items-baseline gap-1">
+                              <span className={`text-sm font-extrabold ${hasUsage ? 'text-[#C0392B]' : 'text-[#9B9BB5]'}`}>{used}</span>
+                              <span className="text-[9px] text-[#9B9BB5] font-semibold">ktg · {pct}%</span>
+                            </div>
+                          </div>
+                          <div className="h-2 w-full bg-[#F4F4F8] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.max(pct, hasUsage ? 3 : 0)}%`,
+                                background: btColor[bt] || '#C0392B'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center bg-gray-50 rounded-xl border border-dashed border-border/80">
+                    <BarChart2 className="w-8 h-8 text-[#9B9BB5] mx-auto mb-2 opacity-60" />
+                    <p className="text-[11px] font-semibold text-[#4A4A6A]">Belum ada data pemakaian</p>
+                    <p className="text-[10px] text-[#9B9BB5] mt-0.5">
+                      Jalankan operasi stok (transaksi keluar) untuk melihat laporan.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Komposisi: Masuk vs Keluar vs Kadaluarsa */}
+              <div className="rounded-xl border border-border p-4 bg-white">
+                <h4 className="font-bold text-[#1A1A2E] text-xs uppercase tracking-wider text-[#4A4A6A] mb-4 flex items-center gap-1">
+                  📊 Komposisi Transaksi
+                </h4>
+                {reportSummary.totalIn + reportSummary.totalOut > 0 ? (
+                  <>
+                    <div className="space-y-3">
+                      {[
+                        { l: 'Stok Masuk (Penerimaan)', v: reportSummary.totalIn, c: '#27AE60', bg: '#EAFAF1', br: '#ABEBC6' },
+                        { l: 'Stok Keluar (Terpakai)', v: reportSummary.totalOut, c: '#C0392B', bg: '#FDEDEC', br: '#F5B7B1' },
+                        { l: 'Terbuang / Kadaluarsa', v: reportSummary.totalExpired, c: '#8E44AD', bg: '#F4EFFE', br: '#D7BDE2' },
+                      ].map(item => {
+                        const total = reportSummary.totalIn + reportSummary.totalOut + (reportSummary.totalExpired || 0) || 1;
+                        const pct = Math.round((item.v / total) * 100);
+                        return (
+                          <div key={item.l} className="rounded-lg border p-3" style={{ background: item.bg, borderColor: item.br }}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[11px] font-bold" style={{ color: item.c }}>{item.l}</span>
+                              <span className="text-[11px] font-extrabold" style={{ color: item.c }}>{item.v} ktg ({pct}%)</span>
+                            </div>
+                            <div className="h-2 w-full bg-white/70 rounded-full overflow-hidden border border-white">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: item.c }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 bg-[#2E4053] rounded-xl p-3 text-white flex items-center justify-between">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-white/70">Neraca Stok Saat Ini</p>
+                        <p className="text-lg font-extrabold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          {Math.max(0, reportSummary.totalIn - reportSummary.totalOut - reportSummary.totalExpired)}
+                          <span className="text-[10px] font-semibold ml-1 text-white/70">kantong tersisa</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-bold text-white/70">Total Stok RS</p>
+                        <p className="text-lg font-extrabold">{totalStock}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-8 text-center bg-gray-50 rounded-xl border border-dashed border-border/80">
+                    <Zap className="w-8 h-8 text-[#9B9BB5] mx-auto mb-2 opacity-60" />
+                    <p className="text-[11px] font-semibold text-[#4A4A6A]">Belum ada transaksi tercatat</p>
+                    <p className="text-[10px] text-[#9B9BB5] mt-0.5 leading-relaxed">
+                      Lakukan transaksi stok masuk (dari PMI) dan stok keluar (pemakaian) untuk melihat analisis komposisi.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Rekomendasi AI */}
+            {reportSummary.totalOut > 0 && (
+              <div className="bg-gradient-to-br from-[#EAF7FB] via-white to-[#FDEDEC] rounded-xl border border-[#8E44AD]/20 p-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-[#8E44AD]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4 text-[#8E44AD]" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="font-bold text-xs text-[#8E44AD] mb-1">💡 Rekomendasi AI Berdasar Laporan</h5>
+                    <ul className="space-y-1 text-[11px] text-[#4A4A6A] leading-relaxed">
+                      <li>
+                        • Rata-rata kebutuhan <strong>{reportSummary.avgMonthly} kantong/bulan</strong>.
+                        Disarankan menjaga <strong>stok safety 2x rata-rata = {reportSummary.avgMonthly * 2} kantong</strong> untuk mengantisipasi lonjakan.
+                      </li>
+                      {reportSummary.topUsed !== '-' && (
+                        <li>
+                          • Golongan <strong style={{ color: btColor[reportSummary.topUsed] || '#C0392B' }}>{reportSummary.topUsed}</strong> adalah yang paling sering terpakai.
+                          Prioritaskan re-stok rutin golongan ini dan perbesar target stok minimum.
+                        </li>
+                      )}
+                      {reportSummary.totalExpired > 0 && (
+                        <li>
+                          • Terdapat <strong className="text-[#C0392B]">{reportSummary.totalExpired} kantong kadaluarsa</strong>.
+                          Gunakan <strong>metode FIFO</strong> dan aktifkan notifikasi prediksi kadaluarsa di menu Stok RS.
+                        </li>
+                      )}
+                      {totalStock < reportSummary.avgMonthly * 2 && (
+                        <li>
+                          • <strong className="text-[#C0392B]">⚠️ Stok total ({totalStock} ktg) DI BAWAH safety level!</strong>
+                          Segera buat pesanan ke PMI melalui tab <em>Riwayat Order</em> atau klik tombol Buat Pesanan di Dashboard.
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderAlertsSection = () => {
     const expiringItems = stocks.filter(b => b.expiringSoon > 0);
@@ -1220,20 +1601,40 @@ export default function HospitalDashboard() {
 
         {/* Hybrid Navigation System (Tabs for filtering + default active 'all' overview) */}
         <Tabs value={activeTab} onValueChange={async (v) => {
-          setActiveTab(v as 'overview' | 'stock' | 'requests' | 'ledger');
-          if (v === 'ledger') {
-            // Hanya tampilkan loading spinner kalau belum ada data sama sekali
+          const newTab = v as typeof activeTab;
+          setActiveTab(newTab);
+
+          // Load ledger untuk tab ledger, report, dan overview (untuk kalkulasi report)
+          const needLedger = newTab === 'ledger' || newTab === 'report' || newTab === 'overview';
+          if (needLedger) {
             const isFirstLoad = ledger.length === 0;
             if (isFirstLoad) setIsLoadingLedger(true);
+            if (newTab === 'report') setIsLoadingReport(true);
             try {
               const data = await api.stock.getLedger();
-              setLedger(Array.isArray(data) ? data : []);
+              const ledgerArr = Array.isArray(data) ? data : [];
+              setLedger(ledgerArr);
+
+              // Otomatis proses laporan untuk tab report/overview
+              if (newTab === 'report' || newTab === 'overview') {
+                const r = processReportData(ledgerArr, reportRange);
+                setReportSummary({
+                  totalIn: r.totalIn, totalOut: r.totalOut, totalExpired: r.totalExpired,
+                  avgMonthly: r.avgMonthly, topUsed: r.topUsed, highestMonth: r.highestMonth
+                });
+                setUsagePerBloodType(r.perBlood);
+                setBloodHistory(r.barHistory);
+              }
             } catch { /* tabel belum ada sebelum migration dijalankan */ }
-            finally { if (isFirstLoad) setIsLoadingLedger(false); }
+            finally {
+              if (isFirstLoad) setIsLoadingLedger(false);
+              if (newTab === 'report') setIsLoadingReport(false);
+            }
           }
         }}>
           <TabsList className="bg-white border border-border rounded-xl p-1 mb-6 flex overflow-x-auto max-w-full gap-1 h-auto w-full sm:w-fit shadow-xs no-scrollbar flex-nowrap shrink-0">
             {[
+              { value: 'overview', label: 'Dashboard', icon: Zap },
               { value: 'stock', label: 'Stok RS', icon: Package },
               { value: 'order', label: 'Riwayat Order', icon: FileText },
               { value: 'report', label: 'Laporan', icon: BarChart2 },
@@ -1248,6 +1649,106 @@ export default function HospitalDashboard() {
 
 
 
+          {/* TAB 1: OVERVIEW / DASHBOARD UTAMA */}
+          <TabsContent value="overview" className="w-full space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 space-y-6">
+                {/* Ringkasan Pesanan Cepat */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Menunggu', cnt: orders.filter(o => o.status === 'menunggu').length, color: '#E67E22' },
+                    { label: 'Diproses', cnt: orders.filter(o => o.status === 'diproses').length, color: '#2980B9' },
+                    { label: 'Dikirim', cnt: orders.filter(o => o.status === 'dikirim' || o.status === 'tiba').length, color: '#8E44AD' },
+                    { label: 'Selesai', cnt: orders.filter(o => o.status === 'selesai').length, color: '#27AE60' },
+                  ].map(s => (
+                    <div key={s.label} className="bg-white border border-border rounded-xl p-3 shadow-xs">
+                      <p className="text-[10px] font-bold text-[#9B9BB5]">{s.label}</p>
+                      <p className="text-2xl font-extrabold mt-1" style={{ color: s.color }}>{s.cnt}</p>
+                    </div>
+                  ))}
+                </div>
+                {renderStockSection()}
+              </div>
+              <div className="space-y-5">
+                <div className="bg-white rounded-2xl border border-border p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
+                    <h4 className="font-bold text-[#1A1A2E] text-xs" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      📊 Ringkasan 6 Bulan Terakhir
+                    </h4>
+                    <button
+                      onClick={() => setActiveTab('report')}
+                      className="text-[10px] font-bold text-[#2980B9] hover:underline"
+                    >
+                      Detail →
+                    </button>
+                  </div>
+                  <div className="flex items-end gap-2 h-24 border-b border-border pb-1.5 px-1">
+                    {bloodHistory.map(d => {
+                      const max = Math.max(1, ...bloodHistory.map(h => h.used));
+                      const pct = (d.used / max) * 100;
+                      return (
+                        <div key={d.month} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                          <span className="text-[9px] font-bold text-[#4A4A6A]">{d.used}</span>
+                          <div className="w-full rounded-t bg-gradient-to-t from-[#C0392B] to-[#E74C3C]" style={{ height: `${Math.max(pct, 5)}%` }} />
+                          <span className="text-[9px] text-[#9B9BB5] font-semibold">{d.month}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div className="bg-[#EAFAF1] rounded-lg p-2">
+                      <p className="text-[9px] font-bold text-[#1E8449]">Rata-rata / bln</p>
+                      <p className="text-base font-extrabold text-[#1E8449]">{reportSummary.avgMonthly}<span className="text-[10px] font-medium ml-0.5 text-[#1E8449]/70">ktg</span></p>
+                    </div>
+                    <div className="bg-[#FDEDEC] rounded-lg p-2">
+                      <p className="text-[9px] font-bold text-[#C0392B]">Paling Banyak</p>
+                      <p className="text-base font-extrabold text-[#C0392B]">{reportSummary.topUsed}</p>
+                    </div>
+                  </div>
+                </div>
+                {renderAlertsSection()}
+                <div className="bg-gradient-to-br from-[#8E44AD] to-[#2980B9] rounded-2xl p-4 text-white shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4" />
+                    <h4 className="font-bold text-sm">Pesan Darah Sekarang</h4>
+                  </div>
+                  <p className="text-[11px] text-white/90 mb-3 leading-relaxed">
+                    Butuh stok darah darurat? AI akan mencocokkan dengan PMI terdekat yang punya stok cukup.
+                  </p>
+                  <button
+                    onClick={() => { setShowOrderForm(true); setOrderStep('form'); }}
+                    className="w-full bg-white text-[#8E44AD] font-bold text-xs py-2.5 rounded-xl hover:bg-white/95 transition-all active:scale-[0.98] shadow-sm"
+                  >
+                    📦 Buat Pesanan Darah
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2">
+                {renderOrderSection()}
+              </div>
+              <div>
+                {/* Quick Broadcast */}
+                <div className="bg-white rounded-2xl border border-border p-4 shadow-sm sticky top-4">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                    <Megaphone className="w-4 h-4 text-[#C0392B]" />
+                    <h4 className="font-bold text-[#1A1A2E] text-xs">Broadcast Darurat</h4>
+                  </div>
+                  <p className="text-[11px] text-[#9B9BB5] mb-3 leading-relaxed">
+                    Panggil pendonor aktif jika stok darah Anda hampir habis atau dibutuhkan segera.
+                  </p>
+                  <button
+                    onClick={() => setShowBroadcastModal(true)}
+                    className="w-full bg-[#C0392B] text-white text-xs font-bold py-2.5 rounded-xl hover:bg-[#922B21] transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    🚨 Mulai Broadcast
+                  </button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
           {/* TAB 2: ORDER ONLY */}
           <TabsContent value="order" className="w-full">
             {renderOrderSection()}
@@ -1259,7 +1760,7 @@ export default function HospitalDashboard() {
             {renderAlertsSection()}
           </TabsContent>
 
-          {/* TAB 4: REPORT ONLY */}
+          {/* TAB 4: REPORT FULL */}
           <TabsContent value="report" className="w-full">
             {renderReportSection()}
           </TabsContent>
