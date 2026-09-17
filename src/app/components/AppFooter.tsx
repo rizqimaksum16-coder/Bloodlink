@@ -99,7 +99,7 @@ export default function AppFooter() {
         <div className="border-t border-white/10 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-[#9B9BB5]">
             © 2026 One Blood!. Dibuat dengan{' '}
-            <Heart className="w-3 h-3 inline fill-[#C0392B] text-[#C0392B]" /> untuk Pulau Jawa.
+            <Heart className="w-3 h-3 inline fill-[#C0392B] text-[#C0392B]" /> untuk Seluruh Indonesia.
           </p>
           <div className="flex items-center gap-4 text-xs text-[#9B9BB5]">
             <button className="hover:text-white transition-colors">Kebijakan Privasi</button>

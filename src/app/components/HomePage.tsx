@@ -33,17 +33,17 @@ const defaultGlobalStats = [
 const heroConfigs = {
   pmi: {
     title: 'Operasional Palang Merah Indonesia',
-    desc: 'Pantau persediaan stok darah se-Pulau Jawa, kelola permintaan darurat Rumah Sakit Mitra, dan kelola armada distribusi kurir secara real-time.',
+    desc: 'Pantau persediaan stok darah se-Indonesia, kelola permintaan darurat Rumah Sakit Mitra, dan kelola armada distribusi kurir secara real-time.',
     primaryBtn: { label: 'Dashboard PMI', to: '/dashboard/pmi', icon: HeartPulse },
     secondaryBtn: { label: 'Update Stok Darah', to: '/add-stock', icon: Plus },
     stats: [
-      { value: 'Regional Jawa', label: 'Wilayah Layanan' },
+      { value: 'Nasional', label: 'Wilayah Layanan' },
       { value: '12 Kurir', label: 'Siaga Distribusi' },
       { value: '98%', label: 'Respons Rate Rata-rata' }
     ]
   },
   rs: {
-    title: 'Portal Rumah Sakit se-Jawa',
+    title: 'Portal Rumah Sakit Se-Indonesia',
     desc: 'Cek persediaan kantong darah Rumah Sakit Mitra lainnya, jalankan AI Matching untuk rekomendasi PMI terdekat, dan pantau pengiriman kurir secara langsung.',
     primaryBtn: { label: 'Cari & Matching Darah', to: '/search', icon: Search },
     secondaryBtn: { label: 'Dashboard RS', to: '/dashboard/rs', icon: Building2 },
@@ -71,12 +71,12 @@ const heroConfigs = {
     stats: [
       { value: '4 Tugas', label: 'Siaga Pengiriman' },
       { value: '98%', label: 'Kepatuhan Waktu' },
-      { value: 'Regional Jawa', label: 'Wilayah Layanan' }
+      { value: 'Nasional', label: 'Wilayah Layanan' }
     ]
   },
   superadmin: {
     title: 'Super Admin Pusat — One Blood!',
-    desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di wilayah Jawa, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
+    desc: 'Kelola seluruh akun PMI dan Rumah Sakit yang terdaftar di seluruh wilayah Indonesia, atur lokasi koordinat peta, dan pantau sebaran unit terintegrasi.',
     primaryBtn: { label: 'Super Admin Dashboard', to: '/dashboard/superadmin', icon: Shield },
     secondaryBtn: { label: 'Peta Lokasi Unit', to: '/dashboard/superadmin', icon: MapPin },
     stats: [
@@ -367,9 +367,9 @@ export default function HomePage() {
             <div>
               <p className="text-xs font-semibold text-[#C0392B] uppercase tracking-wider mb-1">Live Data</p>
               <h2 className="text-lg md:text-xl font-bold text-[#1A1A2E]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Ketersediaan Stok Darah se-Jawa {isOffline && <span className="text-sm font-normal text-orange-500">(Offline)</span>}
+                Ketersediaan Stok Darah Se-Indonesia {isOffline && <span className="text-sm font-normal text-orange-500">(Offline)</span>}
               </h2>
-              <p className="text-[#9B9BB5] text-xs">Akumulasi stok darah siaga di seluruh Rumah Sakit dan PMI Mitra di wilayah Jawa</p>
+              <p className="text-[#9B9BB5] text-xs">Akumulasi stok darah siaga di seluruh Rumah Sakit dan PMI Mitra di seluruh wilayah Indonesia</p>
             </div>
             <Link to="/search" className="flex items-center gap-1 text-xs font-bold text-[#C0392B] hover:gap-2 transition-all">
               Detail Stok & Lokasi <ArrowRight className="w-3.5 h-3.5" />
@@ -505,7 +505,7 @@ export default function HomePage() {
             Setiap Tetes Darah Adalah Kehidupan
           </h2>
           <p className="text-red-100 mb-7 text-xs leading-relaxed">
-            Bergabunglah dengan ekosistem digital donor darah cerdas di Pulau Jawa.
+            Bergabunglah dengan ekosistem digital donor darah cerdas di seluruh Indonesia.
           </p>
           <Link to="/events">
             <button className="flex items-center gap-2 mx-auto bg-white text-[#C0392B] px-7 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors shadow-md text-sm">
